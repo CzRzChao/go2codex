@@ -1,0 +1,770 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		A00000000000000000000001 /* Go2CodexApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000005 /* Go2CodexApp.swift */; };
+		A00000000000000000000002 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000006 /* SettingsView.swift */; };
+		A00000000000000000000003 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = B0000000000000000000000D /* Localizable.xcstrings */; };
+		A00000000000000000000004 /* LauncherMain.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000009 /* LauncherMain.swift */; };
+		A00000000000000000000005 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = B0000000000000000000000D /* Localizable.xcstrings */; };
+		A00000000000000000000006 /* InfoPlist.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = B0000000000000000000000C /* InfoPlist.xcstrings */; };
+		A00000000000000000000007 /* Go2CodexCoreInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000004 /* Go2CodexCoreInfo.swift */; };
+		A00000000000000000000008 /* Go2CodexCoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0000000000000000000000E /* Go2CodexCoreTests.swift */; };
+		A00000000000000000000009 /* libGo2CodexCore.a in Frameworks */ = {isa = PBXBuildFile; fileRef = B00000000000000000000022 /* libGo2CodexCore.a */; };
+		A0000000000000000000000A /* libGo2CodexCore.a in Frameworks */ = {isa = PBXBuildFile; fileRef = B00000000000000000000022 /* libGo2CodexCore.a */; };
+		A0000000000000000000000B /* libGo2CodexCore.a in Frameworks */ = {isa = PBXBuildFile; fileRef = B00000000000000000000022 /* libGo2CodexCore.a */; };
+		A0000000000000000000000C /* Go2CodexLauncher.app in Embed Launcher */ = {isa = PBXBuildFile; fileRef = B00000000000000000000021 /* Go2CodexLauncher.app */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		A0000000000000000000000D /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B0000000000000000000000F /* Assets.xcassets */; };
+		A0000000000000000000000E /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B0000000000000000000000F /* Assets.xcassets */; };
+		A0000000000000000000000F /* DomainModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000011 /* DomainModels.swift */; };
+		A00000000000000000000010 /* Preferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000012 /* Preferences.swift */; };
+		A00000000000000000000011 /* Handoff.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000013 /* Handoff.swift */; };
+		A00000000000000000000012 /* Diagnostics.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000014 /* Diagnostics.swift */; };
+		A00000000000000000000013 /* PlatformProtocols.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000015 /* PlatformProtocols.swift */; };
+		A00000000000000000000014 /* M3CoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000016 /* M3CoreTests.swift */; };
+		A00000000000000000000015 /* FinderToolbarCore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000017 /* FinderToolbarCore.swift */; };
+		A00000000000000000000016 /* FinderToolbarCoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000018 /* FinderToolbarCoreTests.swift */; };
+		A00000000000000000000017 /* FinderToolbarPlatform.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000024 /* FinderToolbarPlatform.swift */; };
+		A00000000000000000000018 /* LauncherRoutingCore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000025 /* LauncherRoutingCore.swift */; };
+		A00000000000000000000019 /* LauncherRoutingCoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000026 /* LauncherRoutingCoreTests.swift */; };
+		A0000000000000000000001A /* FinderToolbarPlatformPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000029 /* FinderToolbarPlatformPolicy.swift */; };
+		A0000000000000000000001B /* FinderToolbarPlatformPolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0000000000000000000002A /* FinderToolbarPlatformPolicyTests.swift */; };
+		A0000000000000000000001C /* SettingsModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0000000000000000000002B /* SettingsModel.swift */; };
+		A0000000000000000000001D /* SettingsModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0000000000000000000002B /* SettingsModel.swift */; };
+		A0000000000000000000001E /* SettingsModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0000000000000000000002C /* SettingsModelTests.swift */; };
+		A0000000000000000000001F /* DesktopTargetHandlerPolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0000000000000000000002D /* DesktopTargetHandlerPolicyTests.swift */; };
+		A11111111111111111111001 /* NativeAppleEvent.swift in Sources */ = {isa = PBXBuildFile; fileRef = B11111111111111111111001 /* NativeAppleEvent.swift */; };
+		A11111111111111111111002 /* NativeAppleEvent.swift in Sources */ = {isa = PBXBuildFile; fileRef = B11111111111111111111001 /* NativeAppleEvent.swift */; };
+		A11111111111111111111003 /* NativeAppleEventTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B11111111111111111111002 /* NativeAppleEventTests.swift */; };
+		A22222222222222222222001 /* LauncherWorkflow.swift in Sources */ = {isa = PBXBuildFile; fileRef = B22222222222222222222001 /* LauncherWorkflow.swift */; };
+		A22222222222222222222002 /* LauncherWorkflowTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B22222222222222222222002 /* LauncherWorkflowTests.swift */; };
+		A33333333333333333333001 /* SettingsPreferencesStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B33333333333333333333001 /* SettingsPreferencesStore.swift */; };
+		A33333333333333333333002 /* SettingsPreferencesStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B33333333333333333333001 /* SettingsPreferencesStore.swift */; };
+		A33333333333333333333003 /* SettingsPreferencesStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B33333333333333333333002 /* SettingsPreferencesStoreTests.swift */; };
+		A44444444444444444444001 /* FinderToolbarPlatformSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = B44444444444444444444001 /* FinderToolbarPlatformSupport.swift */; };
+		A44444444444444444444002 /* FinderToolbarPlatformSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = B44444444444444444444001 /* FinderToolbarPlatformSupport.swift */; };
+		A44444444444444444444003 /* FinderToolbarPlatformSupportTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B44444444444444444444002 /* FinderToolbarPlatformSupportTests.swift */; };
+		A55555555555555555555001 /* HandoffPlatform.swift in Sources */ = {isa = PBXBuildFile; fileRef = B55555555555555555555001 /* HandoffPlatform.swift */; };
+		A55555555555555555555002 /* HandoffPlatform.swift in Sources */ = {isa = PBXBuildFile; fileRef = B55555555555555555555001 /* HandoffPlatform.swift */; };
+		A55555555555555555555003 /* HandoffPlatformTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B55555555555555555555002 /* HandoffPlatformTests.swift */; };
+		A66666666666666666666001 /* FinderWorkspacePlatform.swift in Sources */ = {isa = PBXBuildFile; fileRef = B66666666666666666666001 /* FinderWorkspacePlatform.swift */; };
+		A66666666666666666666002 /* FinderWorkspacePlatform.swift in Sources */ = {isa = PBXBuildFile; fileRef = B66666666666666666666001 /* FinderWorkspacePlatform.swift */; };
+		A66666666666666666666003 /* FinderWorkspacePlatformTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B66666666666666666666002 /* FinderWorkspacePlatformTests.swift */; };
+		A77777777777777777777001 /* FinderToolbarPlatform.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000024 /* FinderToolbarPlatform.swift */; };
+		A77777777777777777777002 /* FinderToolbarPlatformIdentityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B77777777777777777777001 /* FinderToolbarPlatformIdentityTests.swift */; };
+		A88888888888888888888001 /* LauncherRuntime.swift in Sources */ = {isa = PBXBuildFile; fileRef = B88888888888888888888001 /* LauncherRuntime.swift */; };
+		A88888888888888888888002 /* LauncherRuntime.swift in Sources */ = {isa = PBXBuildFile; fileRef = B88888888888888888888001 /* LauncherRuntime.swift */; };
+		A88888888888888888888003 /* LauncherRuntimeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B88888888888888888888002 /* LauncherRuntimeTests.swift */; };
+		A90909090909090909090001 /* ITermHandoffScript.swift in Sources */ = {isa = PBXBuildFile; fileRef = B90909090909090909090001 /* ITermHandoffScript.swift */; };
+		A90909090909090909090002 /* ITermHandoffScript.swift in Sources */ = {isa = PBXBuildFile; fileRef = B90909090909090909090001 /* ITermHandoffScript.swift */; };
+		A90909090909090909090003 /* ITermHandoffScriptTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B90909090909090909090002 /* ITermHandoffScriptTests.swift */; };
+		A90909090909090909090004 /* ITermHandoff.scpt in Resources */ = {isa = PBXBuildFile; fileRef = B90909090909090909090004 /* ITermHandoff.scpt */; };
+		A90909090909090909090005 /* ITermHandoff.scpt in Resources */ = {isa = PBXBuildFile; fileRef = B90909090909090909090004 /* ITermHandoff.scpt */; };
+		A99999999999999999999001 /* InfoPlist.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = B0000000000000000000000C /* InfoPlist.xcstrings */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		F00000000000000000000001 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = E00000000000000000000000 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = E00000000000000000000003;
+			remoteInfo = Go2CodexCore;
+		};
+		F00000000000000000000002 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = E00000000000000000000000 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = E00000000000000000000002;
+			remoteInfo = Go2CodexLauncher;
+		};
+		F00000000000000000000003 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = E00000000000000000000000 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = E00000000000000000000003;
+			remoteInfo = Go2CodexCore;
+		};
+		F00000000000000000000004 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = E00000000000000000000000 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = E00000000000000000000003;
+			remoteInfo = Go2CodexCore;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		D00000000000000000000004 /* Embed Launcher */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = Contents/Applications;
+			dstSubfolderSpec = 1;
+			files = (
+				A0000000000000000000000C /* Go2CodexLauncher.app in Embed Launcher */,
+			);
+			name = "Embed Launcher";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXFileReference section */
+		B00000000000000000000001 /* Base.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Base.xcconfig; sourceTree = "<group>"; };
+		B00000000000000000000002 /* Debug.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Debug.xcconfig; sourceTree = "<group>"; };
+		B00000000000000000000003 /* Release.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Release.xcconfig; sourceTree = "<group>"; };
+		B00000000000000000000004 /* Go2CodexCoreInfo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Go2CodexCoreInfo.swift; sourceTree = "<group>"; };
+		B00000000000000000000005 /* Go2CodexApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Go2CodexApp.swift; sourceTree = "<group>"; };
+		B00000000000000000000006 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		B00000000000000000000007 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		B00000000000000000000008 /* Go2Codex.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Go2Codex.entitlements; sourceTree = "<group>"; };
+		B00000000000000000000009 /* LauncherMain.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LauncherMain.swift; sourceTree = "<group>"; };
+		B0000000000000000000000A /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		B0000000000000000000000B /* Go2CodexLauncher.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Go2CodexLauncher.entitlements; sourceTree = "<group>"; };
+		B0000000000000000000000C /* InfoPlist.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = InfoPlist.xcstrings; sourceTree = "<group>"; };
+		B0000000000000000000000D /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
+		B0000000000000000000000E /* Go2CodexCoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Go2CodexCoreTests.swift; sourceTree = "<group>"; };
+		B0000000000000000000000F /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		B00000000000000000000010 /* verify-app.sh */ = {isa = PBXFileReference; lastKnownFileType = text.script.sh; path = "verify-app.sh"; sourceTree = "<group>"; };
+		B00000000000000000000011 /* DomainModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DomainModels.swift; sourceTree = "<group>"; };
+		B00000000000000000000012 /* Preferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Preferences.swift; sourceTree = "<group>"; };
+		B00000000000000000000013 /* Handoff.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Handoff.swift; sourceTree = "<group>"; };
+		B00000000000000000000014 /* Diagnostics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Diagnostics.swift; sourceTree = "<group>"; };
+		B00000000000000000000015 /* PlatformProtocols.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlatformProtocols.swift; sourceTree = "<group>"; };
+		B00000000000000000000016 /* M3CoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = M3CoreTests.swift; sourceTree = "<group>"; };
+		B00000000000000000000017 /* FinderToolbarCore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FinderToolbarCore.swift; sourceTree = "<group>"; };
+		B00000000000000000000018 /* FinderToolbarCoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FinderToolbarCoreTests.swift; sourceTree = "<group>"; };
+		B00000000000000000000024 /* FinderToolbarPlatform.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FinderToolbarPlatform.swift; sourceTree = "<group>"; };
+		B00000000000000000000025 /* LauncherRoutingCore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LauncherRoutingCore.swift; sourceTree = "<group>"; };
+		B00000000000000000000026 /* LauncherRoutingCoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LauncherRoutingCoreTests.swift; sourceTree = "<group>"; };
+		B00000000000000000000027 /* test.sh */ = {isa = PBXFileReference; lastKnownFileType = text.script.sh; path = test.sh; sourceTree = "<group>"; };
+		B00000000000000000000028 /* build-personal.sh */ = {isa = PBXFileReference; lastKnownFileType = text.script.sh; path = "build-personal.sh"; sourceTree = "<group>"; };
+		B00000000000000000000029 /* FinderToolbarPlatformPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FinderToolbarPlatformPolicy.swift; sourceTree = "<group>"; };
+		B0000000000000000000002A /* FinderToolbarPlatformPolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FinderToolbarPlatformPolicyTests.swift; sourceTree = "<group>"; };
+		B0000000000000000000002B /* SettingsModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsModel.swift; sourceTree = "<group>"; };
+		B0000000000000000000002C /* SettingsModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsModelTests.swift; sourceTree = "<group>"; };
+		B0000000000000000000002D /* DesktopTargetHandlerPolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesktopTargetHandlerPolicyTests.swift; sourceTree = "<group>"; };
+		B11111111111111111111001 /* NativeAppleEvent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeAppleEvent.swift; sourceTree = "<group>"; };
+		B11111111111111111111002 /* NativeAppleEventTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeAppleEventTests.swift; sourceTree = "<group>"; };
+		B22222222222222222222001 /* LauncherWorkflow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LauncherWorkflow.swift; sourceTree = "<group>"; };
+		B22222222222222222222002 /* LauncherWorkflowTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LauncherWorkflowTests.swift; sourceTree = "<group>"; };
+		B33333333333333333333001 /* SettingsPreferencesStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsPreferencesStore.swift; sourceTree = "<group>"; };
+		B33333333333333333333002 /* SettingsPreferencesStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsPreferencesStoreTests.swift; sourceTree = "<group>"; };
+		B44444444444444444444001 /* FinderToolbarPlatformSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FinderToolbarPlatformSupport.swift; sourceTree = "<group>"; };
+		B44444444444444444444002 /* FinderToolbarPlatformSupportTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FinderToolbarPlatformSupportTests.swift; sourceTree = "<group>"; };
+		B55555555555555555555001 /* HandoffPlatform.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HandoffPlatform.swift; sourceTree = "<group>"; };
+		B55555555555555555555002 /* HandoffPlatformTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HandoffPlatformTests.swift; sourceTree = "<group>"; };
+		B66666666666666666666001 /* FinderWorkspacePlatform.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FinderWorkspacePlatform.swift; sourceTree = "<group>"; };
+		B66666666666666666666002 /* FinderWorkspacePlatformTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FinderWorkspacePlatformTests.swift; sourceTree = "<group>"; };
+		B77777777777777777777001 /* FinderToolbarPlatformIdentityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FinderToolbarPlatformIdentityTests.swift; sourceTree = "<group>"; };
+		B88888888888888888888001 /* LauncherRuntime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LauncherRuntime.swift; sourceTree = "<group>"; };
+		B88888888888888888888002 /* LauncherRuntimeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LauncherRuntimeTests.swift; sourceTree = "<group>"; };
+		B90909090909090909090001 /* ITermHandoffScript.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ITermHandoffScript.swift; sourceTree = "<group>"; };
+		B90909090909090909090002 /* ITermHandoffScriptTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ITermHandoffScriptTests.swift; sourceTree = "<group>"; };
+		B90909090909090909090003 /* ITermHandoff.applescript */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.applescript; path = ITermHandoff.applescript; sourceTree = "<group>"; };
+		B90909090909090909090004 /* ITermHandoff.scpt */ = {isa = PBXFileReference; lastKnownFileType = file; path = ITermHandoff.scpt; sourceTree = "<group>"; };
+		B00000000000000000000020 /* Go2Codex.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Go2Codex.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		B00000000000000000000021 /* Go2CodexLauncher.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Go2CodexLauncher.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		B00000000000000000000022 /* libGo2CodexCore.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = libGo2CodexCore.a; sourceTree = BUILT_PRODUCTS_DIR; };
+		B00000000000000000000023 /* Go2CodexTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = Go2CodexTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		D00000000000000000000002 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A00000000000000000000009 /* libGo2CodexCore.a in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		D00000000000000000000006 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A0000000000000000000000A /* libGo2CodexCore.a in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		D0000000000000000000000A /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A0000000000000000000000B /* libGo2CodexCore.a in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		C00000000000000000000001 = {
+			isa = PBXGroup;
+			children = (
+				C00000000000000000000002 /* Config */,
+				C00000000000000000000003 /* Sources */,
+				C0000000000000000000000B /* Tests */,
+				C0000000000000000000000E /* Scripts */,
+				C0000000000000000000000D /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		C00000000000000000000002 /* Config */ = {
+			isa = PBXGroup;
+			children = (
+				B00000000000000000000001 /* Base.xcconfig */,
+				B00000000000000000000002 /* Debug.xcconfig */,
+				B00000000000000000000003 /* Release.xcconfig */,
+			);
+			path = Config;
+			sourceTree = "<group>";
+		};
+		C00000000000000000000003 /* Sources */ = {
+			isa = PBXGroup;
+			children = (
+				C00000000000000000000004 /* Go2CodexCore */,
+				C00000000000000000000005 /* Go2CodexApp */,
+				C00000000000000000000007 /* Go2CodexLauncher */,
+				C00000000000000000000009 /* Shared */,
+			);
+			path = Sources;
+			sourceTree = "<group>";
+		};
+		C00000000000000000000004 /* Go2CodexCore */ = {
+			isa = PBXGroup;
+			children = (
+				B00000000000000000000004 /* Go2CodexCoreInfo.swift */,
+				B00000000000000000000011 /* DomainModels.swift */,
+				B00000000000000000000012 /* Preferences.swift */,
+				B00000000000000000000013 /* Handoff.swift */,
+				B00000000000000000000014 /* Diagnostics.swift */,
+				B00000000000000000000015 /* PlatformProtocols.swift */,
+				B00000000000000000000017 /* FinderToolbarCore.swift */,
+				B00000000000000000000029 /* FinderToolbarPlatformPolicy.swift */,
+				B00000000000000000000025 /* LauncherRoutingCore.swift */,
+				B22222222222222222222001 /* LauncherWorkflow.swift */,
+			);
+			path = Go2CodexCore;
+			sourceTree = "<group>";
+		};
+		C00000000000000000000005 /* Go2CodexApp */ = {
+			isa = PBXGroup;
+			children = (
+				B00000000000000000000005 /* Go2CodexApp.swift */,
+				B0000000000000000000002B /* SettingsModel.swift */,
+				B33333333333333333333001 /* SettingsPreferencesStore.swift */,
+				B00000000000000000000006 /* SettingsView.swift */,
+				B00000000000000000000024 /* FinderToolbarPlatform.swift */,
+				B44444444444444444444001 /* FinderToolbarPlatformSupport.swift */,
+				B00000000000000000000007 /* Info.plist */,
+				B00000000000000000000008 /* Go2Codex.entitlements */,
+			);
+			path = Go2CodexApp;
+			sourceTree = "<group>";
+		};
+		C00000000000000000000007 /* Go2CodexLauncher */ = {
+			isa = PBXGroup;
+			children = (
+				B00000000000000000000009 /* LauncherMain.swift */,
+				B88888888888888888888001 /* LauncherRuntime.swift */,
+				B11111111111111111111001 /* NativeAppleEvent.swift */,
+				B90909090909090909090001 /* ITermHandoffScript.swift */,
+				B66666666666666666666001 /* FinderWorkspacePlatform.swift */,
+				B55555555555555555555001 /* HandoffPlatform.swift */,
+				B0000000000000000000000A /* Info.plist */,
+				B0000000000000000000000B /* Go2CodexLauncher.entitlements */,
+				C00000000000000000000008 /* Resources */,
+			);
+			path = Go2CodexLauncher;
+			sourceTree = "<group>";
+		};
+		C00000000000000000000008 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				B0000000000000000000000C /* InfoPlist.xcstrings */,
+				B90909090909090909090003 /* ITermHandoff.applescript */,
+				B90909090909090909090004 /* ITermHandoff.scpt */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
+		C00000000000000000000009 /* Shared */ = {
+			isa = PBXGroup;
+			children = (
+				C0000000000000000000000A /* Resources */,
+			);
+			path = Shared;
+			sourceTree = "<group>";
+		};
+		C0000000000000000000000A /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				B0000000000000000000000F /* Assets.xcassets */,
+				B0000000000000000000000D /* Localizable.xcstrings */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
+		C0000000000000000000000B /* Tests */ = {
+			isa = PBXGroup;
+			children = (
+				C0000000000000000000000C /* Go2CodexTests */,
+			);
+			path = Tests;
+			sourceTree = "<group>";
+		};
+		C0000000000000000000000C /* Go2CodexTests */ = {
+			isa = PBXGroup;
+			children = (
+				B0000000000000000000000E /* Go2CodexCoreTests.swift */,
+				B00000000000000000000016 /* M3CoreTests.swift */,
+				B00000000000000000000018 /* FinderToolbarCoreTests.swift */,
+				B0000000000000000000002A /* FinderToolbarPlatformPolicyTests.swift */,
+				B0000000000000000000002C /* SettingsModelTests.swift */,
+				B33333333333333333333002 /* SettingsPreferencesStoreTests.swift */,
+				B0000000000000000000002D /* DesktopTargetHandlerPolicyTests.swift */,
+				B00000000000000000000026 /* LauncherRoutingCoreTests.swift */,
+				B11111111111111111111002 /* NativeAppleEventTests.swift */,
+				B90909090909090909090002 /* ITermHandoffScriptTests.swift */,
+				B66666666666666666666002 /* FinderWorkspacePlatformTests.swift */,
+				B22222222222222222222002 /* LauncherWorkflowTests.swift */,
+				B55555555555555555555002 /* HandoffPlatformTests.swift */,
+				B44444444444444444444002 /* FinderToolbarPlatformSupportTests.swift */,
+				B77777777777777777777001 /* FinderToolbarPlatformIdentityTests.swift */,
+				B88888888888888888888002 /* LauncherRuntimeTests.swift */,
+			);
+			path = Go2CodexTests;
+			sourceTree = "<group>";
+		};
+		C0000000000000000000000D /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				B00000000000000000000020 /* Go2Codex.app */,
+				B00000000000000000000021 /* Go2CodexLauncher.app */,
+				B00000000000000000000022 /* libGo2CodexCore.a */,
+				B00000000000000000000023 /* Go2CodexTests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		C0000000000000000000000E /* Scripts */ = {
+			isa = PBXGroup;
+			children = (
+				B00000000000000000000010 /* verify-app.sh */,
+				B00000000000000000000027 /* test.sh */,
+				B00000000000000000000028 /* build-personal.sh */,
+			);
+			path = Scripts;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		E00000000000000000000001 /* Go2Codex */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 600000000000000000000002 /* Build configuration list for PBXNativeTarget "Go2Codex" */;
+			buildPhases = (
+				D00000000000000000000001 /* Sources */,
+				D00000000000000000000002 /* Frameworks */,
+				D00000000000000000000003 /* Resources */,
+				D00000000000000000000004 /* Embed Launcher */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				F00000000000000000000011 /* PBXTargetDependency */,
+				F00000000000000000000012 /* PBXTargetDependency */,
+			);
+			name = Go2Codex;
+			productName = Go2Codex;
+			productReference = B00000000000000000000020 /* Go2Codex.app */;
+			productType = "com.apple.product-type.application";
+		};
+		E00000000000000000000002 /* Go2CodexLauncher */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 600000000000000000000003 /* Build configuration list for PBXNativeTarget "Go2CodexLauncher" */;
+			buildPhases = (
+				D00000000000000000000005 /* Sources */,
+				D00000000000000000000006 /* Frameworks */,
+				D00000000000000000000007 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				F00000000000000000000013 /* PBXTargetDependency */,
+			);
+			name = Go2CodexLauncher;
+			productName = Go2CodexLauncher;
+			productReference = B00000000000000000000021 /* Go2CodexLauncher.app */;
+			productType = "com.apple.product-type.application";
+		};
+		E00000000000000000000003 /* Go2CodexCore */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 600000000000000000000004 /* Build configuration list for PBXNativeTarget "Go2CodexCore" */;
+			buildPhases = (
+				D00000000000000000000008 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = Go2CodexCore;
+			productName = Go2CodexCore;
+			productReference = B00000000000000000000022 /* libGo2CodexCore.a */;
+			productType = "com.apple.product-type.library.static";
+		};
+		E00000000000000000000004 /* Go2CodexTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 600000000000000000000005 /* Build configuration list for PBXNativeTarget "Go2CodexTests" */;
+			buildPhases = (
+				D00000000000000000000009 /* Sources */,
+				D0000000000000000000000A /* Frameworks */,
+				D0000000000000000000000B /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				F00000000000000000000014 /* PBXTargetDependency */,
+			);
+			name = Go2CodexTests;
+			productName = Go2CodexTests;
+			productReference = B00000000000000000000023 /* Go2CodexTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		E00000000000000000000000 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1620;
+				LastUpgradeCheck = 1620;
+				TargetAttributes = {
+					E00000000000000000000001 = {CreatedOnToolsVersion = 16.2; };
+					E00000000000000000000002 = {CreatedOnToolsVersion = 16.2; };
+					E00000000000000000000003 = {CreatedOnToolsVersion = 16.2; };
+					E00000000000000000000004 = {CreatedOnToolsVersion = 16.2; };
+				};
+			};
+			buildConfigurationList = 600000000000000000000001 /* Build configuration list for PBXProject "Go2Codex" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+				"zh-Hans",
+			);
+			mainGroup = C00000000000000000000001;
+			productRefGroup = C0000000000000000000000D /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				E00000000000000000000001 /* Go2Codex */,
+				E00000000000000000000002 /* Go2CodexLauncher */,
+				E00000000000000000000003 /* Go2CodexCore */,
+				E00000000000000000000004 /* Go2CodexTests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		D00000000000000000000003 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A0000000000000000000000D /* Assets.xcassets in Resources */,
+				A00000000000000000000003 /* Localizable.xcstrings in Resources */,
+				A99999999999999999999001 /* InfoPlist.xcstrings in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		D00000000000000000000007 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A0000000000000000000000E /* Assets.xcassets in Resources */,
+				A00000000000000000000005 /* Localizable.xcstrings in Resources */,
+				A00000000000000000000006 /* InfoPlist.xcstrings in Resources */,
+				A90909090909090909090004 /* ITermHandoff.scpt in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		D0000000000000000000000B /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A90909090909090909090005 /* ITermHandoff.scpt in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		D00000000000000000000001 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A00000000000000000000001 /* Go2CodexApp.swift in Sources */,
+				A0000000000000000000001C /* SettingsModel.swift in Sources */,
+				A33333333333333333333001 /* SettingsPreferencesStore.swift in Sources */,
+				A00000000000000000000002 /* SettingsView.swift in Sources */,
+				A00000000000000000000017 /* FinderToolbarPlatform.swift in Sources */,
+				A44444444444444444444001 /* FinderToolbarPlatformSupport.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		D00000000000000000000005 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A00000000000000000000004 /* LauncherMain.swift in Sources */,
+				A88888888888888888888001 /* LauncherRuntime.swift in Sources */,
+				A11111111111111111111001 /* NativeAppleEvent.swift in Sources */,
+				A90909090909090909090001 /* ITermHandoffScript.swift in Sources */,
+				A66666666666666666666001 /* FinderWorkspacePlatform.swift in Sources */,
+				A55555555555555555555001 /* HandoffPlatform.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		D00000000000000000000008 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A00000000000000000000007 /* Go2CodexCoreInfo.swift in Sources */,
+				A0000000000000000000000F /* DomainModels.swift in Sources */,
+				A00000000000000000000010 /* Preferences.swift in Sources */,
+				A00000000000000000000011 /* Handoff.swift in Sources */,
+				A00000000000000000000012 /* Diagnostics.swift in Sources */,
+				A00000000000000000000013 /* PlatformProtocols.swift in Sources */,
+				A00000000000000000000015 /* FinderToolbarCore.swift in Sources */,
+				A0000000000000000000001A /* FinderToolbarPlatformPolicy.swift in Sources */,
+				A00000000000000000000018 /* LauncherRoutingCore.swift in Sources */,
+				A22222222222222222222001 /* LauncherWorkflow.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		D00000000000000000000009 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A00000000000000000000008 /* Go2CodexCoreTests.swift in Sources */,
+				A00000000000000000000014 /* M3CoreTests.swift in Sources */,
+				A00000000000000000000016 /* FinderToolbarCoreTests.swift in Sources */,
+				A0000000000000000000001B /* FinderToolbarPlatformPolicyTests.swift in Sources */,
+				A0000000000000000000001D /* SettingsModel.swift in Sources */,
+				A0000000000000000000001E /* SettingsModelTests.swift in Sources */,
+				A33333333333333333333002 /* SettingsPreferencesStore.swift in Sources */,
+				A33333333333333333333003 /* SettingsPreferencesStoreTests.swift in Sources */,
+				A0000000000000000000001F /* DesktopTargetHandlerPolicyTests.swift in Sources */,
+				A00000000000000000000019 /* LauncherRoutingCoreTests.swift in Sources */,
+				A11111111111111111111002 /* NativeAppleEvent.swift in Sources */,
+				A11111111111111111111003 /* NativeAppleEventTests.swift in Sources */,
+				A90909090909090909090002 /* ITermHandoffScript.swift in Sources */,
+				A90909090909090909090003 /* ITermHandoffScriptTests.swift in Sources */,
+				A66666666666666666666002 /* FinderWorkspacePlatform.swift in Sources */,
+				A66666666666666666666003 /* FinderWorkspacePlatformTests.swift in Sources */,
+				A55555555555555555555002 /* HandoffPlatform.swift in Sources */,
+				A55555555555555555555003 /* HandoffPlatformTests.swift in Sources */,
+				A22222222222222222222002 /* LauncherWorkflowTests.swift in Sources */,
+				A44444444444444444444002 /* FinderToolbarPlatformSupport.swift in Sources */,
+				A44444444444444444444003 /* FinderToolbarPlatformSupportTests.swift in Sources */,
+				A77777777777777777777001 /* FinderToolbarPlatform.swift in Sources */,
+				A77777777777777777777002 /* FinderToolbarPlatformIdentityTests.swift in Sources */,
+				A88888888888888888888002 /* LauncherRuntime.swift in Sources */,
+				A88888888888888888888003 /* LauncherRuntimeTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		F00000000000000000000011 /* PBXTargetDependency */ = {isa = PBXTargetDependency; target = E00000000000000000000003 /* Go2CodexCore */; targetProxy = F00000000000000000000001 /* PBXContainerItemProxy */; };
+		F00000000000000000000012 /* PBXTargetDependency */ = {isa = PBXTargetDependency; target = E00000000000000000000002 /* Go2CodexLauncher */; targetProxy = F00000000000000000000002 /* PBXContainerItemProxy */; };
+		F00000000000000000000013 /* PBXTargetDependency */ = {isa = PBXTargetDependency; target = E00000000000000000000003 /* Go2CodexCore */; targetProxy = F00000000000000000000003 /* PBXContainerItemProxy */; };
+		F00000000000000000000014 /* PBXTargetDependency */ = {isa = PBXTargetDependency; target = E00000000000000000000003 /* Go2CodexCore */; targetProxy = F00000000000000000000004 /* PBXContainerItemProxy */; };
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		100000000000000000000001 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = B00000000000000000000002 /* Debug.xcconfig */;
+			buildSettings = {
+				CLANG_ENABLE_OBJC_ARC = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+			};
+			name = Debug;
+		};
+		100000000000000000000002 /* Release */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = B00000000000000000000003 /* Release.xcconfig */;
+			buildSettings = {
+				CLANG_ENABLE_OBJC_ARC = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+			};
+			name = Release;
+		};
+		200000000000000000000001 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = Sources/Go2CodexApp/Go2Codex.entitlements;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Sources/Go2CodexApp/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
+				PRODUCT_BUNDLE_IDENTIFIER = "$(GO2CODEX_SETTINGS_BUNDLE_IDENTIFIER)";
+				PRODUCT_NAME = "$(GO2CODEX_SETTINGS_PRODUCT_NAME)";
+				SKIP_INSTALL = NO;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+			};
+			name = Debug;
+		};
+		200000000000000000000002 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = Sources/Go2CodexApp/Go2Codex.entitlements;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Sources/Go2CodexApp/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
+				PRODUCT_BUNDLE_IDENTIFIER = "$(GO2CODEX_SETTINGS_BUNDLE_IDENTIFIER)";
+				PRODUCT_NAME = "$(GO2CODEX_SETTINGS_PRODUCT_NAME)";
+				SKIP_INSTALL = NO;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+			};
+			name = Release;
+		};
+		300000000000000000000001 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = Sources/Go2CodexLauncher/Go2CodexLauncher.entitlements;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Sources/Go2CodexLauncher/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
+				PRODUCT_BUNDLE_IDENTIFIER = "$(GO2CODEX_LAUNCHER_BUNDLE_IDENTIFIER)";
+				PRODUCT_NAME = "$(GO2CODEX_LAUNCHER_PRODUCT_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+			};
+			name = Debug;
+		};
+		300000000000000000000002 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = Sources/Go2CodexLauncher/Go2CodexLauncher.entitlements;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Sources/Go2CodexLauncher/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
+				PRODUCT_BUNDLE_IDENTIFIER = "$(GO2CODEX_LAUNCHER_BUNDLE_IDENTIFIER)";
+				PRODUCT_NAME = "$(GO2CODEX_LAUNCHER_PRODUCT_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+			};
+			name = Release;
+		};
+		400000000000000000000001 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				DEFINES_MODULE = YES;
+				MACH_O_TYPE = staticlib;
+				PRODUCT_MODULE_NAME = Go2CodexCore;
+				PRODUCT_NAME = Go2CodexCore;
+				SKIP_INSTALL = YES;
+				SWIFT_INSTALL_OBJC_HEADER = NO;
+			};
+			name = Debug;
+		};
+		400000000000000000000002 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				DEFINES_MODULE = YES;
+				MACH_O_TYPE = staticlib;
+				PRODUCT_MODULE_NAME = Go2CodexCore;
+				PRODUCT_NAME = Go2CodexCore;
+				SKIP_INSTALL = YES;
+				SWIFT_INSTALL_OBJC_HEADER = NO;
+			};
+			name = Release;
+		};
+		500000000000000000000001 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ENABLE_TESTING_SEARCH_PATHS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = io.github.czrzchao.go2codex.tests;
+				PRODUCT_MODULE_NAME = Go2CodexTests;
+				PRODUCT_NAME = Go2CodexTests;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+			};
+			name = Debug;
+		};
+		500000000000000000000002 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ENABLE_TESTING_SEARCH_PATHS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = io.github.czrzchao.go2codex.tests;
+				PRODUCT_MODULE_NAME = Go2CodexTests;
+				PRODUCT_NAME = Go2CodexTests;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		600000000000000000000001 /* Build configuration list for PBXProject "Go2Codex" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				100000000000000000000001 /* Debug */,
+				100000000000000000000002 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		600000000000000000000002 /* Build configuration list for PBXNativeTarget "Go2Codex" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				200000000000000000000001 /* Debug */,
+				200000000000000000000002 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		600000000000000000000003 /* Build configuration list for PBXNativeTarget "Go2CodexLauncher" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				300000000000000000000001 /* Debug */,
+				300000000000000000000002 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		600000000000000000000004 /* Build configuration list for PBXNativeTarget "Go2CodexCore" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				400000000000000000000001 /* Debug */,
+				400000000000000000000002 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		600000000000000000000005 /* Build configuration list for PBXNativeTarget "Go2CodexTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				500000000000000000000001 /* Debug */,
+				500000000000000000000002 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = E00000000000000000000000 /* Project object */;
+}

@@ -1,0 +1,756 @@
+{
+  "sourceLanguage": "en",
+  "strings": {
+    "General": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "通用"
+          }
+        }
+      }
+    },
+    "Default Target": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "默认目标"
+          }
+        }
+      }
+    },
+    "Choose…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请选择…"
+          }
+        }
+      }
+    },
+    "Codex App": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Codex App"
+          }
+        }
+      }
+    },
+    "Codex CLI": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Codex CLI"
+          }
+        }
+      }
+    },
+    "Claude Desktop Code": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Claude Desktop Code"
+          }
+        }
+      }
+    },
+    "Claude Code CLI": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Claude Code CLI"
+          }
+        }
+      }
+    },
+    "Alternate Trigger": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "备用触发方式"
+          }
+        }
+      }
+    },
+    "Shift-click": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shift 点击"
+          }
+        }
+      }
+    },
+    "Disabled": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "关闭"
+          }
+        }
+      }
+    },
+    "CLI": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "CLI"
+          }
+        }
+      }
+    },
+    "Default Terminal Host": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "默认终端"
+          }
+        }
+      }
+    },
+    "Terminal": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Terminal"
+          }
+        }
+      }
+    },
+    "iTerm2": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "iTerm2"
+          }
+        }
+      }
+    },
+    "Session Placement": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "会话打开方式"
+          }
+        }
+      }
+    },
+    "New Tab": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新标签页"
+          }
+        }
+      }
+    },
+    "New Window": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新窗口"
+          }
+        }
+      }
+    },
+    "Finder Toolbar": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Finder 工具栏"
+          }
+        }
+      }
+    },
+    "Status": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "状态"
+          }
+        }
+      }
+    },
+    "Unavailable": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "不可用"
+          }
+        }
+      }
+    },
+    "Checking…": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在检查…"
+          }
+        }
+      }
+    },
+    "Installed": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已安装"
+          }
+        }
+      }
+    },
+    "Not Installed": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未安装"
+          }
+        }
+      }
+    },
+    "Needs Repair": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "需要修复"
+          }
+        }
+      }
+    },
+    "Manual Setup Required": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "需要手动设置"
+          }
+        }
+      }
+    },
+    "Settings could not be saved. Try again.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法保存设置，请重试。"
+          }
+        }
+      }
+    },
+    "Your choices are saved before Finder installation begins.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "开始安装到 Finder 前，会先保存你的选择。"
+          }
+        }
+      }
+    },
+    "Your choices are saved before manual Finder setup begins.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "开始手动设置 Finder 前，会先保存你的选择。"
+          }
+        }
+      }
+    },
+    "Complete Setup and Install in Finder": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "完成设置并安装到 Finder"
+          }
+        }
+      }
+    },
+    "Complete Setup and Show Manual Setup": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "完成设置并显示手动安装步骤"
+          }
+        }
+      }
+    },
+    "Choose a default target and terminal host to continue.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请选择默认目标和终端后继续。"
+          }
+        }
+      }
+    },
+    "Automatic Finder setup is unavailable. Use the manual Command-drag setup instead.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自动设置 Finder 当前不可用。请改用按住 Command 拖入的手动方式。"
+          }
+        }
+      }
+    },
+    "Finder toolbar setup could not be completed.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法完成 Finder 工具栏设置。"
+          }
+        }
+      }
+    },
+    "Install in Finder": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "安装到 Finder"
+          }
+        }
+      }
+    },
+    "Uninstall from Finder": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "从 Finder 卸载"
+          }
+        }
+      }
+    },
+    "Repair in Finder": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在 Finder 中修复"
+          }
+        }
+      }
+    },
+    "Show Manual Setup": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "显示手动安装步骤"
+          }
+        }
+      }
+    },
+    "Show Removal Instructions": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "显示手动移除步骤"
+          }
+        }
+      }
+    },
+    "Settings Need Attention": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "设置需要处理"
+          }
+        }
+      }
+    },
+    "Go2Codex couldn't read its saved settings. No launch action will run.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Go2Codex 无法读取已保存的设置，因此不会执行任何启动操作。"
+          }
+        }
+      }
+    },
+    "Open Automation Settings": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开“自动化”设置"
+          }
+        }
+      }
+    },
+    "Copy Diagnostics": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "复制诊断信息"
+          }
+        }
+      }
+    },
+    "Cancel": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "取消"
+          }
+        }
+      }
+    },
+    "OK": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "好"
+          }
+        }
+      }
+    },
+    "Option-click is reserved by Finder. Use Shift-click.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Option 点击已被 Finder 占用，请使用 Shift 点击。"
+          }
+        }
+      }
+    },
+    "Target Picker could not be shown": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法显示目标选择菜单"
+          }
+        }
+      }
+    },
+    "Try again and keep holding Shift until the menu is visible.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请重试，并持续按住 Shift，直到菜单稳定显示。"
+          }
+        }
+      }
+    },
+    "The original Finder folder is no longer available": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "原 Finder 文件夹已不可用"
+          }
+        }
+      }
+    },
+    "Finder is unavailable": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Finder 不可用"
+          }
+        }
+      }
+    },
+    "This Finder location cannot be opened": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法打开此 Finder 位置"
+          }
+        }
+      }
+    },
+    "This Finder view is not a folder": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "当前 Finder 位置不是实际文件夹"
+          }
+        }
+      }
+    },
+    "Open a regular folder in Finder, then try again. Smart folders such as Recents cannot be used as a workspace.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请先在 Finder 中打开一个普通文件夹再重试。“最近使用”等智能文件夹不能作为工作目录。"
+          }
+        }
+      }
+    },
+    "The Finder folder is not accessible": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法访问 Finder 中的文件夹"
+          }
+        }
+      }
+    },
+    "The selected target is unavailable": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "所选目标不可用"
+          }
+        }
+      }
+    },
+    "Go2Codex could not complete the handoff": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Go2Codex 无法完成交接"
+          }
+        }
+      }
+    },
+    "New Tab is not supported in Terminal": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Terminal 不支持安全的新建标签页"
+          }
+        }
+      }
+    },
+    "Choose New Window in Go2Codex Settings, or use iTerm2 for New Tab.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请在 Go2Codex 设置中选择“新窗口”，或使用 iTerm2 新建标签页。"
+          }
+        }
+      }
+    },
+    "Allow Go2Codex to control Finder in System Settings > Privacy & Security > Automation, then try again.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请在“系统设置”>“隐私与安全性”>“自动化”中允许 Go2Codex 控制 Finder，然后重试。"
+          }
+        }
+      }
+    },
+    "Allow Go2Codex to control Terminal in System Settings > Privacy & Security > Automation, then try again.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请在“系统设置”>“隐私与安全性”>“自动化”中允许 Go2Codex 控制 Terminal，然后重试。"
+          }
+        }
+      }
+    },
+    "Allow Go2Codex to control iTerm2 in System Settings > Privacy & Security > Automation, then try again.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请在“系统设置”>“隐私与安全性”>“自动化”中允许 Go2Codex 控制 iTerm2，然后重试。"
+          }
+        }
+      }
+    },
+    "No alternate target was used. You can copy sanitized diagnostics for troubleshooting.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未使用其他目标。你可以复制已脱敏的诊断信息来排查问题。"
+          }
+        }
+      }
+    },
+    "Open Automation Settings manually": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "手动打开“自动化”设置"
+          }
+        }
+      }
+    },
+    "Open System Settings, choose Privacy & Security, then Automation, and enable Go2Codex for Finder or your selected terminal.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开“系统设置”，选择“隐私与安全性”，再选择“自动化”，并允许 Go2Codex 控制 Finder 或你选择的终端。"
+          }
+        }
+      }
+    },
+    "Close Probe": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "关闭探针"
+          }
+        }
+      }
+    },
+    "Manual Finder Action Required": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "需要手动操作 Finder"
+          }
+        }
+      }
+    },
+    "Automatic Finder installation is unavailable. Go2Codex will not modify Finder preferences or restart Finder. Continue with manual setup?": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Finder 自动安装当前不可用。Go2Codex 不会修改 Finder 设置或重启 Finder。要继续手动设置吗？"
+          }
+        }
+      }
+    },
+    "Automatic Finder repair is unavailable. Go2Codex will not modify Finder preferences or restart Finder. Continue with manual setup?": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Finder 自动修复当前不可用。Go2Codex 不会修改 Finder 设置或重启 Finder。要继续手动设置吗？"
+          }
+        }
+      }
+    },
+    "Automatic Finder removal is unavailable. Go2Codex will not modify Finder preferences or restart Finder. Show the manual removal step?": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Finder 自动移除当前不可用。Go2Codex 不会修改 Finder 设置或重启 Finder。要显示手动移除步骤吗？"
+          }
+        }
+      }
+    },
+    "Continue Manually": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "继续手动操作"
+          }
+        }
+      }
+    },
+    "Manual Finder Setup": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "手动设置 Finder"
+          }
+        }
+      }
+    },
+    "In the Finder window, hold Command (⌘) and drag Go2Codex into the toolbar.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在 Finder 窗口中按住 Command (⌘)，将 Go2Codex 拖入工具栏。"
+          }
+        }
+      }
+    },
+    "Manual Finder Removal": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "手动从 Finder 移除"
+          }
+        }
+      }
+    },
+    "In Finder, hold Command (⌘) and drag the Go2Codex button out of the toolbar.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在 Finder 中按住 Command (⌘)，将 Go2Codex 按钮拖出工具栏。"
+          }
+        }
+      }
+    },
+    "Move Go2Codex to Applications": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "将 Go2Codex 移到应用程序文件夹"
+          }
+        }
+      }
+    },
+    "Before adding the Finder toolbar button, move Go2Codex to Applications or your user Applications folder, then open it again.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "添加 Finder 工具栏按钮前，请将 Go2Codex 移到“应用程序”或你的个人“应用程序”文件夹，然后重新打开。"
+          }
+        }
+      }
+    }
+  },
+  "version": "1.0"
+}

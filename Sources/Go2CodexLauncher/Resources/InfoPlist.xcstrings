@@ -1,0 +1,23 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "NSAppleEventsUsageDescription" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Go2Codex uses Automation to read the current Finder folder and open terminal sessions."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Go2Codex 使用自动化权限读取 Finder 当前文件夹并打开终端会话。"
+          }
+        }
+      }
+    }
+  },
+  "version" : "1.0"
+}
+
