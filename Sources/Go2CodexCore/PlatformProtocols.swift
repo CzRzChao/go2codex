@@ -117,7 +117,7 @@ public enum FinderWorkspaceError: Error, Equatable, Sendable, DiagnosticCodeProv
             .replyTimeout
         case -600:
             .finderUnavailable
-        case -1728:
+        case -1728, -1719:
             .objectUnavailable
         default:
             .appleEventFailure(status: status)
@@ -205,7 +205,7 @@ public enum TerminalHandoffError: Error, Equatable, Sendable, DiagnosticCodeProv
             .consentRequired(host)
         case -1712:
             .replyTimeout(host)
-        case -600:
+        case -600, -1719:
             .terminalUnavailable(host)
         default:
             .appleEventFailure(host, status: status)

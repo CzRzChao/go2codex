@@ -197,7 +197,7 @@ public enum DiagnosticSanitizer {
             )?.percentEncodedPath {
                 sensitiveValues.append(percentEncodedPath)
             }
-            for target in [AgentTarget.codexApp, .claudeDesktopCode] {
+            for target in AgentTargetCatalog.targets where target.kind == .desktop {
                 guard let desktopURL = try? DesktopURLBuilder.url(for: target, workspace: workspace),
                       let components = URLComponents(
                         url: desktopURL,
