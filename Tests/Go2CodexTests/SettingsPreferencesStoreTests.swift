@@ -281,6 +281,35 @@ struct SettingsPreferencesStoreTests {
     }
 
     @Test
+    func resetClearsCorruptEnvelopeAndReturnsToFirstRun() throws {
+        let backend = PreferencesUserDefaultsBackendFake(storedObject: "not-data")
+        let store = try makeStore(backend)
+
+        #expect(store.load() == .recoveryRequired(.corruptData))
+
+        try store.reset()
+
+        #expect(backend.storedObject == nil)
+        #expect(backend.removeCalls == 1)
+        #expect(store.load() == .firstRun)
+    }
+
+    @Test
+    func failedResetSynchronizationReportsWriteFailed() throws {
+        let backend = PreferencesUserDefaultsBackendFake(
+            storedObject: "not-data",
+            synchronizeResults: [false]
+        )
+        let store = try makeStore(backend)
+
+        let error: UserDefaultsPreferencesStoreError? = capturedError {
+            try store.reset()
+        }
+
+        #expect(error == .writeFailed)
+    }
+
+    @Test
     func synchronizationFailureRestoresAnAbsentEnvelope() throws {
         let backend = PreferencesUserDefaultsBackendFake(
             synchronizeResults: [false, true]

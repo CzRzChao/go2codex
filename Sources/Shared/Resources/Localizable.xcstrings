@@ -750,6 +750,36 @@
           }
         }
       }
+    },
+    "Reset Settings": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重置设置"
+          }
+        }
+      }
+    },
+    "Reset Settings?": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "要重置设置吗？"
+          }
+        }
+      }
+    },
+    "This clears your saved settings and starts setup again.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这会清除已保存的设置并重新开始设置。"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

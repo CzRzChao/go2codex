@@ -276,6 +276,46 @@ struct SettingsModelTests {
         #expect(preferences.changes.isEmpty)
     }
 
+    @Test
+    func resetToFirstRunClearsRecoveryAndReturnsToFirstRun() async {
+        let preferences = SettingsPreferencesFake(
+            state: .recoveryRequired(.corruptData)
+        )
+        let model = makeModel(preferences: preferences)
+
+        await model.loadIfNeeded()
+        #expect(model.phase == .recoveryRequired)
+
+        model.selectDefaultTarget(.codexApp)
+        model.selectDefaultTerminalHost(.iTerm2)
+
+        await model.resetToFirstRun()
+
+        #expect(preferences.resetCalls == 1)
+        #expect(model.phase == .firstRun)
+        #expect(model.defaultTarget == nil)
+        #expect(model.defaultTerminalHost == nil)
+        #expect(model.alternateTrigger == .shiftClick)
+        #expect(model.sessionPlacement == .newTab)
+        #expect(!model.hasSaveError)
+    }
+
+    @Test
+    func failedResetKeepsRecoveryAndFlagsSaveError() async {
+        let preferences = SettingsPreferencesFake(
+            state: .recoveryRequired(.storageReadFailed)
+        )
+        preferences.failReset = true
+        let model = makeModel(preferences: preferences)
+
+        await model.loadIfNeeded()
+        await model.resetToFirstRun()
+
+        #expect(preferences.resetCalls == 1)
+        #expect(model.phase == .recoveryRequired)
+        #expect(model.hasSaveError)
+    }
+
     private func makeModel(
         preferences: SettingsPreferencesFake,
         toolbar: ToolbarSettingsFake = ToolbarSettingsFake(),
@@ -308,6 +348,8 @@ private final class SettingsPreferencesFake: SettingsPreferencesServing {
     var failCompletion = false
     var failUpdates = false
     var writeThenFailCompletion = false
+    var failReset = false
+    var resetCalls = 0
 
     private let events: SettingsEventLog?
 
@@ -345,6 +387,14 @@ private final class SettingsPreferencesFake: SettingsPreferencesServing {
         let envelope = try PreferencesStateMachine.apply(change, to: state)
         state = .configured(envelope)
         return envelope
+    }
+
+    func reset() throws {
+        resetCalls += 1
+        if failReset {
+            throw PreferencesStoreError.writeFailed
+        }
+        state = .firstRun
     }
 }
 

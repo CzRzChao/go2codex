@@ -206,6 +206,13 @@ final class UserDefaultsPreferencesStore: SettingsPreferencesServing {
         return envelope
     }
 
+    func reset() throws {
+        guard restoreEnvelopeData(nil) else {
+            throw UserDefaultsPreferencesStoreError.writeFailed
+        }
+        storageIntegrityIsUncertain = false
+    }
+
     private func replaceEnvelopeDataSynchronously(with data: Data) throws {
         let previousObject = defaults.object(forKey: PreferencesStorageKey.envelope)
         guard previousObject == nil || previousObject is Data else {
@@ -285,6 +292,10 @@ final class UnavailableSettingsPreferencesService: SettingsPreferencesServing {
     }
 
     func update(_ change: PreferencesChange) throws -> PreferencesEnvelope {
+        throw PreferencesStoreError.writeFailed
+    }
+
+    func reset() throws {
         throw PreferencesStoreError.writeFailed
     }
 }
