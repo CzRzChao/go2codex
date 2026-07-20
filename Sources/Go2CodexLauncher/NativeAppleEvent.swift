@@ -123,8 +123,14 @@ enum NativeAppleEvent {
         return reply
     }
 
+    static let transportFailureStatus: Int32 = -10000
+
     static func mapTransportError(_ error: any Error) -> RawAppleEventError {
-        .status(Int32(clamping: (error as NSError).code))
+        let nsError = error as NSError
+        guard nsError.domain == NSOSStatusErrorDomain else {
+            return .status(transportFailureStatus)
+        }
+        return .status(Int32(clamping: nsError.code))
     }
 
     static var directObjectKeyword: UInt32 {

@@ -69,8 +69,11 @@ struct NativeAppleEventTests {
             NSError(domain: NSOSStatusErrorDomain, code: -1743)
         ) == .status(-1743))
         #expect(NativeAppleEvent.mapTransportError(
-            NSError(domain: "test", code: Int.max)
+            NSError(domain: NSOSStatusErrorDomain, code: Int.max)
         ) == .status(Int32.max))
+        #expect(NativeAppleEvent.mapTransportError(
+            NSError(domain: "test", code: -1743)
+        ) == .status(NativeAppleEvent.transportFailureStatus))
     }
 }
 
