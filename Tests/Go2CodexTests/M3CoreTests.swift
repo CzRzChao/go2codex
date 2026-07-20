@@ -698,9 +698,10 @@ struct M3DiagnosticsTests {
         let encoded = try #require(
             workspace.path.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed)
         )
-        let codexURL = try DesktopURLBuilder.url(for: .codexApp, workspace: workspace)
-        let claudeURL = try DesktopURLBuilder.url(for: .claudeDesktopCode, workspace: workspace)
-        let desktopURLs = [codexURL, claudeURL]
+        let desktopTargets = AgentTargetCatalog.targets.filter { $0.kind == .desktop }
+        let desktopURLs = try desktopTargets.map { target in
+            try DesktopURLBuilder.url(for: target, workspace: workspace)
+        }
         let queryValues = try desktopURLs.map { url in
             let components = try #require(URLComponents(url: url, resolvingAgainstBaseURL: false))
             let query = try #require(components.percentEncodedQuery)
@@ -713,9 +714,7 @@ struct M3DiagnosticsTests {
             POSIXShellQuoting.singleQuote(workspace.path),
             encoded,
             fileComponents.percentEncodedPath,
-            codexURL.absoluteString,
-            claudeURL.absoluteString,
-        ] + queryValues
+        ] + desktopURLs.map(\.absoluteString) + queryValues
         let detail = sensitiveValues.enumerated()
             .map { "value\($0.offset)=\($0.element)" }
             .joined(separator: " ")
@@ -787,6 +786,7 @@ struct M3DiagnosticsTests {
         #expect(FinderWorkspaceError.mapAppleEventStatus(-1712) == .replyTimeout)
         #expect(FinderWorkspaceError.mapAppleEventStatus(-600) == .finderUnavailable)
         #expect(FinderWorkspaceError.mapAppleEventStatus(-1728) == .objectUnavailable)
+        #expect(FinderWorkspaceError.mapAppleEventStatus(-1719) == .objectUnavailable)
         #expect(FinderWorkspaceError.mapAppleEventStatus(-999) == .appleEventFailure(status: -999))
 
         for host in TerminalHost.allCases {
@@ -794,6 +794,7 @@ struct M3DiagnosticsTests {
             #expect(TerminalHandoffError.mapAppleEventStatus(-1744, host: host) == .consentRequired(host))
             #expect(TerminalHandoffError.mapAppleEventStatus(-1712, host: host) == .replyTimeout(host))
             #expect(TerminalHandoffError.mapAppleEventStatus(-600, host: host) == .terminalUnavailable(host))
+            #expect(TerminalHandoffError.mapAppleEventStatus(-1719, host: host) == .terminalUnavailable(host))
             #expect(TerminalHandoffError.mapAppleEventStatus(-999, host: host) == .appleEventFailure(host, status: -999))
         }
     }
