@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "summaryKind": "sanitized_manual_experiment_summary",
+  "completedOn": "2026-07-18",
+  "environment": {
+    "macOSVersion": "14.6",
+    "macOSBuild": "23G80",
+    "finderVersion": "14.6",
+    "finderBundleVersion": "1632.6.3"
+  },
+  "originalToolbarSHA256": "f882519ae7ccf91a2033ed21c1b7a1a1bb1f601a5518037d53c486fedce79c84",
+  "rejectedLegacyCandidateSHA256": "fc9baf65596ec62a26e5c6ea8325aa583960d65ef36b3cfd397a881177c16b53",
+  "legacyNormalizedSHA256": "5b3fc7c1ea919aeaecd01b823ec5d54ba8fb7a43edc2fe25377d243e8083120f",
+  "validatedCandidateSHA256": "4b53ff338769cfd7380cf7e0a64187ed2b720c9176f06b63ec8a06aa92de746e",
+  "finderAliasEnrichedSHA256": "a5242e8c6850e8b3759170427d98e035698aca058246a20ef399fe9bd462ebc3",
+  "verifierBinaries": {
+    "exactOnlySHA256": "cadf8d36323c72366f1e0ca72a25c4f120627a223057b83ec229c3dec0a0225d",
+    "semanticSHA256": "e787d48a6406e855e335d1eb9d72f42f7f67a3f7db758fdd5ce6ce574484acd3"
+  },
+  "uiVerification": {
+    "buttonVisible": true,
+    "launcherSuccessDialogVisibleAfterClick": true,
+    "confirmedByUser": true
+  },
+  "recovery": {
+    "kind": "exact_recovery",
+    "diskMatchesLive": true,
+    "finalToolbarSHA256": "f882519ae7ccf91a2033ed21c1b7a1a1bb1f601a5518037d53c486fedce79c84",
+    "journalState": "restored_verified"
+  }
+}
