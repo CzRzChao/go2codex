@@ -252,14 +252,15 @@ struct TerminalOpenAdapter: TerminalHandoffPerforming {
         }
 
         let windowState: TerminalFrontWindowState
-        if placement == .newTab {
-            windowState = try frontWindowState(for: host)
-        } else if host == .terminal {
+        switch host {
+        case .terminal:
             windowState = applicationState.isRunning(
                 bundleIdentifier: host.bundleIdentifier
             ) ? .noWindow : .notRunning
-        } else {
-            windowState = .noWindow
+        case .iTerm2:
+            windowState = placement == .newTab
+                ? try frontWindowState(for: host)
+                : .noWindow
         }
         let placementPlan = TerminalPlacementPlanner.plan(
             for: host,
@@ -305,13 +306,16 @@ struct TerminalOpenAdapter: TerminalHandoffPerforming {
         }
 
         do {
-            _ = try eventSender.send(
+            let reply = try eventSender.send(
                 host == .iTerm2
                     ? try NativeAppleEvent.iTermCurrentWindowQuery()
                     : try NativeAppleEvent.frontWindowQuery(
                         bundleIdentifier: host.bundleIdentifier
                     )
             )
+            if host == .iTerm2 {
+                return iTermReplyHasWindow(reply) ? .hasWindow : .noWindow
+            }
             return .hasWindow
         } catch RawAppleEventError.status(-1728) {
             return .noWindow
@@ -323,6 +327,18 @@ struct TerminalOpenAdapter: TerminalHandoffPerforming {
                 host: host
             )
         }
+    }
+
+    private func iTermReplyHasWindow(
+        _ reply: NSAppleEventDescriptor
+    ) -> Bool {
+        guard let directObject = reply.paramDescriptor(
+            forKeyword: NativeAppleEvent.directObjectKeyword
+        ) else {
+            return false
+        }
+        return directObject.descriptorType
+            != NativeAppleEvent.missingValueDescriptorType
     }
 
     private func sendTerminal(

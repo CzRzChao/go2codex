@@ -131,6 +131,8 @@ enum NativeAppleEvent {
         Code.directObject
     }
 
+    static let missingValueDescriptorType: UInt32 = 0x6d736e67
+
     private static func frontWindowSpecifier() throws -> NSAppleEventDescriptor {
         try elementSpecifier(
             desiredClass: Code.window,

@@ -277,11 +277,9 @@ public enum TerminalPlacementPlanner {
         hasWindow: Bool
     ) -> TerminalPlacementPlan {
         switch (host, placement, hasWindow) {
-        case (.terminal, .newTab, true):
-            .unsupported(host: host, placement: placement)
         case (.iTerm2, .newTab, true):
             .createTabInFrontWindow
-        case (_, .newTab, false), (_, .newWindow, false), (_, .newWindow, true):
+        default:
             .createWindow
         }
     }
