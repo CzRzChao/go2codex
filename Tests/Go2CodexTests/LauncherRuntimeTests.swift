@@ -443,6 +443,21 @@ struct LauncherTargetPickerPanelFrameTests {
     }
 
     @Test
+    @MainActor
+    func panelSizeScalesWithTargetCountRatherThanBeingFixed() {
+        let expectedHeight = Double(
+            TargetPickerPanelSession.verticalInset * 2
+                + CGFloat(AgentTargetCatalog.targets.count)
+                * TargetPickerPanelSession.rowHeight
+        )
+        #expect(TargetPickerPanelSession.panelSize.y == expectedHeight)
+        #expect(
+            TargetPickerPanelSession.panelSize.x
+                == Double(TargetPickerPanelSession.panelWidth)
+        )
+    }
+
+    @Test
     func panelMovesAboveThePointerWhenBelowDoesNotFit() throws {
         let frame = try TargetPickerPanelFrameResolver.frame(
             near: ScreenPoint(x: 100, y: 50),
