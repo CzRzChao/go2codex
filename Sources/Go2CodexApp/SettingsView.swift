@@ -6,19 +6,6 @@ import OSLog
 import SwiftUI
 
 @MainActor
-final class SafeToolbarSettingsService: ToolbarSettingsServing {
-    let supportsAutomaticMutation = false
-
-    func currentStatus() async -> ToolbarSettingsStatus {
-        .manualSetupRequired
-    }
-
-    func perform(_ action: ToolbarSettingsAction) async -> ToolbarSettingsActionResult {
-        .status(.manualSetupRequired)
-    }
-}
-
-@MainActor
 final class LaunchServicesSettingsAvailabilityService: SettingsAvailabilityServing {
     func targetAvailability(
         _ target: AgentTarget,
@@ -86,6 +73,7 @@ struct SettingsRootView: View {
 
 struct SettingsView: View {
     @ObservedObject var model: SettingsModel
+    @State private var isConfirmingReset = false
 
     var body: some View {
         Form {
@@ -317,6 +305,21 @@ struct SettingsView: View {
             Text("Go2Codex couldn't read its saved settings. No launch action will run.")
                 .font(.footnote)
                 .foregroundStyle(.secondary)
+
+            Button("Reset Settings", role: .destructive) {
+                isConfirmingReset = true
+            }
+            .accessibilityIdentifier("settings-recovery-reset")
+            .alert("Reset Settings?", isPresented: $isConfirmingReset) {
+                Button("Cancel", role: .cancel) {}
+                Button("Reset Settings", role: .destructive) {
+                    Task {
+                        await model.resetToFirstRun()
+                    }
+                }
+            } message: {
+                Text("This clears your saved settings and starts setup again.")
+            }
         }
         .accessibilityIdentifier("settings-recovery")
     }

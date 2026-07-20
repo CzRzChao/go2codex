@@ -36,6 +36,7 @@ protocol SettingsPreferencesServing: AnyObject {
     func load() -> PreferencesLoadState
     func completeFirstRun(selection: FirstRunSelection) throws -> PreferencesEnvelope
     func update(_ change: PreferencesChange) throws -> PreferencesEnvelope
+    func reset() throws
 }
 
 @MainActor
@@ -189,6 +190,28 @@ final class SettingsModel: ObservableObject {
         }
 
         await executeToolbarAction(.install)
+    }
+
+    func resetToFirstRun() async {
+        guard phase == .recoveryRequired else {
+            return
+        }
+
+        do {
+            try preferences.reset()
+        } catch {
+            hasSaveError = true
+            logger.error("Settings could not be reset")
+            return
+        }
+
+        defaultTarget = nil
+        defaultTerminalHost = nil
+        alternateTrigger = .shiftClick
+        sessionPlacement = .newTab
+        hasSaveError = false
+        phase = .firstRun
+        refreshAvailability()
     }
 
     func refreshToolbarStatus() async {
