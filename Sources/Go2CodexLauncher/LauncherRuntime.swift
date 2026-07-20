@@ -504,7 +504,19 @@ typealias TargetPickerRemoveOutsideClickMonitor = @MainActor (Any) -> Void
 
 @MainActor
 final class TargetPickerPanelSession: NSObject {
-    static let panelSize = ScreenPoint(x: 240, y: 124)
+    static let rowHeight: CGFloat = 28
+    static let horizontalInset: CGFloat = 6
+    static let verticalInset: CGFloat = 6
+    static let panelWidth: CGFloat = 240
+    static var panelSize: ScreenPoint {
+        ScreenPoint(
+            x: Double(panelWidth),
+            y: Double(
+                verticalInset * 2
+                    + CGFloat(AgentTargetCatalog.targets.count) * rowHeight
+            )
+        )
+    }
 
     let panel: TargetPickerPanel
     let buttons: [NSButton]
@@ -580,9 +592,9 @@ final class TargetPickerPanelSession: NSObject {
         contentView.layer?.cornerRadius = 8
         contentView.layer?.masksToBounds = true
 
-        let rowHeight: CGFloat = 28
-        let horizontalInset: CGFloat = 6
-        let verticalInset: CGFloat = 6
+        let rowHeight = Self.rowHeight
+        let horizontalInset = Self.horizontalInset
+        let verticalInset = Self.verticalInset
         let buttons = plan.items.enumerated().map { index, item in
             let button = TargetPickerRowButton(
                 title: item.target.localizedPickerTitle,
