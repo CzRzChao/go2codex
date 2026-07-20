@@ -4,10 +4,7 @@
 
 Please report security issues **privately**. Do not open a public issue for a suspected vulnerability.
 
-- Preferred: open a **GitHub Security Advisory** (repository → **Security** → **Report a vulnerability**), which keeps the report private until a fix is ready.
-- Alternatively, contact the maintainer privately at `<TODO: maintainer contact email>`.
-
-<!-- TODO (maintainer): set the private contact email, or remove the line above and rely solely on GitHub Security Advisories. -->
+Open a **GitHub Security Advisory** (repository → **Security** → **Report a vulnerability**), which keeps the report private until a fix is ready.
 
 Please include the affected version, macOS version, and reproduction steps. You can expect an acknowledgement and, where applicable, a coordinated fix and disclosure.
 
