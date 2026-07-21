@@ -71,6 +71,48 @@ struct NativeAppleEventTests {
     }
 
     @Test
+    func iTermQuietLaunchUsesOneExactOpenDocumentURL() throws {
+        let sentinelURL = URL(
+            fileURLWithPath: "/Users/example/Library/Application Support/iTerm2/version.txt"
+        )
+        let event = NativeAppleEvent.iTermQuietLaunch(
+            sentinelURL: sentinelURL
+        )
+
+        #expect(event.eventClass == code("aevt"))
+        #expect(event.eventID == code("odoc"))
+        #expect(event.attributeDescriptor(forKeyword: code("addr")) == nil)
+        let directObject = try #require(event.paramDescriptor(
+            forKeyword: code("----")
+        ))
+        #expect(directObject.descriptorType == code("list"))
+        #expect(directObject.numberOfItems == 1)
+        let document = try #require(directObject.atIndex(1))
+        #expect(document.descriptorType == code("furl"))
+        #expect(document.fileURLValue == sentinelURL)
+    }
+
+    @Test
+    func iTermQuietLaunchDefaultUsesTheUserApplicationSupportSentinel() throws {
+        let applicationSupportURL = try #require(FileManager.default.urls(
+            for: .applicationSupportDirectory,
+            in: .userDomainMask
+        ).first)
+        let expectedURL = applicationSupportURL.appendingPathComponent(
+            "iTerm2/version.txt",
+            isDirectory: false
+        )
+
+        #expect(NativeAppleEvent.iTermQuietLaunchSentinelURL == expectedURL)
+        let event = NativeAppleEvent.iTermQuietLaunch()
+        let documents = try #require(event.paramDescriptor(
+            forKeyword: code("----")
+        ))
+        #expect(documents.numberOfItems == 1)
+        #expect(documents.atIndex(1)?.fileURLValue == expectedURL)
+    }
+
+    @Test
     func iTermCurrentWindowReplyAcceptsOnlyDeclaredWindowShapes() throws {
         let missingDirectObject = reply()
         #expect(NativeAppleEvent.classifyITermCurrentWindowReply(
