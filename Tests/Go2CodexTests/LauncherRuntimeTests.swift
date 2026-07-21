@@ -254,10 +254,9 @@ struct LauncherTargetPickerPanelTests {
         var outsideClick: TargetPickerOutsideClickHandler?
         let monitor = NSObject()
         var removedMonitors: [Any] = []
-        var session: TargetPickerPanelSession!
-        session = try makeSession(
-            runModal: { _ in
-                session.selectTarget(session.buttons[2])
+        let session = try makeSession(
+            runModal: { panel in
+                Self.clickPickerButton(tag: 2, in: panel)
                 outsideClick?()
                 return .stop
             },
@@ -281,12 +280,11 @@ struct LauncherTargetPickerPanelTests {
         var outsideClick: TargetPickerOutsideClickHandler?
         let monitor = NSObject()
         var removedMonitors: [Any] = []
-        var session: TargetPickerPanelSession!
-        session = try makeSession(
-            runModal: { _ in
+        let session = try makeSession(
+            runModal: { panel in
                 outsideClick?()
                 outsideClick?()
-                session.selectTarget(session.buttons[0])
+                Self.clickPickerButton(tag: 0, in: panel)
                 return .stop
             },
             stopModal: { stopCodes.append($0) },
@@ -308,11 +306,10 @@ struct LauncherTargetPickerPanelTests {
         var stopCodes: [NSApplication.ModalResponse] = []
         let monitor = NSObject()
         var removedMonitors: [Any] = []
-        var session: TargetPickerPanelSession!
-        session = try makeSession(
-            runModal: { _ in
-                session.panel.keyDown(with: escapeKeyEvent())
-                session.panel.keyDown(with: escapeKeyEvent())
+        let session = try makeSession(
+            runModal: { panel in
+                panel.keyDown(with: escapeKeyEvent())
+                panel.keyDown(with: escapeKeyEvent())
                 return .stop
             },
             stopModal: { stopCodes.append($0) },
@@ -328,10 +325,9 @@ struct LauncherTargetPickerPanelTests {
 
     @Test
     func missingOutsideClickMonitorStillAllowsSelection() throws {
-        var session: TargetPickerPanelSession!
-        session = try makeSession(
-            runModal: { _ in
-                session.selectTarget(session.buttons[0])
+        let session = try makeSession(
+            runModal: { panel in
+                Self.clickPickerButton(tag: 0, in: panel)
                 return .stop
             },
             installOutsideClickMonitor: { _ in nil }
@@ -399,6 +395,15 @@ struct LauncherTargetPickerPanelTests {
             installOutsideClickMonitor: installOutsideClickMonitor,
             removeOutsideClickMonitor: removeOutsideClickMonitor
         )
+    }
+
+    private static func clickPickerButton(tag: Int, in panel: NSWindow) {
+        let buttons = panel.contentView?.subviews.compactMap { $0 as? NSButton } ?? []
+        guard let button = buttons.first(where: { $0.tag == tag }) else {
+            Issue.record("Expected picker button with tag \(tag)")
+            return
+        }
+        button.performClick(nil)
     }
 
     private func escapeKeyEvent() -> NSEvent {

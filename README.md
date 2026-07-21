@@ -4,10 +4,6 @@ Hand the folder you are looking at in Finder to a Codex or Claude coding agent, 
 
 Go2Codex adds a single button to the Finder toolbar. Click it and Go2Codex takes the exact folder shown by the frontmost Finder window (the **Workspace**) and opens it in your preferred coding agent — either a desktop app (via its URL scheme) or a CLI (by running `cd <folder> && codex` or `cd <folder> && claude` in your terminal).
 
-<!-- TODO: screenshot — Finder toolbar with the Go2Codex button -->
-<!-- TODO: demo GIF — click button, agent opens on the current folder -->
-<!-- TODO: screenshot — Settings window (General / CLI / Finder Toolbar) -->
-
 ## Requirements
 
 - **Apple Silicon** Mac (no Intel or Universal build is shipped).
@@ -18,6 +14,21 @@ Go2Codex adds a single button to the Finder toolbar. Click it and Go2Codex takes
 - A supported terminal for CLI targets: **Terminal.app** or **iTerm2**.
 
 Go2Codex does not install or bundle any agent. It only launches agents you already have.
+
+## Download
+
+Download the latest build from [GitHub Releases](https://github.com/CzRzChao/go2codex/releases). Until a Developer ID is available, published builds are explicitly marked as **unsigned previews** and use names such as:
+
+- `Go2Codex-0.1.0-preview.1-macos-arm64.zip`
+- `Go2Codex-0.1.0-preview.1-macos-arm64.zip.sha256`
+
+Download both files into the same directory and verify the archive before extracting it:
+
+```sh
+shasum -a 256 -c Go2Codex-0.1.0-preview.1-macos-arm64.zip.sha256
+```
+
+Then extract the ZIP and move `Go2Codex.app` into `/Applications` or `~/Applications`. Preview updates are manual: download and verify the newer archive, quit Go2Codex, and replace the existing app. Because each preview is ad-hoc signed, macOS may ask you to grant Finder, Terminal, or iTerm Automation access again after an update; review the prompts and the Go2Codex entry under **System Settings** → **Privacy & Security** → **Automation**.
 
 ## Supported matrix
 
@@ -37,18 +48,15 @@ The **Workspace** is always the exact folder of the frontmost Finder window. Sel
 
 ## Gatekeeper (important)
 
-The Personal builds published here are **not yet Developer ID signed or notarized**. macOS Gatekeeper will block the first launch of a build downloaded from GitHub with a warning that it "cannot be opened."
+GitHub preview builds are ad-hoc signed but **not Developer ID signed or notarized**. macOS Gatekeeper will block their first launch because Apple cannot verify the developer or scan result.
 
-To open it anyway, use one of:
+Only continue if you trust this repository and the downloaded SHA-256 matches the published checksum. After the first blocked launch:
 
-- **Finder:** right-click (Control-click) `Go2Codex.app` → **Open** → confirm **Open** in the dialog. You only need to do this once.
-- **Terminal:** remove the quarantine attribute, then open normally:
+1. Open **System Settings** → **Privacy & Security**.
+2. Scroll to **Security** and choose **Open Anyway** for Go2Codex.
+3. Authenticate and confirm **Open**. macOS saves this choice as an exception for that app build.
 
-  ```sh
-  xattr -dr com.apple.quarantine /path/to/Go2Codex.app
-  ```
-
-This is a temporary state. A future Public Release will be signed with a Developer ID Application certificate and notarized by Apple, so this step will no longer be needed. See [ADR 0003](docs/adr/0003-distribute-outside-the-mac-app-store.md).
+The override might be unavailable on an organization-managed Mac. A future stable Public Release will be signed with a Developer ID Application certificate and notarized by Apple, so this step will no longer be needed.
 
 ## Installing the toolbar button
 
@@ -70,7 +78,7 @@ To remove it, the Settings app shows you how to hold Command and drag the button
 - **Terminal.app cannot safely create a new tab when a window already exists.** In that case Go2Codex fails before submitting a command. If Terminal has no window, New Tab creates a new command-bearing window instead. **iTerm2 supports new tabs.**
 - **Option-click is not supported** as a trigger. Finder reserves Option-click on toolbar items and may close the source window before the Workspace can be resolved. Only Shift-click (or disabled) is offered as the Alternate Trigger.
 - **No automatic toolbar install/repair/uninstall.** All toolbar setup and removal is the manual Command-drag path.
-- **Local only.** Go2Codex makes no network requests and performs no telemetry, crash reporting, background monitoring, or auto-update.
+- **Local only.** Go2Codex makes no network requests and performs no telemetry, crash reporting, background monitoring, or auto-update. GitHub preview updates are downloaded manually.
 - **Apple Silicon only.**
 
 Not in scope: VS Code / Cursor / other editors, a menu-bar resident, session restore or prompt injection, and Mac App Store distribution.
@@ -84,9 +92,24 @@ Not in scope: VS Code / Cursor / other editors, a menu-bar resident, session res
   Scripts/test.sh
   ```
 
-- For the full local build / install / smoke / promote / rollback workflow, see the [Local Development SOP](docs/local-development-sop.md). Build and install scripts (`build-personal.sh`, `install-personal.sh`, etc.) target a real signed Mac and are not meant for CI.
+The other scripts under `Scripts/` are maintainer workflows for building, verifying, installing, or rolling back local builds. Review them before running them because some operate on an installed application.
 
-Project context and invariants live in [CONTEXT.md](CONTEXT.md); the gated delivery plan is in [docs/implementation-plan.md](docs/implementation-plan.md).
+## Publishing an unsigned preview (maintainers)
+
+Preview releases are automated by `.github/workflows/release.yml`. A release tag must be exactly `vX.Y.Z-preview.N`: `X.Y.Z` must match `MARKETING_VERSION`, and `N` must be the positive, no-leading-zero `CURRENT_PROJECT_VERSION`. Stable `vX.Y.Z` tags are rejected until Developer ID signing and notarization are available.
+
+Merge the reviewed release commit into `main` and wait for CI to pass. From a clean, up-to-date `main` checkout, check the release contract and create the annotated tag:
+
+```sh
+git switch main
+git pull --ff-only origin main
+Scripts/test-github-release.sh
+Scripts/package-github-release.sh --validate-only v0.1.0-preview.1
+git tag -a v0.1.0-preview.1 -m "Go2Codex 0.1.0 preview 1"
+git push origin v0.1.0-preview.1
+```
+
+Pushing the tag is the publication action; never push a release tag merely to test the workflow. Keep the `v*-preview.*` tag-protection ruleset active, and never move or delete a published release tag. The workflow builds and verifies an ad-hoc-signed arm64 app, checks the ZIP round trip and SHA-256, and publishes a GitHub pre-release that is not marked as the latest stable release. After publication, download both assets, verify the checksum, confirm the documented Gatekeeper override, and manually test the supported Finder and target matrix.
 
 ## License
 
