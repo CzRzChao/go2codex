@@ -14,7 +14,7 @@ Finder's `_CFURLAliasData` is a Carbon AliasRecord, not Foundation bookmark data
 
 Needs Repair is narrower: the stored `_CFURLString` must be a missing URL from a matching verified receipt, while the AliasRecord must resolve to the current verified embedded Launcher URL. If the missing target makes the AliasRecord unresolvable, repair remains unavailable and detection fails closed to Manual Setup Required.
 
-`CFURLCreateBookmarkDataFromAliasRecord` is public but deprecated since macOS 11. Apple's API note limits it to converting Carbon AliasRecords to bookmark data, which is exactly this read-only compatibility use. `URL(resolvingAliasFileAt:)` is not applicable because it accepts a filesystem alias file, not raw preference data.
+`CFURLCreateBookmarkDataFromAliasRecord` is public but deprecated since macOS 11. Apple's API note limits it to converting Carbon AliasRecords to bookmark data, which is exactly this read-only compatibility use. `URL(resolvingAliasFileAt:)` is not applicable because it accepts a filesystem alias file, not raw preference data. The implementation resolves this one compatibility symbol from CoreFoundation at runtime because Apple provides no raw-record replacement; a missing symbol fails closed as unresolvable, while the rest of the target remains subject to warnings-as-errors.
 
 The ignored Finder-produced fixture is stored under `.build-probes/validation-0002/transaction-3/evidence/` and is intentionally not committed because it contains a machine-specific path. Its 566-byte AliasRecord converted to a 660-byte bookmark and resolved to the same URL as `_CFURLString`. The resolver reported the transient bookmark as stale. Staleness alone is therefore not a rejection condition; identity agreement is mandatory.
 

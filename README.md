@@ -19,6 +19,21 @@ Go2Codex adds a single button to the Finder toolbar. Click it and Go2Codex takes
 
 Go2Codex does not install or bundle any agent. It only launches agents you already have.
 
+## Download
+
+Download the latest build from [GitHub Releases](https://github.com/CzRzChao/go2codex/releases). Until a Developer ID is available, published builds are explicitly marked as **unsigned previews** and use names such as:
+
+- `Go2Codex-0.1.0-preview.1-macos-arm64.zip`
+- `Go2Codex-0.1.0-preview.1-macos-arm64.zip.sha256`
+
+Download both files into the same directory and verify the archive before extracting it:
+
+```sh
+shasum -a 256 -c Go2Codex-0.1.0-preview.1-macos-arm64.zip.sha256
+```
+
+Then extract the ZIP and move `Go2Codex.app` into `/Applications` or `~/Applications`. Preview updates are manual: download and verify the newer archive, quit Go2Codex, and replace the existing app. Because each preview is ad-hoc signed, macOS may ask you to grant Finder, Terminal, or iTerm Automation access again after an update; review the prompts and the Go2Codex entry under **System Settings** → **Privacy & Security** → **Automation**.
+
 ## Supported matrix
 
 Four **Agent Targets** (fixed order) × two **Terminal Hosts**:
@@ -37,18 +52,15 @@ The **Workspace** is always the exact folder of the frontmost Finder window. Sel
 
 ## Gatekeeper (important)
 
-The Personal builds published here are **not yet Developer ID signed or notarized**. macOS Gatekeeper will block the first launch of a build downloaded from GitHub with a warning that it "cannot be opened."
+GitHub preview builds are ad-hoc signed but **not Developer ID signed or notarized**. macOS Gatekeeper will block their first launch because Apple cannot verify the developer or scan result.
 
-To open it anyway, use one of:
+Only continue if you trust this repository and the downloaded SHA-256 matches the published checksum. After the first blocked launch:
 
-- **Finder:** right-click (Control-click) `Go2Codex.app` → **Open** → confirm **Open** in the dialog. You only need to do this once.
-- **Terminal:** remove the quarantine attribute, then open normally:
+1. Open **System Settings** → **Privacy & Security**.
+2. Scroll to **Security** and choose **Open Anyway** for Go2Codex.
+3. Authenticate and confirm **Open**. macOS saves this choice as an exception for that app build.
 
-  ```sh
-  xattr -dr com.apple.quarantine /path/to/Go2Codex.app
-  ```
-
-This is a temporary state. A future Public Release will be signed with a Developer ID Application certificate and notarized by Apple, so this step will no longer be needed. See [ADR 0003](docs/adr/0003-distribute-outside-the-mac-app-store.md).
+The override might be unavailable on an organization-managed Mac. A future stable Public Release will be signed with a Developer ID Application certificate and notarized by Apple, so this step will no longer be needed. See [ADR 0003](docs/adr/0003-distribute-outside-the-mac-app-store.md).
 
 ## Installing the toolbar button
 
@@ -70,7 +82,7 @@ To remove it, the Settings app shows you how to hold Command and drag the button
 - **Terminal.app cannot safely create a new tab when a window already exists.** In that case Go2Codex fails before submitting a command. If Terminal has no window, New Tab creates a new command-bearing window instead. **iTerm2 supports new tabs.**
 - **Option-click is not supported** as a trigger. Finder reserves Option-click on toolbar items and may close the source window before the Workspace can be resolved. Only Shift-click (or disabled) is offered as the Alternate Trigger.
 - **No automatic toolbar install/repair/uninstall.** All toolbar setup and removal is the manual Command-drag path.
-- **Local only.** Go2Codex makes no network requests and performs no telemetry, crash reporting, background monitoring, or auto-update.
+- **Local only.** Go2Codex makes no network requests and performs no telemetry, crash reporting, background monitoring, or auto-update. GitHub preview updates are downloaded manually.
 - **Apple Silicon only.**
 
 Not in scope: VS Code / Cursor / other editors, a menu-bar resident, session restore or prompt injection, and Mac App Store distribution.
@@ -85,6 +97,7 @@ Not in scope: VS Code / Cursor / other editors, a menu-bar resident, session res
   ```
 
 - For the full local build / install / smoke / promote / rollback workflow, see the [Local Development SOP](docs/local-development-sop.md). Build and install scripts (`build-personal.sh`, `install-personal.sh`, etc.) target a real signed Mac and are not meant for CI.
+- Release maintainers should follow the [GitHub Preview Release SOP](docs/github-preview-release.md). Only `vX.Y.Z-preview.N` tags can produce an unsigned GitHub pre-release; stable `vX.Y.Z` tags are reserved for a future Developer ID-signed and notarized workflow.
 
 Project context and invariants live in [CONTEXT.md](CONTEXT.md); the gated delivery plan is in [docs/implementation-plan.md](docs/implementation-plan.md).
 

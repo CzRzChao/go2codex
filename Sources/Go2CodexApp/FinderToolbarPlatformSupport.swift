@@ -3,7 +3,31 @@ import Darwin
 import Foundation
 import Go2CodexCore
 
+private typealias FinderToolbarAliasRecordConverter = @convention(c) (
+    CFAllocator?,
+    CFData
+) -> Unmanaged<CFData>?
+
+private let finderToolbarAliasRecordConverter: FinderToolbarAliasRecordConverter? = {
+    // This public API is deprecated without a replacement for raw AliasRecord data.
+    // Resolve the compatibility shim dynamically so other compiler warnings stay actionable.
+    guard let coreFoundation = CFBundleGetBundleWithIdentifier(
+        "com.apple.CoreFoundation" as CFString
+    ),
+    let symbol = CFBundleGetFunctionPointerForName(
+        coreFoundation,
+        "CFURLCreateBookmarkDataFromAliasRecord" as CFString
+    ) else {
+        return nil
+    }
+    return unsafeBitCast(symbol, to: FinderToolbarAliasRecordConverter.self)
+}()
+
 enum FinderToolbarAliasRecordResolver {
+    static var isAliasRecordConversionAvailable: Bool {
+        finderToolbarAliasRecordConverter != nil
+    }
+
     static func resolve(
         _ value: FinderToolbarPropertyListValue?
     ) -> FinderToolbarAliasResolution {
@@ -13,7 +37,7 @@ enum FinderToolbarAliasRecordResolver {
         guard case let .data(aliasRecord) = value, !aliasRecord.isEmpty else {
             return .invalid
         }
-        guard let unmanagedBookmark = CFURLCreateBookmarkDataFromAliasRecord(
+        guard let unmanagedBookmark = finderToolbarAliasRecordConverter?(
             kCFAllocatorDefault,
             aliasRecord as CFData
         ) else {

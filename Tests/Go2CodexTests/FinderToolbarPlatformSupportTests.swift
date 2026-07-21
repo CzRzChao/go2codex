@@ -5,6 +5,11 @@ import Testing
 @Suite
 struct FinderToolbarPlatformSupportTests {
     @Test
+    func aliasRecordConversionSymbolIsAvailable() {
+        #expect(FinderToolbarAliasRecordResolver.isAliasRecordConversionAvailable)
+    }
+
+    @Test
     func absentNonDataAndEmptyAliasValuesFailClosed() {
         #expect(FinderToolbarAliasRecordResolver.resolve(nil) == .absent)
         #expect(FinderToolbarAliasRecordResolver.resolve(.string("not-data")) == .invalid)

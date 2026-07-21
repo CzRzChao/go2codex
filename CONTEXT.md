@@ -164,8 +164,12 @@ _Avoid_: Pure SwiftUI, AppKit-only Settings, hand-assembled main application bun
 The first usable release, validated against its owner's Mac and workflow while avoiding personal data or machine-specific paths that would prevent later publication. It is entirely local and makes no network requests for analytics, crash reporting, or update checks.
 _Avoid_: Prototype, private fork
 
+**GitHub Preview Release**:
+An arm64 ZIP and SHA-256 checksum published from an exact `vX.Y.Z-preview.N` tag as a GitHub pre-release. It is ad-hoc signed, non-notarized, manually updated, never marked latest stable, and requires a documented Gatekeeper override. Packaging verification does not replace the real Finder, TCC, or terminal validation matrix.
+_Avoid_: Stable tag, notarized claim, automatic update, DMG, Homebrew
+
 **Public Release**:
-A later Developer ID-signed and notarized release prepared for other developers to obtain from GitHub Releases, with Homebrew Cask as a possible additional channel and no Mac App Store target.
+A later Developer ID-signed and notarized stable release prepared for other developers to obtain as a ZIP from GitHub Releases, with no Homebrew or Mac App Store target.
 _Avoid_: App Store version
 
 ## Current Personal MVP limitations

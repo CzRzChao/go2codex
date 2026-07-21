@@ -1,0 +1,109 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+script_dir="$(cd "$(dirname "$0")" && /bin/pwd -P)"
+project_dir="$(cd "$script_dir/.." && /bin/pwd -P)"
+package_script="$script_dir/package-github-release.sh"
+workflow="$project_dir/.github/workflows/release.yml"
+ci_workflow="$project_dir/.github/workflows/ci.yml"
+test_count=0
+
+pass() {
+    test_count=$((test_count + 1))
+}
+
+fail() {
+    echo "test-github-release: $*" >&2
+    exit 1
+}
+
+expect_failure() {
+    local label="$1"
+    shift
+    if "$@" >/dev/null 2>&1; then
+        fail "expected failure: $label"
+    fi
+    pass
+}
+
+assert_contains() {
+    local file="$1"
+    local expected="$2"
+    local label="$3"
+    /usr/bin/grep -F -- "$expected" "$file" >/dev/null \
+        || fail "$label: missing '$expected'"
+    pass
+}
+
+marketing_version="$(/usr/bin/awk -F= '
+    $1 ~ /^[[:space:]]*MARKETING_VERSION[[:space:]]*$/ {
+        value=$2
+        gsub(/^[[:space:]]+|[[:space:]]+$/, "", value)
+        print value
+        exit
+    }
+' "$project_dir/Config/Base.xcconfig")"
+build_version="$(/usr/bin/awk -F= '
+    $1 ~ /^[[:space:]]*CURRENT_PROJECT_VERSION[[:space:]]*$/ {
+        value=$2
+        gsub(/^[[:space:]]+|[[:space:]]+$/, "", value)
+        print value
+        exit
+    }
+' "$project_dir/Config/Base.xcconfig")"
+tag="v${marketing_version}-preview.${build_version}"
+expected_contract="$(/usr/bin/printf \
+    'release_tag=%s\nrelease_version=%s-preview.%s\narchive_path=dist/Go2Codex-%s-preview.%s-macos-arm64.zip\nchecksum_path=dist/Go2Codex-%s-preview.%s-macos-arm64.zip.sha256' \
+    "$tag" \
+    "$marketing_version" \
+    "$build_version" \
+    "$marketing_version" \
+    "$build_version" \
+    "$marketing_version" \
+    "$build_version")"
+actual_contract="$("$package_script" --validate-only "$tag")"
+[[ "$actual_contract" == "$expected_contract" ]] \
+    || fail "valid preview contract output changed"
+pass
+
+expect_failure "stable tag must not publish an unsigned build" \
+    "$package_script" --validate-only "v$marketing_version"
+expect_failure "preview number must be positive" \
+    "$package_script" --validate-only "v${marketing_version}-preview.0"
+expect_failure "preview number must not have a leading zero" \
+    "$package_script" --validate-only "v${marketing_version}-preview.01"
+expect_failure "tag version must match the bundle version" \
+    "$package_script" --validate-only "v99.99.99-preview.1"
+expect_failure "preview number must match the bundle build number" \
+    "$package_script" --validate-only "v${marketing_version}-preview.999999"
+expect_failure "extra arguments are rejected" \
+    "$package_script" --validate-only "$tag" extra
+
+assert_contains "$workflow" '      - "v*-preview.*"' "workflow preview-tag filter"
+assert_contains "$workflow" "./Scripts/package-github-release.sh \"\$GITHUB_REF_NAME\"" "workflow package command"
+assert_contains "$workflow" 'git merge-base --is-ancestor "$GITHUB_SHA" origin/main' "workflow main ancestry gate"
+assert_contains "$workflow" 'uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5' "workflow immutable checkout action"
+assert_contains "$workflow" "persist-credentials: false" "workflow checkout credential cleanup"
+assert_contains "$workflow" '"refs/tags/${GITHUB_REF_NAME}:${remote_tag_ref}"' "workflow remote-tag refresh"
+assert_contains "$workflow" '"refs/heads/main:${remote_main_ref}"' "workflow remote-main refresh"
+assert_contains "$workflow" 'event_commit="$(git rev-parse --verify "${GITHUB_SHA}^{commit}")"' "workflow event commit normalization"
+assert_contains "$workflow" '[[ "$remote_tag_commit" == "$event_commit" ]]' "workflow remote-tag commit gate"
+assert_contains "$workflow" 'git merge-base --is-ancestor "$remote_tag_commit" "$remote_main_ref"' "workflow final main ancestry gate"
+assert_contains "$workflow" "./Scripts/test-sop.sh" "workflow SOP safety gate"
+assert_contains "$workflow" "SWIFT_TREAT_WARNINGS_AS_ERRORS=YES" "workflow unit warning gate"
+assert_contains "$workflow" "--prerelease" "workflow prerelease flag"
+assert_contains "$workflow" "--latest=false" "workflow latest-release guard"
+assert_contains "$ci_workflow" "permissions:" "CI explicit permissions"
+assert_contains "$ci_workflow" "contents: read" "CI read-only contents permission"
+assert_contains "$ci_workflow" "runs-on: macos-15" "CI supported runner"
+assert_contains "$ci_workflow" 'uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5' "CI immutable checkout action"
+assert_contains "$ci_workflow" "/bin/bash -n Scripts/*.sh Scripts/lib/*.sh" "CI shell syntax gate"
+assert_contains "$ci_workflow" "./Scripts/test-sop.sh" "CI SOP safety gate"
+assert_contains "$ci_workflow" "SWIFT_TREAT_WARNINGS_AS_ERRORS=YES" "CI unit warning gate"
+assert_contains "$ci_workflow" "./Scripts/package-github-release.sh --verify-build-only" "CI Release product gate"
+assert_contains "$ci_workflow" '.build/github-release-derived' "CI Release cleanup assertion"
+assert_contains "$ci_workflow" '[[ ! -s "$GITHUB_OUTPUT" ]]' "CI no-output assertion"
+assert_contains "$package_script" '"SWIFT_TREAT_WARNINGS_AS_ERRORS=YES"' "Release warning gate"
+
+echo "test-github-release: $test_count contract checks passed"

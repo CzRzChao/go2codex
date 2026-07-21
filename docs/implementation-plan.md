@@ -540,29 +540,46 @@ Exit gate:
 - Release diagnostics contain no sensitive path or full command.
 - Known limitation is explicit: automatic Finder mutation is disabled for every profile. The exact validated fixture remains dormant planner evidence, while the Personal MVP remains usable through manual Command-drag installation and removal.
 
-### M10 — Public GitHub release
+### M10 — Unsigned GitHub preview release
 
 This milestone begins only after the Personal MVP is used successfully and the user explicitly chooses to publish it.
 
 Work:
 
 1. Remove any remaining personal paths or machine-specific artifacts and write public README, privacy, support-matrix, install, uninstall, and troubleshooting documentation.
-2. Repair GitHub CLI authentication, create the `CzRzChao` repository, and push reviewed history.
-3. Configure a stable Developer ID Application identity and release entitlements.
-4. Archive with Xcode, preserving its inner-to-outer signing order. Do not use `codesign --deep` to repair signing.
-5. Submit with `notarytool`, staple the accepted ticket, validate it, and create the zip only afterward.
-6. Verify strict signature, Gatekeeper assessment, designated requirements, entitlements, architecture, and hashes.
-7. Test the notarized download in a clean macOS user account or another Apple Silicon Mac.
-8. Create a GitHub tag and Release with the notarized zip and SHA-256.
+2. Accept only `vX.Y.Z-preview.N` tags whose numeric version matches `MARKETING_VERSION`, whose preview number matches `CURRENT_PROJECT_VERSION`, and whose commit is reachable from `main`; reject stable tags from the unsigned workflow.
+3. Build arm64 Release with explicit ad-hoc signing while preserving Xcode's inner-to-outer signing order. Do not use `codesign --deep` to repair signing.
+4. Verify the product, create the ZIP, inspect every archive entry, extract it, and verify the extracted copy against the build product.
+5. Publish the ZIP and SHA-256 as a GitHub pre-release that cannot become the latest stable release.
+6. Document checksum verification, manual updates, the Gatekeeper override, and possible Automation-consent churn.
+7. Test the downloaded preview in a separate account or Apple Silicon Mac and run the real supported interaction matrix.
 
-The frozen pre-SOP Personal baseline is ad-hoc signed. Local promotion first migrates it to a stable Apple Development identity and then preserves that identity for subsequent Personal updates. Public Release replaces the local-development identity with Developer ID Application and notarization.
+The preview channel is public but is not the stable Public Release. Its packaging pass does not waive incomplete Personal MVP smoke gates or establish that macOS trusts the download.
 
 Exit gate:
 
-- Developer ID signing, notarization, stapling, Gatekeeper, and clean-user launch pass.
+- Unit tests, strict ad-hoc signature checks, archive round-trip verification, and checksum verification pass.
+- The tag and release are visibly previews; a stable tag is rejected and the release is not marked latest.
+- The downloaded artifact's Gatekeeper override and real Finder/Automation/terminal behavior are manually checked or their outstanding risk is explicitly recorded.
 - The published support matrix distinguishes macOS app support from Finder toolbar setup mode and documents that automatic Finder mutation is currently unavailable.
 - Every newly supported macOS/Finder build has its own read-only investigation, reversible install, alias check, visible/click check, surgical Repair/Uninstall validation, and fixtures.
-- Homebrew Cask remains optional and separate. Sparkle or another network updater is not added without a new product decision.
+- DMG, Homebrew, Sparkle, Intel, and Universal distribution remain out of scope.
+
+### M11 — Signed public GitHub release
+
+Work:
+
+1. Configure a stable Developer ID Application identity and release entitlements.
+2. Archive with Xcode, preserving its inner-to-outer signing order.
+3. Submit with `notarytool`, staple the accepted ticket, and validate it before producing the final ZIP.
+4. Verify strict signatures, Gatekeeper assessment, designated requirements, entitlements, architecture, hashes, and a clean-machine install.
+5. Publish a stable `vX.Y.Z` GitHub Release using the same ZIP-only distribution channel.
+
+Exit gate:
+
+- Developer ID signing, notarization, stapling, Gatekeeper assessment, and clean-user launch pass.
+- Stable tags remain impossible to publish through the unsigned preview workflow.
+- No DMG, Homebrew, Sparkle, Intel, Universal, or Mac App Store channel is added.
 
 ## 7. Verification strategy
 
@@ -662,7 +679,7 @@ A smoke pass is authoritative only when its pending and staging files are absent
 | Short Launcher exits before debugging | wait-for-process attachment and categorized Unified Logging |
 | First-time Xcode maintenance is opaque | native targets, committed xcconfig, small scripts, no hand-built bundle |
 | Current host cannot run latest Xcode | pin Xcode 16.2 for Sonoma; tool upgrade is a separate future migration |
-| GitHub credentials or signing are unavailable | GitHub credentials gate only M10 publication; missing Apple Development identity blocks Installed Debug, while missing clean Git baseline blocks authoritative smoke and therefore candidate generation and Personal promotion |
+| GitHub credentials or signing are unavailable | GitHub credentials gate M10 publication; Developer ID credentials gate M11 only. Missing Apple Development identity blocks Installed Debug, while missing clean Git baseline blocks authoritative smoke and therefore candidate generation and Personal promotion |
 | A smoke pass is written immediately before the process is interrupted | pending or pass-staging evidence invalidates the pass; candidate and install lanes require all smoke staging paths to be absent and the same smoke command must complete reconciliation |
 | Install and rollback share one Release transaction directory | every transaction state records one explicit operation owner; the wrong script cannot recover or commit it, conflicting pending evidence stops all mutation, and evidence remains for deterministic owner recovery |
 
@@ -680,4 +697,4 @@ The Personal MVP is complete only when all of the following are true:
 - The app remains local-only and arm64-only.
 - Known limitations and recovery instructions are documented.
 
-The next executable steps are to review and create the first Git baseline commit, configure a valid Apple Development identity, increment `CURRENT_PROJECT_VERSION`, and then run the four SOP lanes in order. The current friendly virtual-view behavior and both Terminal.app and iTerm2 cold-start repairs must be verified through the stable Installed Debug lane before any Release candidate is promoted. M10 remains out of scope until the user chooses to publish.
+The M10 packaging automation exists, but pushing a preview tag remains an explicit publication action. Before the first tag, review the current manual validation record and either complete the friendly virtual-view, Terminal.app, iTerm2, Finder, and TCC checks through the appropriate lanes or explicitly record the accepted preview risks. M11 remains blocked until Developer ID signing and notarization credentials are available.

@@ -37,6 +37,8 @@ Unit（隔离测试）
 
 四个车道的 Bundle ID、偏好域、应用名和构建位置不能混用。Unit 和 Debug 成功不代表正式版已更新；Release Candidate 成功也不代表已安装。
 
+GitHub Preview Package 是独立的 CI 分发车道，不属于以上本机安装四车道。发布模式只接受精确指向 clean HEAD 的 `vX.Y.Z-preview.N` 标签，在项目 `.build/github-release-*` 固定目录中生成并回读验证 ad-hoc Release，最终只保留 `dist/` 下的 ZIP 与 SHA-256。PR 和 `main` CI 使用 `--verify-build-only` 构建并验证同一 Release 产物，但绝不创建归档、标签或 GitHub Release。两种模式都不得安装、启动、登记或提升 App，不得读取本机 smoke 凭据，也不能替代真实 Finder、TCC 和终端验证；具体规则见 [GitHub Preview Release SOP](github-preview-release.md)。
+
 临时 ad-hoc Debug 是四车道之外的诊断旁路，只能用于证书缺失时的当前故障观察。它使用同一独立 Debug 路径和 Bundle ID，但不能记录 smoke pass、不能生成候选或发布凭据，也不能被描述为正式版已修复。
 
 正式安装与回滚共用固定事务目录，但事务 `state` 必须记录唯一 `OPERATION`：`release-install` 或 `release-rollback`。只有对应的 `install-personal.sh` 或 `rollback-personal.sh` 可以恢复它。原子提交前留下的 operation-specific `.preparing` 只包含未生效快照，归属脚本会先确认没有活动事务、cleanup 或冲突记录，再安全清除并要求重跑；它不能留给用户手工删除。事务完成或恢复后，活动目录会先原子改名为同归属的 `.cleanup` 退役墓碑，再递归清理；断电最多留下可识别墓碑，不会留下半删的活动事务。归属脚本必须先依据 pending 与目标树完成协调，再安全删除墓碑。归属缺失、损坏、与 pending 记录冲突或属于另一脚本时，必须原样保留全部证据并停止；不能根据当前 App “看起来像新/旧版”来猜测。
@@ -44,6 +46,7 @@ Unit（隔离测试）
 脚本职责固定如下：
 
 - `test-sop.sh`：只测试路径、Git、签名、manifest、事务和失败回滚等 SOP 门禁；
+- `test-github-release.sh`：只测试预发布标签、版本、产物命名和 GitHub pre-release 防误发契约；
 - `test.sh`：运行全部自动化测试，并证明隔离构建没有改变正式版；
 - `install-debug.sh`：只构建、验证和安装独立 Debug；默认确认入口要求稳定签名，临时 ad-hoc 入口必须另行显式确认；
 - `smoke-debug.sh`：开始实机检查并记录用户明确确认的结果，不模拟 UI 通过；
@@ -51,6 +54,7 @@ Unit（隔离测试）
 - `install-personal.sh`：只把固定候选提升到固定正式路径；
 - `rollback-personal.sh`：只恢复安装流程创建并验证过的固定备份；
 - `verify-app.sh`：只读验证一个包的身份、结构、签名、权限、架构、资源和隐私边界，通常由以上脚本调用；单独通过它不构成发布成功。
+- `package-github-release.sh`：发布模式只从精确预发布标签构建、回读验证并打包 ad-hoc GitHub Preview，不接受稳定标签；`--verify-build-only` 只供 clean CI checkout 验证真实 Release 产物，不生成分发资产。两种模式都不安装或启动 App。
 
 ## 2. 不可违反的规则
 
