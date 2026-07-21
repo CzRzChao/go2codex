@@ -200,18 +200,22 @@ final class SettingsModel: ObservableObject {
         do {
             try preferences.reset()
         } catch {
-            hasSaveError = true
             logger.error("Settings could not be reset")
+            reconcileAfterResetFailure()
             return
         }
 
+        applyFirstRunDefaults()
+        hasSaveError = false
+        phase = .firstRun
+        refreshAvailability()
+    }
+
+    private func applyFirstRunDefaults() {
         defaultTarget = nil
         defaultTerminalHost = nil
         alternateTrigger = .shiftClick
         sessionPlacement = .newTab
-        hasSaveError = false
-        phase = .firstRun
-        refreshAvailability()
     }
 
     func refreshToolbarStatus() async {
@@ -302,6 +306,23 @@ final class SettingsModel: ObservableObject {
             apply(envelope)
             phase = .configured
         case .recoveryRequired:
+            phase = .recoveryRequired
+        }
+        refreshAvailability()
+    }
+
+    private func reconcileAfterResetFailure() {
+        switch preferences.load() {
+        case .firstRun:
+            applyFirstRunDefaults()
+            hasSaveError = false
+            phase = .firstRun
+        case let .configured(envelope):
+            apply(envelope)
+            hasSaveError = false
+            phase = .configured
+        case .recoveryRequired:
+            hasSaveError = true
             phase = .recoveryRequired
         }
         refreshAvailability()

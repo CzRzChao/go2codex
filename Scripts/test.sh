@@ -61,6 +61,7 @@ cleanup_build_registrations "$derived_data" Debug
 cleanup_all_project_build_registrations "$project_dir"
 assert_no_project_build_registration "$project_dir"
 "$script_dir/test-sop.sh"
+"$script_dir/verify-iterm-handoff.sh"
 
 remove_fixed_build_directory "$derived_data" "$project_dir" test-derived "test DerivedData"
 remove_fixed_test_result_bundle "$result_bundle" "$project_dir"

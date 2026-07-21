@@ -161,14 +161,14 @@ Release Candidate 必须能指向一个不可变的 Git commit。首次准备需
 
 确认门禁的拒绝路径也通过后，再运行完整 `./Scripts/test.sh`。不能通过删减脚本测试来让门禁放行。
 
-若修改 `Sources/Go2CodexLauncher/Resources/ITermHandoff.applescript`，必须在装有受支持 iTerm2 的开发机上显式重新生成同目录的 `ITermHandoff.scpt`：
+若修改 `Sources/Go2CodexLauncher/Resources/ITermHandoff.applescript`，必须在装有受支持 iTerm2 的开发机上使用唯一的显式入口重新生成同目录的 `ITermHandoff.scpt` 和 provenance：
 
 ```sh
-osacompile -o Sources/Go2CodexLauncher/Resources/ITermHandoff.scpt Sources/Go2CodexLauncher/Resources/ITermHandoff.applescript
-osadecompile Sources/Go2CodexLauncher/Resources/ITermHandoff.scpt
+./Scripts/rebuild-iterm-handoff.sh --confirm-rebuild-iterm-handoff
+./Scripts/verify-iterm-handoff.sh
 ```
 
-第二条只用于人工复核已编译 handler 的创建对象、目标 session、单次 write、60 秒 Apple Event timeout 和显式 `return true`，不得调用 handler 或连接真实 iTerm。源码与 `.scpt` 必须在同一轮 review；不能手工编辑二进制、在普通构建中隐式重新生成，或只更新其中一个。Unit 会验证编译资源可加载，产品验证会要求它只出现在嵌套 Launcher 中，但真实 iTerm 行为仍只由 Installed Debug smoke 证明。
+重建脚本只编译到受控 staging 文件，确认可反编译后才替换二进制并生成绑定源码与二进制精确字节摘要的 provenance；它不会执行生产 handler。脚本最后显示的反编译内容只用于人工复核创建对象、目标 session、单次 write、60 秒 Apple Event timeout 和显式 `return true`，不能作为跨系统稳定文本保存或比较。普通构建、Unit 和 CI 只运行只读 provenance 门禁，不会启动 iTerm、调用 `osacompile` 或修改源码。不能手工编辑 `.scpt` 或 provenance，也不能只更新其中一个；三者必须在同一轮 review。Unit 会验证编译资源可加载，产品验证会校验打包摘要且要求资源只出现在嵌套 Launcher 中，但真实 iTerm 行为仍只由 Installed Debug smoke 证明。
 
 ## 5. Installed Debug 实机 smoke
 

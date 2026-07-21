@@ -194,6 +194,7 @@ enum TerminalAdapterError: Error, Equatable, DiagnosticCodeProviding {
     case iTermScriptLoadFailed
     case iTermScriptExecutionFailed
     case iTermScriptResultInvalid(UInt32)
+    case iTermWindowQueryReplyInvalid(UInt32?)
     case applicationOpenFailed(Int)
 
     var diagnosticCode: DiagnosticCode {
@@ -206,6 +207,8 @@ enum TerminalAdapterError: Error, Equatable, DiagnosticCodeProviding {
             DiagnosticCode(rawValue: "iterm-script-execution-failed")
         case .iTermScriptResultInvalid:
             DiagnosticCode(rawValue: "iterm-script-result-invalid")
+        case .iTermWindowQueryReplyInvalid:
+            DiagnosticCode(rawValue: "iterm-window-query-malformed")
         case .applicationOpenFailed:
             DiagnosticCode(rawValue: "terminal-open-failed")
         }
@@ -254,9 +257,11 @@ struct TerminalOpenAdapter: TerminalHandoffPerforming {
         let windowState: TerminalFrontWindowState
         switch host {
         case .terminal:
-            windowState = applicationState.isRunning(
-                bundleIdentifier: host.bundleIdentifier
-            ) ? .noWindow : .notRunning
+            windowState = placement == .newTab
+                ? try frontWindowState(for: host)
+                : applicationState.isRunning(
+                    bundleIdentifier: host.bundleIdentifier
+                ) ? .noWindow : .notRunning
         case .iTerm2:
             windowState = placement == .newTab
                 ? try frontWindowState(for: host)
@@ -314,10 +319,11 @@ struct TerminalOpenAdapter: TerminalHandoffPerforming {
                     )
             )
             if host == .iTerm2 {
-                return iTermReplyHasWindow(reply) ? .hasWindow : .noWindow
+                return try iTermWindowState(from: reply)
             }
             return .hasWindow
-        } catch RawAppleEventError.status(-1728) {
+        } catch RawAppleEventError.status(-1728),
+                RawAppleEventError.status(-1719) {
             return .noWindow
         } catch RawAppleEventError.status(-600) where host == .terminal {
             return .notRunning
@@ -329,16 +335,19 @@ struct TerminalOpenAdapter: TerminalHandoffPerforming {
         }
     }
 
-    private func iTermReplyHasWindow(
-        _ reply: NSAppleEventDescriptor
-    ) -> Bool {
-        guard let directObject = reply.paramDescriptor(
-            forKeyword: NativeAppleEvent.directObjectKeyword
-        ) else {
-            return false
+    private func iTermWindowState(
+        from reply: NSAppleEventDescriptor
+    ) throws -> TerminalFrontWindowState {
+        switch NativeAppleEvent.classifyITermCurrentWindowReply(reply) {
+        case .window:
+            return .hasWindow
+        case .noWindow:
+            return .noWindow
+        case .invalid(let descriptorType):
+            throw TerminalAdapterError.iTermWindowQueryReplyInvalid(
+                descriptorType
+            )
         }
-        return directObject.descriptorType
-            != NativeAppleEvent.missingValueDescriptorType
     }
 
     private func sendTerminal(

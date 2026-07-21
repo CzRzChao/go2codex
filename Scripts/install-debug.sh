@@ -201,6 +201,7 @@ if [[ -e "$transaction_root" ]]; then
     safety_die "the interrupted Debug update was recovered; run the command again"
 fi
 
+"$script_dir/verify-iterm-handoff.sh"
 GO2CODEX_NESTED_PRODUCT_LOCK_OWNER="$$" "$script_dir/test.sh"
 build_signing_arguments=()
 if [[ "$debug_signing_mode" == "stable-local" ]]; then

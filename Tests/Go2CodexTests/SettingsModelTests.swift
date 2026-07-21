@@ -316,6 +316,66 @@ struct SettingsModelTests {
         #expect(model.hasSaveError)
     }
 
+    @Test
+    func failedResetReconcilesToFirstRunWhenStorageWasCleared() async {
+        let preferences = SettingsPreferencesFake(
+            state: .recoveryRequired(.storageReadFailed)
+        )
+        preferences.failReset = true
+        preferences.stateAfterFailedReset = .firstRun
+        let model = makeModel(preferences: preferences)
+
+        await model.loadIfNeeded()
+        model.selectDefaultTarget(.codexApp)
+        model.selectDefaultTerminalHost(.iTerm2)
+        await model.resetToFirstRun()
+
+        #expect(model.phase == .firstRun)
+        #expect(model.defaultTarget == nil)
+        #expect(model.defaultTerminalHost == nil)
+        #expect(model.alternateTrigger == .shiftClick)
+        #expect(model.sessionPlacement == .newTab)
+        #expect(!model.hasSaveError)
+    }
+
+    @Test
+    func failedResetReconcilesToAConcurrentConfiguredEnvelope() async {
+        let envelope = PreferencesEnvelope(
+            defaultTarget: .claudeCodeCLI,
+            alternateTrigger: .disabled,
+            defaultTerminalHost: .iTerm2,
+            sessionPlacement: .newWindow
+        )
+        let preferences = SettingsPreferencesFake(
+            state: .recoveryRequired(.corruptData)
+        )
+        preferences.failReset = true
+        preferences.stateAfterFailedReset = .configured(envelope)
+        let model = makeModel(preferences: preferences)
+
+        await model.loadIfNeeded()
+        await model.resetToFirstRun()
+
+        #expect(model.phase == .configured)
+        #expect(model.defaultTarget == .claudeCodeCLI)
+        #expect(model.defaultTerminalHost == .iTerm2)
+        #expect(model.alternateTrigger == .disabled)
+        #expect(model.sessionPlacement == .newWindow)
+        #expect(!model.hasSaveError)
+    }
+
+    @Test
+    func resetIsIgnoredOutsideRecovery() async {
+        let preferences = SettingsPreferencesFake(state: .firstRun)
+        let model = makeModel(preferences: preferences)
+
+        await model.loadIfNeeded()
+        await model.resetToFirstRun()
+
+        #expect(preferences.resetCalls == 0)
+        #expect(model.phase == .firstRun)
+    }
+
     private func makeModel(
         preferences: SettingsPreferencesFake,
         toolbar: ToolbarSettingsFake = ToolbarSettingsFake(),
@@ -350,6 +410,7 @@ private final class SettingsPreferencesFake: SettingsPreferencesServing {
     var writeThenFailCompletion = false
     var failReset = false
     var resetCalls = 0
+    var stateAfterFailedReset: PreferencesLoadState?
 
     private let events: SettingsEventLog?
 
@@ -392,6 +453,9 @@ private final class SettingsPreferencesFake: SettingsPreferencesServing {
     func reset() throws {
         resetCalls += 1
         if failReset {
+            if let stateAfterFailedReset {
+                state = stateAfterFailedReset
+            }
             throw PreferencesStoreError.writeFailed
         }
         state = .firstRun

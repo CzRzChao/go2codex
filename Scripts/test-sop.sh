@@ -63,6 +63,124 @@ fixture_write() {
     /usr/bin/printf '%s\n' "$value" >"$path"
 }
 
+write_iterm_provenance() {
+    local source_path="$1"
+    local compiled_path="$2"
+    local provenance_path="$3"
+    local source_sha
+    local compiled_sha
+
+    source_sha="$(/usr/bin/shasum -a 256 "$source_path" | /usr/bin/awk '{ print $1 }')"
+    compiled_sha="$(/usr/bin/shasum -a 256 "$compiled_path" | /usr/bin/awk '{ print $1 }')"
+    {
+        /usr/bin/printf 'FORMAT_VERSION=1\n'
+        /usr/bin/printf 'SOURCE_SHA256=%s\n' "$source_sha"
+        /usr/bin/printf 'COMPILED_SHA256=%s\n' "$compiled_sha"
+    } >"$provenance_path"
+}
+
+iterm_gate_root="$temporary_root/iterm-handoff-gate"
+iterm_gate_source="$iterm_gate_root/ITermHandoff.applescript"
+iterm_gate_compiled="$iterm_gate_root/ITermHandoff.scpt"
+iterm_gate_provenance="$iterm_gate_root/ITermHandoff.provenance"
+/bin/mkdir "$iterm_gate_root"
+/bin/cp \
+    "$project_dir/Sources/Go2CodexLauncher/Resources/ITermHandoff.applescript" \
+    "$iterm_gate_source"
+/bin/cp \
+    "$project_dir/Sources/Go2CodexLauncher/Resources/ITermHandoff.scpt" \
+    "$iterm_gate_compiled"
+write_iterm_provenance \
+    "$iterm_gate_source" \
+    "$iterm_gate_compiled" \
+    "$iterm_gate_provenance"
+iterm_gate_tree="$(tree_fingerprint "$iterm_gate_root")"
+"$script_dir/verify-iterm-handoff.sh" \
+    --files \
+    "$iterm_gate_source" \
+    "$iterm_gate_compiled" \
+    "$iterm_gate_provenance" \
+    >/dev/null
+pass
+assert_equal_value \
+    "$(tree_fingerprint "$iterm_gate_root")" \
+    "$iterm_gate_tree" \
+    "iTerm handoff verifier is read-only"
+
+/usr/bin/printf '\n-- changed source\n' >>"$iterm_gate_source"
+expect_failure \
+    "changed iTerm handoff source" \
+    "$script_dir/verify-iterm-handoff.sh" \
+    --files \
+    "$iterm_gate_source" \
+    "$iterm_gate_compiled" \
+    "$iterm_gate_provenance"
+/bin/cp \
+    "$project_dir/Sources/Go2CodexLauncher/Resources/ITermHandoff.applescript" \
+    "$iterm_gate_source"
+
+/usr/bin/printf 'changed' >>"$iterm_gate_compiled"
+expect_failure \
+    "changed iTerm handoff compiled resource" \
+    "$script_dir/verify-iterm-handoff.sh" \
+    --files \
+    "$iterm_gate_source" \
+    "$iterm_gate_compiled" \
+    "$iterm_gate_provenance"
+/bin/cp \
+    "$project_dir/Sources/Go2CodexLauncher/Resources/ITermHandoff.scpt" \
+    "$iterm_gate_compiled"
+
+write_iterm_provenance \
+    "$iterm_gate_source" \
+    "$iterm_gate_compiled" \
+    "$iterm_gate_provenance"
+/usr/bin/printf 'UNSUPPORTED=value\n' >>"$iterm_gate_provenance"
+expect_failure \
+    "unknown iTerm handoff provenance key" \
+    "$script_dir/verify-iterm-handoff.sh" \
+    --files \
+    "$iterm_gate_source" \
+    "$iterm_gate_compiled" \
+    "$iterm_gate_provenance"
+
+{
+    /usr/bin/printf 'FORMAT_VERSION=1\n'
+    /usr/bin/printf 'SOURCE_SHA256=invalid\n'
+    /usr/bin/printf 'COMPILED_SHA256=%s\n' \
+        "$(/usr/bin/shasum -a 256 "$iterm_gate_compiled" | /usr/bin/awk '{ print $1 }')"
+} >"$iterm_gate_provenance"
+expect_failure \
+    "invalid iTerm handoff provenance checksum" \
+    "$script_dir/verify-iterm-handoff.sh" \
+    --files \
+    "$iterm_gate_source" \
+    "$iterm_gate_compiled" \
+    "$iterm_gate_provenance"
+
+write_iterm_provenance \
+    "$iterm_gate_source" \
+    "$iterm_gate_compiled" \
+    "$iterm_gate_provenance"
+/bin/ln -s "$iterm_gate_source" "$iterm_gate_root/Linked.applescript"
+expect_failure \
+    "symbolic-link iTerm handoff source" \
+    "$script_dir/verify-iterm-handoff.sh" \
+    --files \
+    "$iterm_gate_root/Linked.applescript" \
+    "$iterm_gate_compiled" \
+    "$iterm_gate_provenance"
+expect_failure \
+    "missing iTerm handoff compiled resource" \
+    "$script_dir/verify-iterm-handoff.sh" \
+    --files \
+    "$iterm_gate_source" \
+    "$iterm_gate_root/Missing.scpt" \
+    "$iterm_gate_provenance"
+
+"$script_dir/verify-iterm-handoff.sh" >/dev/null
+pass
+
 valid_signing_config="$temporary_root/LocalSigning.conf"
 {
     /usr/bin/printf 'TEAM_ID=ABCDEF1234\n'
@@ -861,6 +979,7 @@ GO2CODEX_LSREGISTER="$real_lsregister"
 
 expect_failure "Debug install confirmation" "$script_dir/install-debug.sh"
 expect_failure "Debug smoke confirmation" "$script_dir/smoke-debug.sh"
+expect_failure "iTerm handoff rebuild confirmation" "$script_dir/rebuild-iterm-handoff.sh"
 expect_failure "Release install confirmation" "$script_dir/install-personal.sh"
 expect_failure "Release rollback confirmation" "$script_dir/rollback-personal.sh"
 expect_failure "Release candidate rejects arguments" "$script_dir/build-personal.sh" --unsafe

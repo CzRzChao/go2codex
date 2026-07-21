@@ -67,7 +67,7 @@ To remove it, the Settings app shows you how to hold Command and drag the button
 
 ## Known limitations
 
-- **Terminal.app "new tab" degrades to a new window.** Terminal.app exposes no reliable event to create a new tab before submitting the command, so New Tab with an existing Terminal window opens a new window instead. **iTerm2 supports new tabs.**
+- **Terminal.app cannot safely create a new tab when a window already exists.** In that case Go2Codex fails before submitting a command. If Terminal has no window, New Tab creates a new command-bearing window instead. **iTerm2 supports new tabs.**
 - **Option-click is not supported** as a trigger. Finder reserves Option-click on toolbar items and may close the source window before the Workspace can be resolved. Only Shift-click (or disabled) is offered as the Alternate Trigger.
 - **No automatic toolbar install/repair/uninstall.** All toolbar setup and removal is the manual Command-drag path.
 - **Local only.** Go2Codex makes no network requests and performs no telemetry, crash reporting, background monitoring, or auto-update.
