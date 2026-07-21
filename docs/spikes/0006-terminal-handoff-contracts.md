@@ -1,6 +1,6 @@
 # Terminal handoff contracts
 
-Status: command construction, Terminal.app cold-start handling, process-exit race handling, and the parameterized iTerm2 AppleScript boundary are covered by source tests as of 2026-07-20. Real Installed Debug behavior remains in the checklist below.
+Status: command construction, Terminal.app cold-start handling, process-exit race handling, the iTerm2 initial-event preflight, and the parameterized iTerm2 AppleScript boundary are covered by source tests as of 2026-07-21. Real Installed Debug behavior remains in the checklist below.
 
 ## Result
 
@@ -22,7 +22,7 @@ Each apostrophe in the path becomes `'\''`. The target command is selected from 
 
 Dynamic strings are Apple Event text descriptors. They are never interpolated into AppleScript source.
 
-## iTerm2 parameterized script
+## iTerm2 initial-event preflight and parameterized script
 
 iTerm2 declares exact creation events for both placement modes and a write event:
 
@@ -32,7 +32,13 @@ iTerm2 declares exact creation events for both placement modes and a write event
 
 The first native implementation sent create and write as two Swift-owned Apple Events. A real iTerm2 3.6.10 invocation returned a bare `type(cwin)` descriptor whose outer type was `type` (`1954115685`), not an object specifier with the identity of the newly created window. Reproducing the compiled command's `subj` attributes did not change that result. Go2Codex must not guess `current window`, diff window collections, or coerce a class value into object identity, because another window can become current between IPC points.
 
-The Launcher now loads the precompiled `ITermHandoff.scpt` resource and invokes one of two fixed handlers through the standard `ascr/psbr` subroutine event. The generated command is the single `utxt` argument in the `----` list; the handler name is selected from a closed placement enum. Each handler derives the current user's `Library/Application Support/iTerm2/version.txt` path and sends it to iTerm2 as the first `open file` event. In the [iTerm2 3.6.10 application delegate](https://gitlab.com/gnachman/iterm2/-/blob/a19c18e6/sources/iTermApplicationDelegate.m#L670-728), that event sets the internal quiet-start flag and immediately returns when the path equals iTerm2's version-file path; the [path implementation](https://gitlab.com/gnachman/iterm2/-/blob/a19c18e6/sources/NSFileManager%2BiTerm.m#L223-225) resolves to this exact per-user location. Startup activities then skip the default window and window restoration before the new-window handler explicitly creates one default-profile window. A generic AppleScript `launch` is intentionally forbidden because it does not set iTerm2's quiet flag and can race the deferred startup activities. Inside the same AppleScript invocation, each handler keeps the returned window or tab object inside the interpreter, writes exactly once to its current session, and returns explicit Boolean true. Swift never parses the create result.
+The first quiet-start repair placed iTerm2's version-file `open file` inside each handler before its create operation. That order is visible inside the AppleScript invocation, but it does not prove launch order when iTerm2 is fully quit: targeting a non-running application can launch it before the handler's first command is delivered, while iTerm2 schedules normal startup activities from `applicationDidFinishLaunching`. An explicit AppleScript `launch` changes neither that scheduling boundary nor the ordering guarantee, so both shapes can still race the default-window startup path.
+
+Every iTerm2 Handoff therefore begins at the Launch Services boundary. The Launcher resolves the exact iTerm2 application URL by bundle identifier and calls `NSWorkspace.openApplication` with an [`NSWorkspace.OpenConfiguration.appleEvent`](https://developer.apple.com/documentation/appkit/nsworkspace/openconfiguration/appleevent). That event is `aevt/odoc`; its direct object is an Apple Event list containing exactly one file URL, the current user's `~/Library/Application Support/iTerm2/version.txt`. It has no target descriptor and contains no generated command because the exact application URL is supplied separately to `NSWorkspace`. The Launcher awaits successful completion before doing anything else. On failure it performs no window query, no handler invocation, no retry, and no fallback.
+
+In the [iTerm2 3.6.10 application delegate](https://gitlab.com/gnachman/iterm2/-/blob/a19c18e6/sources/iTermApplicationDelegate.m#L670-728), opening that exact path sets the internal quiet-start flag and returns; the [path implementation](https://gitlab.com/gnachman/iterm2/-/blob/a19c18e6/sources/NSFileManager%2BiTerm.m#L223-225) resolves to this per-user location. Supplying it as the launch request's initial Apple Event establishes the required ordering before iTerm2's deferred startup activities decide whether to create or restore windows. The same preflight also runs when iTerm2 is already running; it contains no command and completion remains the sole gate for the placement operation.
+
+After preflight, New Window invokes one fixed handler directly. New Tab first queries iTerm2's current window: an existing window selects the new-tab handler, while no window selects the new-window handler. The Launcher loads the precompiled `ITermHandoff.scpt` resource and invokes the selected handler through the standard `ascr/psbr` subroutine event. The generated command is the single `utxt` argument in the `----` list; the handler name is selected from a closed placement enum. The checked-in handlers deliberately still derive and open the same sentinel before their first target operation so this repair does not also change the compiled resource, but that second open is not the cold-start ordering guarantee. Inside one AppleScript invocation, the handler keeps the returned window or tab object inside the interpreter, writes exactly once to its current session, and returns explicit Boolean true. Swift never parses the create result.
 
 iTerm2's [AppleScript documentation](https://iterm2.com/3.5/documentation-scripting.html) says that supplying the optional creation `command` replaces the profile's command or login shell. The handlers therefore omit that parameter and write text after the default-profile shell starts. This preserves the configured profile, shell, PATH, and startup files.
 
@@ -52,6 +58,8 @@ Terminal also registers the public macOS Service â€œNew Terminal Tab at Folderâ€
 - command text contains no target arguments;
 - host and placement planning for existing/no-window states;
 - exact Terminal event class, ID, target bundle, direct parameter, and cold-open application URL;
+- exact iTerm2 preflight event class `aevt`, event ID `odoc`, one-item file-URL direct-object list, no embedded target descriptor, and exact Launch Services application URL;
+- both iTerm2 placements await exactly one preflight; New Window runs one handler without a current-window query, New Tab queries only after preflight, and preflight failure runs neither query nor handler;
 - exact iTerm2 subroutine event, fixed handler names, one `utxt` argument, and adversarial command preservation;
 - compiled script resource presence and loadability;
 - iTerm2 existing-window and no-window placement selection with exactly one handler invocation;
@@ -62,7 +70,7 @@ Terminal also registers the public macOS Service â€œNew Terminal Tab at Folderâ€
 - the async Launcher workflow waiting for terminal acceptance before reporting success;
 - no CLI executable probing or silent Terminal Host fallback.
 
-Automated tests load but never execute the production iTerm2 handlers. They send no real Finder or terminal Apple Event and cannot replace visible TCC and session validation.
+Automated tests build and inspect the preflight descriptor and load, but never execute, the production iTerm2 handlers. They send no real Finder or terminal Apple Event and cannot replace visible TCC and session validation.
 
 ## Real terminal checklist
 

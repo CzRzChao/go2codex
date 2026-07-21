@@ -380,6 +380,67 @@ struct HandoffPlatformTests {
     }
 
     @Test
+    func iTermQuietLaunchPermissionFailurePreventsSubmission() async {
+        let state = TerminalApplicationStateStub()
+        let opener = TerminalApplicationOpenerStub()
+        opener.failure = TerminalApplicationOpenFailure(
+            code: -1743,
+            appleEventStatus: -1743
+        )
+        let sender = AppleEventSenderStub()
+        let script = ITermScriptExecutorStub()
+        let adapter = TerminalOpenAdapter(
+            applicationState: state,
+            applicationOpener: opener,
+            eventSender: sender,
+            iTermScriptExecutor: script
+        )
+
+        let error = await capturedTerminalError {
+            try await adapter.open(
+                testCommand,
+                in: .iTerm2,
+                placement: .newTab
+            )
+        }
+
+        #expect(error == .automationPermissionDenied(.iTerm2))
+        expectSingleITermQuietLaunch(opener)
+        #expect(state.runningLookups.isEmpty)
+        #expect(sender.events.isEmpty)
+        #expect(script.events.isEmpty)
+    }
+
+    @Test
+    func iTermQuietLaunchGenericFailurePreventsSubmission() async {
+        let state = TerminalApplicationStateStub()
+        let opener = TerminalApplicationOpenerStub()
+        opener.failure = TerminalApplicationOpenFailure(code: -10810)
+        let sender = AppleEventSenderStub()
+        let script = ITermScriptExecutorStub()
+        let adapter = TerminalOpenAdapter(
+            applicationState: state,
+            applicationOpener: opener,
+            eventSender: sender,
+            iTermScriptExecutor: script
+        )
+
+        let error = await capturedTerminalAdapterError {
+            try await adapter.open(
+                testCommand,
+                in: .iTerm2,
+                placement: .newWindow
+            )
+        }
+
+        #expect(error == .applicationOpenFailed(-10810))
+        expectSingleITermQuietLaunch(opener)
+        #expect(state.runningLookups.isEmpty)
+        #expect(sender.events.isEmpty)
+        #expect(script.events.isEmpty)
+    }
+
+    @Test
     func iTermExistingWindowTabQueriesThenRunsOneHandler() async throws {
         let state = TerminalApplicationStateStub()
         state.isRunning = true
@@ -411,7 +472,8 @@ struct HandoffPlatformTests {
             #require(script.events.first),
             handler: "go2codexNewTab"
         )
-        #expect(opener.events.isEmpty)
+        expectSingleITermQuietLaunch(opener)
+        #expect(state.runningLookups.isEmpty)
     }
 
     @Test
@@ -442,15 +504,14 @@ struct HandoffPlatformTests {
             #require(script.events.first),
             handler: "go2codexNewWindow"
         )
-        #expect(opener.events.isEmpty)
+        expectSingleITermQuietLaunch(opener)
+        #expect(state.runningLookups.isEmpty)
     }
 
-    @Test(arguments: iTermWindowCases)
-    func iTermWindowPlacementRunsOneNewWindowHandler(
-        testCase: ITermWindowCase
-    ) async throws {
+    @Test
+    func iTermNewWindowPreflightsThenRunsOneHandler() async throws {
         let state = TerminalApplicationStateStub()
-        state.isRunning = testCase.isRunning
+        state.isRunning = true
         let opener = TerminalApplicationOpenerStub()
         let sender = AppleEventSenderStub()
         let script = ITermScriptExecutorStub()
@@ -464,7 +525,7 @@ struct HandoffPlatformTests {
         let acceptance = try await adapter.open(
             testCommand,
             in: .iTerm2,
-            placement: testCase.placement
+            placement: .newWindow
         )
 
         #expect(acceptance == .acceptedByTerminalHost)
@@ -474,8 +535,8 @@ struct HandoffPlatformTests {
             #require(script.events.first),
             handler: "go2codexNewWindow"
         )
-        #expect(state.runningLookups == testCase.expectedRunningLookups)
-        #expect(opener.events.isEmpty)
+        expectSingleITermQuietLaunch(opener)
+        #expect(state.runningLookups.isEmpty)
     }
 
     @Test(arguments: [Int32(-1728), -1719])
@@ -508,7 +569,8 @@ struct HandoffPlatformTests {
             #require(script.events.first),
             handler: "go2codexNewWindow"
         )
-        #expect(opener.events.isEmpty)
+        expectSingleITermQuietLaunch(opener)
+        #expect(state.runningLookups.isEmpty)
     }
 
     @Test
@@ -537,7 +599,7 @@ struct HandoffPlatformTests {
         #expect(error == .iTermWindowQueryReplyInvalid(nil))
         #expect(sender.events.map(\.eventID) == [eventCode("getd")])
         #expect(script.events.isEmpty)
-        #expect(opener.events.isEmpty)
+        expectSingleITermQuietLaunch(opener)
     }
 
     @Test
@@ -566,7 +628,7 @@ struct HandoffPlatformTests {
         #expect(error == .iTermWindowQueryReplyInvalid(eventCode("long")))
         #expect(sender.events.map(\.eventID) == [eventCode("getd")])
         #expect(script.events.isEmpty)
-        #expect(opener.events.isEmpty)
+        expectSingleITermQuietLaunch(opener)
     }
 
     @Test
@@ -594,7 +656,7 @@ struct HandoffPlatformTests {
         #expect(error == .iTermScriptResourceMissing)
         #expect(sender.events.isEmpty)
         #expect(script.events.count == 1)
-        #expect(opener.events.isEmpty)
+        expectSingleITermQuietLaunch(opener)
     }
 
     @Test
@@ -624,7 +686,7 @@ struct HandoffPlatformTests {
         ))
         #expect(sender.events.isEmpty)
         #expect(script.events.count == 1)
-        #expect(opener.events.isEmpty)
+        expectSingleITermQuietLaunch(opener)
     }
 
     @Test
@@ -654,7 +716,7 @@ struct HandoffPlatformTests {
         ))
         #expect(sender.events.isEmpty)
         #expect(script.events.count == 1)
-        #expect(opener.events.isEmpty)
+        expectSingleITermQuietLaunch(opener)
     }
 
     @Test(arguments: terminalStatusCases)
@@ -712,7 +774,7 @@ struct HandoffPlatformTests {
         #expect(error == .automationPermissionDenied(.iTerm2))
         #expect(sender.events.map(\.eventID) == [eventCode("getd")])
         #expect(script.events.isEmpty)
-        #expect(opener.events.isEmpty)
+        expectSingleITermQuietLaunch(opener)
     }
 
     @Test(arguments: iTermStatusCases)
@@ -742,11 +804,11 @@ struct HandoffPlatformTests {
         #expect(error == testCase.expectedError)
         #expect(sender.events.isEmpty)
         #expect(script.events.count == 1)
-        #expect(opener.events.isEmpty)
+        expectSingleITermQuietLaunch(opener)
     }
 
     @Test
-    func iTermProcessNotFoundNeverUsesTerminalApplicationOpener() async {
+    func iTermWindowQueryProcessNotFoundDoesNotRetryPreflight() async {
         let state = TerminalApplicationStateStub()
         state.isRunning = true
         let opener = TerminalApplicationOpenerStub()
@@ -771,7 +833,7 @@ struct HandoffPlatformTests {
         #expect(error == .terminalUnavailable(.iTerm2))
         #expect(sender.events.map(\.eventID) == [eventCode("getd")])
         #expect(script.events.isEmpty)
-        #expect(opener.events.isEmpty)
+        expectSingleITermQuietLaunch(opener)
     }
 }
 
@@ -835,13 +897,16 @@ private final class TerminalApplicationOpenerStub: TerminalApplicationOpening {
     var failure: TerminalApplicationOpenFailure?
     private(set) var applicationURLs: [URL] = []
     private(set) var events: [NSAppleEventDescriptor] = []
+    private(set) var activations: [Bool] = []
 
     func openApplication(
         at applicationURL: URL,
-        initialAppleEvent: NSAppleEventDescriptor
+        initialAppleEvent: NSAppleEventDescriptor,
+        activates: Bool
     ) async -> TerminalApplicationOpenFailure? {
         applicationURLs.append(applicationURL)
         events.append(initialAppleEvent)
+        activations.append(activates)
         await Task.yield()
         return failure
     }
@@ -916,19 +981,6 @@ enum DesktopHandlerRejection: CaseIterable, Sendable,
     }
 }
 
-struct ITermWindowCase: Sendable, CustomTestStringConvertible {
-    let placement: SessionPlacement
-    let isRunning: Bool
-
-    var expectedRunningLookups: [String] {
-        placement == .newTab ? ["com.googlecode.iterm2"] : []
-    }
-
-    var testDescription: String {
-        "\(placement.rawValue)-running-\(isRunning)"
-    }
-}
-
 struct TerminalStatusCase: Sendable, CustomTestStringConvertible {
     let status: Int32
     let expectedError: TerminalHandoffError
@@ -951,11 +1003,6 @@ private let desktopSuccessCases = [
         handlerURL: URL(fileURLWithPath: "/Applications/Claude.app"),
         bundleIdentifier: "com.anthropic.claudefordesktop"
     ),
-]
-
-private let iTermWindowCases = [
-    ITermWindowCase(placement: .newWindow, isRunning: true),
-    ITermWindowCase(placement: .newTab, isRunning: false),
 ]
 
 private let terminalStatusCases = [
@@ -1086,6 +1133,32 @@ private func expectITermScriptInvocation(
     ))
     #expect(arguments.numberOfItems == 1)
     #expect(arguments.atIndex(1)?.stringValue == testCommand.line)
+}
+
+@MainActor
+private func expectSingleITermQuietLaunch(
+    _ opener: TerminalApplicationOpenerStub
+) {
+    #expect(opener.applicationURLs == [URL(
+        fileURLWithPath: "/Applications/iTerm.app"
+    )])
+    #expect(opener.events.count == 1)
+    #expect(opener.activations == [true])
+    guard let event = opener.events.first else {
+        return
+    }
+    #expect(event.eventClass == eventCode("aevt"))
+    #expect(event.eventID == eventCode("odoc"))
+    #expect(event.attributeDescriptor(
+        forKeyword: eventCode("addr")
+    ) == nil)
+    let documents = event.paramDescriptor(
+        forKeyword: eventCode("----")
+    )
+    #expect(documents?.descriptorType == eventCode("list"))
+    #expect(documents?.numberOfItems == 1)
+    #expect(documents?.atIndex(1)?.fileURLValue ==
+        NativeAppleEvent.iTermQuietLaunchSentinelURL)
 }
 
 @MainActor
