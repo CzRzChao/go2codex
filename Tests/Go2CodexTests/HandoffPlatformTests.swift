@@ -169,11 +169,43 @@ struct HandoffPlatformTests {
     }
 
     @Test
-    func terminalNewTabRunningCreatesWindowWithoutProbe() async throws {
+    func terminalNewTabWithExistingWindowFailsBeforeSubmission() async {
         let state = TerminalApplicationStateStub()
         state.isRunning = true
         let opener = TerminalApplicationOpenerStub()
         let sender = AppleEventSenderStub()
+        let adapter = TerminalOpenAdapter(
+            applicationState: state,
+            applicationOpener: opener,
+            eventSender: sender
+        )
+
+        let error = await capturedTerminalError {
+            try await adapter.open(
+                testCommand,
+                in: .terminal,
+                placement: .newTab
+            )
+        }
+
+        #expect(error == .unsupportedPlacement(.terminal, .newTab))
+        #expect(state.runningLookups == ["com.apple.Terminal"])
+        #expect(sender.events.map(\.eventID) == [eventCode("getd")])
+        #expect(sender.events.first.flatMap {
+            targetBundleIdentifier(of: $0)
+        } == "com.apple.Terminal")
+        #expect(opener.events.isEmpty)
+    }
+
+    @Test(arguments: [Int32(-1728), -1719])
+    func terminalNewTabWithoutWindowCreatesWindow(
+        status: Int32
+    ) async throws {
+        let state = TerminalApplicationStateStub()
+        state.isRunning = true
+        let opener = TerminalApplicationOpenerStub()
+        let sender = AppleEventSenderStub()
+        sender.outcomes = [.status(status)]
         let adapter = TerminalOpenAdapter(
             applicationState: state,
             applicationOpener: opener,
@@ -188,9 +220,62 @@ struct HandoffPlatformTests {
 
         #expect(acceptance == .acceptedByTerminalHost)
         #expect(state.runningLookups == ["com.apple.Terminal"])
-        #expect(sender.events.contains { $0.eventID == eventCode("getd") } == false)
-        #expect(sender.events.map(\.eventID) == [eventCode("dosc")])
-        try expectTerminalDoScriptEvent(#require(sender.events.first))
+        #expect(sender.events.map(\.eventID) == [
+            eventCode("getd"),
+            eventCode("dosc"),
+        ])
+        try expectTerminalDoScriptEvent(#require(sender.events.last))
+        #expect(opener.events.isEmpty)
+    }
+
+    @Test
+    func terminalNewTabFrontWindowProcessRaceFallsBackOnce() async throws {
+        let state = TerminalApplicationStateStub()
+        state.isRunning = true
+        let opener = TerminalApplicationOpenerStub()
+        let sender = AppleEventSenderStub()
+        sender.outcomes = [.status(-600)]
+        let adapter = TerminalOpenAdapter(
+            applicationState: state,
+            applicationOpener: opener,
+            eventSender: sender
+        )
+
+        let acceptance = try await adapter.open(
+            testCommand,
+            in: .terminal,
+            placement: .newTab
+        )
+
+        #expect(acceptance == .acceptedByTerminalHost)
+        #expect(sender.events.map(\.eventID) == [eventCode("getd")])
+        #expect(opener.events.count == 1)
+        try expectTerminalDoScriptEvent(#require(opener.events.first))
+    }
+
+    @Test
+    func terminalFrontWindowPermissionFailurePreventsSubmission() async {
+        let state = TerminalApplicationStateStub()
+        state.isRunning = true
+        let opener = TerminalApplicationOpenerStub()
+        let sender = AppleEventSenderStub()
+        sender.outcomes = [.status(-1743)]
+        let adapter = TerminalOpenAdapter(
+            applicationState: state,
+            applicationOpener: opener,
+            eventSender: sender
+        )
+
+        let error = await capturedTerminalError {
+            try await adapter.open(
+                testCommand,
+                in: .terminal,
+                placement: .newTab
+            )
+        }
+
+        #expect(error == .automationPermissionDenied(.terminal))
+        #expect(sender.events.map(\.eventID) == [eventCode("getd")])
         #expect(opener.events.isEmpty)
     }
 
@@ -393,14 +478,16 @@ struct HandoffPlatformTests {
         #expect(opener.events.isEmpty)
     }
 
-    @Test
-    func iTermRunningWithoutCurrentWindowQueriesThenCreatesWindow() async throws {
+    @Test(arguments: [Int32(-1728), -1719])
+    func iTermRunningWithoutCurrentWindowQueriesThenCreatesWindow(
+        status: Int32
+    ) async throws {
         let state = TerminalApplicationStateStub()
         state.isRunning = true
         let opener = TerminalApplicationOpenerStub()
         let sender = AppleEventSenderStub()
         let script = ITermScriptExecutorStub()
-        sender.outcomes = [.status(-1728)]
+        sender.outcomes = [.status(status)]
         let adapter = TerminalOpenAdapter(
             applicationState: state,
             applicationOpener: opener,
@@ -421,6 +508,64 @@ struct HandoffPlatformTests {
             #require(script.events.first),
             handler: "go2codexNewWindow"
         )
+        #expect(opener.events.isEmpty)
+    }
+
+    @Test
+    func iTermWindowQueryWithoutDirectObjectFailsClosed() async {
+        let state = TerminalApplicationStateStub()
+        state.isRunning = true
+        let opener = TerminalApplicationOpenerStub()
+        let sender = AppleEventSenderStub()
+        let script = ITermScriptExecutorStub()
+        sender.outcomes = [.reply(makeReply())]
+        let adapter = TerminalOpenAdapter(
+            applicationState: state,
+            applicationOpener: opener,
+            eventSender: sender,
+            iTermScriptExecutor: script
+        )
+
+        let error = await capturedTerminalAdapterError {
+            try await adapter.open(
+                testCommand,
+                in: .iTerm2,
+                placement: .newTab
+            )
+        }
+
+        #expect(error == .iTermWindowQueryReplyInvalid(nil))
+        #expect(sender.events.map(\.eventID) == [eventCode("getd")])
+        #expect(script.events.isEmpty)
+        #expect(opener.events.isEmpty)
+    }
+
+    @Test
+    func iTermWindowQueryWithUnknownDescriptorFailsClosed() async {
+        let state = TerminalApplicationStateStub()
+        state.isRunning = true
+        let opener = TerminalApplicationOpenerStub()
+        let sender = AppleEventSenderStub()
+        let script = ITermScriptExecutorStub()
+        sender.outcomes = [.reply(makeITermUnknownWindowReply())]
+        let adapter = TerminalOpenAdapter(
+            applicationState: state,
+            applicationOpener: opener,
+            eventSender: sender,
+            iTermScriptExecutor: script
+        )
+
+        let error = await capturedTerminalAdapterError {
+            try await adapter.open(
+                testCommand,
+                in: .iTerm2,
+                placement: .newTab
+            )
+        }
+
+        #expect(error == .iTermWindowQueryReplyInvalid(eventCode("long")))
+        #expect(sender.events.map(\.eventID) == [eventCode("getd")])
+        #expect(script.events.isEmpty)
         #expect(opener.events.isEmpty)
     }
 
@@ -827,6 +972,10 @@ private let terminalStatusCases = [
         expectedError: .replyTimeout(.terminal)
     ),
     TerminalStatusCase(
+        status: -1719,
+        expectedError: .appleEventFailure(.terminal, status: -1719)
+    ),
+    TerminalStatusCase(
         status: -1708,
         expectedError: .appleEventFailure(.terminal, status: -1708)
     ),
@@ -852,6 +1001,10 @@ private let iTermStatusCases = [
     TerminalStatusCase(
         status: -1728,
         expectedError: .appleEventFailure(.iTerm2, status: -1728)
+    ),
+    TerminalStatusCase(
+        status: -1719,
+        expectedError: .appleEventFailure(.iTerm2, status: -1719)
     ),
     TerminalStatusCase(
         status: -1708,
@@ -949,7 +1102,10 @@ private func makeReply() -> NSAppleEventDescriptor {
 @MainActor
 private func makeITermWindowReply() -> NSAppleEventDescriptor {
     let reply = makeReply()
-    reply.setParam(.init(int32: 1), forKeyword: eventCode("----"))
+    reply.setParam(
+        .init(typeCode: eventCode("cwin")),
+        forKeyword: eventCode("----")
+    )
     return reply
 }
 
@@ -961,6 +1117,13 @@ private func makeITermMissingWindowReply() -> NSAppleEventDescriptor {
             ?? .null(),
         forKeyword: eventCode("----")
     )
+    return reply
+}
+
+@MainActor
+private func makeITermUnknownWindowReply() -> NSAppleEventDescriptor {
+    let reply = makeReply()
+    reply.setParam(.init(int32: 1), forKeyword: eventCode("----"))
     return reply
 }
 

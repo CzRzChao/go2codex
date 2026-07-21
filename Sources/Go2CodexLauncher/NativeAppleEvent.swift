@@ -14,6 +14,12 @@ enum RawAppleEventError: Error, Equatable {
     case status(Int32)
 }
 
+enum ITermCurrentWindowReply: Equatable {
+    case noWindow
+    case window
+    case invalid(UInt32?)
+}
+
 @MainActor
 enum NativeAppleEvent {
     private enum Code {
@@ -24,6 +30,9 @@ enum NativeAppleEvent {
         static let errorNumber: UInt32 = 0x6572726e
 
         static let objectSpecifier: UInt32 = 0x6f626a20
+        static let typeCode: UInt32 = 0x74797065
+        static let enumerated: UInt32 = 0x656e756d
+        static let null: UInt32 = 0x6e756c6c
         static let desiredClass: UInt32 = 0x77616e74
         static let container: UInt32 = 0x66726f6d
         static let keyForm: UInt32 = 0x666f726d
@@ -138,6 +147,38 @@ enum NativeAppleEvent {
     }
 
     static let missingValueDescriptorType: UInt32 = 0x6d736e67
+
+    static func classifyITermCurrentWindowReply(
+        _ reply: NSAppleEventDescriptor
+    ) -> ITermCurrentWindowReply {
+        guard let directObject = reply.paramDescriptor(
+            forKeyword: Code.directObject
+        ) else {
+            return .invalid(nil)
+        }
+        if directObject.descriptorType == missingValueDescriptorType {
+            return .noWindow
+        }
+        if directObject.descriptorType == Code.typeCode,
+           directObject.typeCodeValue == Code.window {
+            return .window
+        }
+        if directObject.descriptorType == Code.objectSpecifier,
+           directObject.numberOfItems == 4,
+           let desiredClass = directObject.forKeyword(Code.desiredClass),
+           desiredClass.descriptorType == Code.typeCode,
+           desiredClass.typeCodeValue == Code.window,
+           let container = directObject.forKeyword(Code.container),
+           container.descriptorType != missingValueDescriptorType,
+           let keyForm = directObject.forKeyword(Code.keyForm),
+           keyForm.descriptorType == Code.enumerated,
+           let keyData = directObject.forKeyword(Code.keyData),
+           keyData.descriptorType != missingValueDescriptorType,
+           keyData.descriptorType != Code.null {
+            return .window
+        }
+        return .invalid(directObject.descriptorType)
+    }
 
     private static func frontWindowSpecifier() throws -> NSAppleEventDescriptor {
         try elementSpecifier(

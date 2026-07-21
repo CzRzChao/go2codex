@@ -214,7 +214,7 @@ Preferences are stored as one versioned `PreferencesEnvelope`, rather than unrel
 
 First Run writes one complete envelope. Later Settings edits replace the complete envelope immediately. Unknown schema versions, corrupt data, or missing required fields fail safely to an explicit recovery state rather than inventing defaults that could trigger a Handoff.
 
-While Settings remains in recovery, application activation performs a read-only retry against the same preference store. Only a newly readable, complete configured envelope restores editing; First Run, persistent corruption, and unavailable storage remain locked without resetting, deleting, or replacing saved preferences.
+While Settings remains in recovery, application activation performs a read-only retry against the same preference store. Only a newly readable, complete configured envelope restores editing automatically. The recovery page also offers an explicit destructive Reset Settings action with confirmation; it removes the unreadable envelope and returns to First Run only after readback confirms the key is absent. A failed reset reconciles the UI with the store's actual First Run, configured, or recovery state instead of leaving a deleted envelope behind a stale recovery screen.
 
 The schema remains version 1 after removing Option-click as a selectable trigger. A legacy schema-v1 `option-click` value is decoded as `shift-click`; Settings rewrites the complete envelope in canonical form, while the Launcher treats the decoded value as Shift without writing across process domains.
 

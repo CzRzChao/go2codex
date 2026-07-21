@@ -103,6 +103,7 @@ assert_paths_absent \
     "$smoke_manifest_next"
 
 require_clean_git "$project_dir"
+"$script_dir/verify-iterm-handoff.sh"
 current_head="$(git_head "$project_dir")"
 require_apple_development_identity "$signing_config"
 

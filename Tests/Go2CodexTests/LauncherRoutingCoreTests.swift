@@ -292,7 +292,7 @@ struct TerminalPlacementRoutingTests {
             for: .terminal,
             placement: .newTab,
             hasWindow: true
-        ) == .createWindow)
+        ) == .unsupported(host: .terminal, placement: .newTab))
         #expect(TerminalPlacementPlanner.plan(
             for: .terminal,
             placement: .newTab,

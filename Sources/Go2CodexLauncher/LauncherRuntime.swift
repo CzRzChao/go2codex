@@ -786,6 +786,8 @@ struct LauncherFailureCopyResolver {
             "The Finder folder is not accessible"
         case "terminal-placement-unsupported":
             "New Tab is not supported in Terminal"
+        case "iterm-window-query-malformed":
+            "Go2Codex could not determine whether iTerm has a window"
         case "target-picker-mouse-release-timeout",
              "target-picker-activation-timeout",
              "target-picker-readiness-cancelled":
@@ -803,6 +805,8 @@ struct LauncherFailureCopyResolver {
             return "Open a regular folder in Finder, then try again. Smart folders such as Recents cannot be used as a workspace."
         case "terminal-placement-unsupported":
             return "Choose New Window in Go2Codex Settings, or use iTerm2 for New Tab."
+        case "iterm-window-query-malformed":
+            return "No terminal session was opened. Try again, or choose New Window in Go2Codex Settings."
         case "target-picker-mouse-release-timeout",
              "target-picker-activation-timeout",
              "target-picker-readiness-cancelled":

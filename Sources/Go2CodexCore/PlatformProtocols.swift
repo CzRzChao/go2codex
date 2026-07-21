@@ -205,7 +205,7 @@ public enum TerminalHandoffError: Error, Equatable, Sendable, DiagnosticCodeProv
             .consentRequired(host)
         case -1712:
             .replyTimeout(host)
-        case -600, -1719:
+        case -600:
             .terminalUnavailable(host)
         default:
             .appleEventFailure(host, status: status)
