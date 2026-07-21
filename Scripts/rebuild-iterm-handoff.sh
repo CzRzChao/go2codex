@@ -5,6 +5,7 @@ set -euo pipefail
 script_dir="$(cd "$(dirname "$0")" && /bin/pwd -P)"
 project_dir="$(cd "$script_dir/.." && /bin/pwd -P)"
 source "$script_dir/lib/safety.sh"
+source "$script_dir/lib/iterm-handoff-safety.sh"
 
 if [[ $# -ne 1 || "$1" != "--confirm-rebuild-iterm-handoff" ]]; then
     echo "Usage: $0 --confirm-rebuild-iterm-handoff" >&2
@@ -63,9 +64,7 @@ source_sha="$(/usr/bin/shasum -a 256 "$source_path" | /usr/bin/awk '{ print $1 }
     || safety_die "iTerm handoff source checksum could not be calculated"
 [[ "$(/usr/bin/shasum -a 256 "$staged_source" | /usr/bin/awk '{ print $1 }')" == "$source_sha" ]] \
     || safety_die "staged iTerm handoff source differs from the repository source"
-if /usr/bin/grep -E '(^|[[:space:]])close([[:space:]]|$)' "$staged_source" >/dev/null; then
-    safety_die "iTerm handoff source must not close a session after an uncertain failure"
-fi
+assert_iterm_handoff_source_contract "$staged_source"
 
 /usr/bin/osacompile -o "$staged_compiled" "$staged_source" \
     || safety_die "iTerm handoff AppleScript compilation failed"
@@ -75,23 +74,7 @@ fi
     || safety_die "iTerm handoff compiler produced an unexpected file type"
 /usr/bin/osadecompile "$staged_compiled" >"$decompiled_path" \
     || safety_die "iTerm handoff compiled resource could not be decompiled"
-
-decompiled_count() {
-    local text="$1"
-    /usr/bin/grep -F -c -- "$text" "$decompiled_path" || true
-}
-
-[[ "$(decompiled_count 'on go2codexNewWindow(commandText)')" == "1" ]] \
-    || safety_die "compiled iTerm handoff is missing the exact new-window handler"
-[[ "$(decompiled_count 'on go2codexNewTab(commandText)')" == "1" ]] \
-    || safety_die "compiled iTerm handoff is missing the exact new-tab handler"
-[[ "$(decompiled_count 'with timeout of 60 seconds')" == "2" ]] \
-    || safety_die "compiled iTerm handoff must contain two 60-second timeouts"
-[[ "$(decompiled_count 'return true')" == "2" ]] \
-    || safety_die "compiled iTerm handoff must contain two explicit success results"
-if /usr/bin/grep -E '(^|[[:space:]])close([[:space:]]|$)|coreclos' "$decompiled_path" >/dev/null; then
-    safety_die "compiled iTerm handoff must not close a session after an uncertain failure"
-fi
+assert_iterm_handoff_decompiled_contract "$decompiled_path"
 [[ "$(/usr/bin/shasum -a 256 "$source_path" | /usr/bin/awk '{ print $1 }')" == "$source_sha" ]] \
     || safety_die "iTerm handoff compilation changed the repository source"
 compiled_sha="$(/usr/bin/shasum -a 256 "$staged_compiled" | /usr/bin/awk '{ print $1 }')" \

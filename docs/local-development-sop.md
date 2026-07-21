@@ -168,7 +168,7 @@ Release Candidate 必须能指向一个不可变的 Git commit。首次准备需
 ./Scripts/verify-iterm-handoff.sh
 ```
 
-重建脚本只编译到受控 staging 文件，确认可反编译后才替换二进制并生成绑定源码与二进制精确字节摘要的 provenance；它不会执行生产 handler。脚本最后显示的反编译内容只用于人工复核创建对象、目标 session、单次 write、60 秒 Apple Event timeout 和显式 `return true`，不能作为跨系统稳定文本保存或比较。普通构建、Unit 和 CI 只运行只读 provenance 门禁，不会启动 iTerm、调用 `osacompile` 或修改源码。不能手工编辑 `.scpt` 或 provenance，也不能只更新其中一个；三者必须在同一轮 review。Unit 会验证编译资源可加载，产品验证会校验打包摘要且要求资源只出现在嵌套 Launcher 中，但真实 iTerm 行为仍只由 Installed Debug smoke 证明。
+重建脚本只编译到受控 staging 文件，确认可反编译后才替换二进制并生成绑定源码与二进制精确字节摘要的 provenance；它不会执行生产 handler。脚本最后显示的反编译内容只用于人工复核每个 handler 首先派生精确的 `Library/Application Support/iTerm2/version.txt` 静默启动路径、把打开该路径作为 timeout 内第一个目标命令、随后创建对象并绑定目标 session、单次 write、60 秒 Apple Event timeout、无通用 `launch`/activate/run/reopen/delay/close 和显式 `return true`，不能作为跨系统稳定文本保存或比较。普通构建、Unit 和 CI 只运行只读 provenance 门禁，不会启动 iTerm、调用 `osacompile` 或修改源码。不能手工编辑 `.scpt` 或 provenance，也不能只更新其中一个；三者必须在同一轮 review。Unit 会验证编译资源可加载，产品验证会校验打包摘要且要求资源只出现在嵌套 Launcher 中，但真实 iTerm 行为仍只由 Installed Debug smoke 证明。
 
 ## 5. Installed Debug 实机 smoke
 
@@ -199,8 +199,8 @@ Release Candidate 必须能指向一个不可变的 Git commit。首次准备需
 4. **Shift 点击**：回到普通目录，按住 Shift 直到选择面板稳定出现。确认四个目标顺序固定、面板不闪退；Escape 和点击外部都安静取消；再次打开并选择一个目标时只 Handoff 一次。
 5. **重复调用**：连续完成至少五次打开/取消，并做一次受控快速重复点击；不得出现重叠面板或重复 Handoff。
 6. **桌面目标**：从选择器分别启动 Codex App 与 Claude Desktop 一次；两者都只启动一次并收到准确目录。
-7. **iTerm2 + Codex CLI**：验证没有现有窗口时新建窗口，以及有现有窗口时按设置新建标签或窗口且不改变原标签；连续执行五次。新会话必须进入测试文件夹，只提交固定 `codex` 命令。
-8. **iTerm2 + Claude Code CLI**：重复新标签、新窗口和无现有窗口路径，只提交固定 `claude` 命令。
+7. **iTerm2 + Codex CLI**：先完全退出 iTerm2，分别以 New Window 和“New Tab 但未启动”调用；每次只能出现一个承载命令的窗口，不得附带默认空窗口或空标签。再验证 iTerm2 已运行但无窗口，以及有现有窗口时按设置新建标签或窗口且不改变原标签；每一种路径连续执行五次。新会话必须进入测试文件夹，只提交固定 `codex` 命令。
+8. **iTerm2 + Claude Code CLI**：重复完全退出、运行但无窗口、运行且有窗口三种状态下的新标签和新窗口路径；冷启动时同样只能出现一个承载命令的窗口，不得附带默认空窗口或空标签，只提交固定 `claude` 命令。
 9. **Terminal.app 冷启动 + 两个 CLI**：完全退出 Terminal.app，分别用 New Window 和“New Tab 但无窗口”启动 Codex CLI 与 Claude Code CLI；每次都必须只出现一个承载命令的窗口、没有额外空白窗口，进入准确文件夹，并且只提交一次对应的固定命令。每个用例前都要重新完全退出 Terminal，不得用已运行进程代替冷启动；每一种成功路径连续执行五次。
 10. **Terminal.app 运行中路径**：保持 Terminal 运行，先关闭全部窗口，再验证 New Window 与 New Tab 都各生成一个承载命令的窗口；随后保留一个现有窗口，New Window 必须新建独立窗口，New Tab 必须在提交命令前明确失败且不改动现有标签。
 11. **失败与生命周期边界**：command not found、Terminal.app 与 iTerm2 的 Automation 拒绝、以及取消均不得回退目标或重复提交；成功、取消或失败后 Launcher 都应退出，不留下 Dock 图标、菜单栏项或常驻后台进程。
