@@ -7,6 +7,7 @@ project_dir="$(cd "$script_dir/.." && /bin/pwd -P)"
 
 source "$script_dir/lib/safety.sh"
 source "$script_dir/lib/overlay-transaction.sh"
+source "$script_dir/lib/iterm-handoff-safety.sh"
 
 test_count=0
 temporary_root=""
@@ -41,6 +42,22 @@ expect_failure() {
     shift
     if ("$@") >/dev/null 2>&1; then
         echo "test-sop: expected failure: $label" >&2
+        exit 1
+    fi
+    pass
+}
+
+expect_failure_containing() {
+    local label="$1"
+    local expected="$2"
+    local output
+    shift 2
+    if output="$("$@" 2>&1)"; then
+        echo "test-sop: expected failure: $label" >&2
+        exit 1
+    fi
+    if [[ "$output" != *"$expected"* ]]; then
+        echo "test-sop: $label: missing expected diagnostic: $expected" >&2
         exit 1
     fi
     pass
@@ -180,6 +197,159 @@ expect_failure \
 
 "$script_dir/verify-iterm-handoff.sh" >/dev/null
 pass
+
+iterm_rebuild_source="$temporary_root/ITermHandoff.rebuild.applescript"
+
+reset_iterm_rebuild_fixture() {
+    /bin/cp \
+        "$project_dir/Sources/Go2CodexLauncher/Resources/ITermHandoff.applescript" \
+        "$iterm_rebuild_source"
+}
+
+insert_before_first_iterm_timeout() {
+    local command="$1"
+    local next_source="$iterm_rebuild_source.next-test"
+    /usr/bin/awk -v command="$command" '
+        !inserted && /^[[:space:]]*with timeout of 60 seconds/ {
+            print "                " command
+            inserted = 1
+        }
+        { print }
+        END { if (!inserted) exit 1 }
+    ' "$iterm_rebuild_source" >"$next_source"
+    /bin/mv "$next_source" "$iterm_rebuild_source"
+}
+
+reset_iterm_rebuild_fixture
+assert_iterm_handoff_source_contract "$iterm_rebuild_source"
+pass
+assert_iterm_handoff_decompiled_contract "$iterm_rebuild_source"
+pass
+
+reset_iterm_rebuild_fixture
+insert_before_first_iterm_timeout activate
+expect_failure_containing \
+    "iTerm handoff rebuild rejects activate" \
+    "must not activate, run, or reopen iTerm" \
+    assert_iterm_handoff_source_contract \
+    "$iterm_rebuild_source"
+
+reset_iterm_rebuild_fixture
+insert_before_first_iterm_timeout run
+expect_failure_containing \
+    "iTerm handoff rebuild rejects run" \
+    "must not activate, run, or reopen iTerm" \
+    assert_iterm_handoff_source_contract \
+    "$iterm_rebuild_source"
+
+reset_iterm_rebuild_fixture
+/usr/bin/sed \
+    's#iTerm2/version\.txt#iTerm2/not-version.txt#g' \
+    "$iterm_rebuild_source" \
+    >"$iterm_rebuild_source.next-test"
+/bin/mv "$iterm_rebuild_source.next-test" "$iterm_rebuild_source"
+expect_failure_containing \
+    "iTerm handoff rebuild rejects wrong quiet sentinel" \
+    "must derive one exact quiet path" \
+    assert_iterm_handoff_source_contract \
+    "$iterm_rebuild_source"
+
+reset_iterm_rebuild_fixture
+/usr/bin/awk '
+    !moved && /^[[:space:]]*open file quietLaunchPath[[:space:]]*$/ {
+        pending = $0
+        next
+    }
+    pending != "" && /^[[:space:]]*set createdWindow to create window with default profile[[:space:]]*$/ {
+        print
+        print pending
+        pending = ""
+        moved = 1
+        next
+    }
+    { print }
+    END { if (!moved || pending != "") exit 1 }
+' "$iterm_rebuild_source" >"$iterm_rebuild_source.next-test"
+/bin/mv "$iterm_rebuild_source.next-test" "$iterm_rebuild_source"
+expect_failure_containing \
+    "iTerm handoff rebuild rejects quiet open after create" \
+    "must open its exact quiet path before its first target operation" \
+    assert_iterm_handoff_source_contract \
+    "$iterm_rebuild_source"
+
+iterm_raw_decompiled="$temporary_root/ITermHandoff.raw-decompiled.applescript"
+
+write_raw_iterm_decompiled_fixture() {
+    /usr/bin/printf '%s\n' \
+        'on go2codexNewWindow(commandText)' \
+        '    set quietLaunchPath to (POSIX path of («event earsffdr» «constant afdrasup» given «class from»:«constant fldmfldu»)) & "iTerm2/version.txt"' \
+        '    using terms from application "iTerm.app"' \
+        '        tell application id "com.googlecode.iterm2"' \
+        '            with timeout of 60 seconds' \
+        '                open file quietLaunchPath' \
+        '                set createdWindow to «event Itrmnwwn»' \
+        '                tell «class Wcsn» of createdWindow to «event Itrmsntx» with «class Wtnl» given «class Text»:commandText' \
+        '            end timeout' \
+        '        end tell' \
+        '    end using terms from' \
+        '    return true' \
+        'end go2codexNewWindow' \
+        '' \
+        'on go2codexNewTab(commandText)' \
+        '    set quietLaunchPath to (POSIX path of («event earsffdr» «constant afdrasup» given «class from»:«constant fldmfldu»)) & "iTerm2/version.txt"' \
+        '    using terms from application "iTerm.app"' \
+        '        tell application id "com.googlecode.iterm2"' \
+        '            with timeout of 60 seconds' \
+        '                open file quietLaunchPath' \
+        '                set targetWindow to «class Crwn»' \
+        '                tell targetWindow to set createdTab to «event Itrmntwn»' \
+        '                tell «class Wcsn» of createdTab to «event Itrmsntx» with «class Wtnl» given «class Text»:commandText' \
+        '            end timeout' \
+        '        end tell' \
+        '    end using terms from' \
+        '    return true' \
+        'end go2codexNewTab' \
+        >"$iterm_raw_decompiled"
+}
+
+write_raw_iterm_decompiled_fixture
+assert_iterm_handoff_decompiled_contract "$iterm_raw_decompiled"
+pass
+
+write_raw_iterm_decompiled_fixture
+/usr/bin/sed \
+    's#iTerm2/version\.txt#iTerm2/not-version.txt#g' \
+    "$iterm_raw_decompiled" \
+    >"$iterm_raw_decompiled.next-test"
+/bin/mv "$iterm_raw_decompiled.next-test" "$iterm_raw_decompiled"
+expect_failure_containing \
+    "raw iTerm handoff rejects wrong quiet sentinel" \
+    "must derive one exact quiet path" \
+    assert_iterm_handoff_decompiled_contract \
+    "$iterm_raw_decompiled"
+
+write_raw_iterm_decompiled_fixture
+/usr/bin/awk '
+    !moved && /^[[:space:]]*open file quietLaunchPath[[:space:]]*$/ {
+        pending = $0
+        next
+    }
+    pending != "" && /^[[:space:]]*set createdWindow to «event Itrmnwwn»[[:space:]]*$/ {
+        print
+        print pending
+        pending = ""
+        moved = 1
+        next
+    }
+    { print }
+    END { if (!moved || pending != "") exit 1 }
+' "$iterm_raw_decompiled" >"$iterm_raw_decompiled.next-test"
+/bin/mv "$iterm_raw_decompiled.next-test" "$iterm_raw_decompiled"
+expect_failure_containing \
+    "raw iTerm handoff rejects quiet open after create" \
+    "must open its exact quiet path before its first target operation" \
+    assert_iterm_handoff_decompiled_contract \
+    "$iterm_raw_decompiled"
 
 valid_signing_config="$temporary_root/LocalSigning.conf"
 {
