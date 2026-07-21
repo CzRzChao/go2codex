@@ -1113,8 +1113,7 @@ private func makeITermWindowReply() -> NSAppleEventDescriptor {
 private func makeITermMissingWindowReply() -> NSAppleEventDescriptor {
     let reply = makeReply()
     reply.setParam(
-        NSAppleEventDescriptor(descriptorType: eventCode("msng"), data: nil)
-            ?? .null(),
+        .init(typeCode: eventCode("msng")),
         forKeyword: eventCode("----")
     )
     return reply

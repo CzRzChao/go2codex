@@ -160,6 +160,10 @@ enum NativeAppleEvent {
             return .noWindow
         }
         if directObject.descriptorType == Code.typeCode,
+           directObject.typeCodeValue == missingValueDescriptorType {
+            return .noWindow
+        }
+        if directObject.descriptorType == Code.typeCode,
            directObject.typeCodeValue == Code.window {
             return .window
         }

@@ -79,6 +79,15 @@ struct NativeAppleEventTests {
 
         let noWindow = reply()
         noWindow.setParam(
+            .init(typeCode: code("msng")),
+            forKeyword: code("----")
+        )
+        #expect(NativeAppleEvent.classifyITermCurrentWindowReply(
+            noWindow
+        ) == .noWindow)
+
+        let legacyNoWindow = reply()
+        legacyNoWindow.setParam(
             try #require(NSAppleEventDescriptor(
                 descriptorType: code("msng"),
                 data: nil
@@ -86,7 +95,7 @@ struct NativeAppleEventTests {
             forKeyword: code("----")
         )
         #expect(NativeAppleEvent.classifyITermCurrentWindowReply(
-            noWindow
+            legacyNoWindow
         ) == .noWindow)
 
         let nullValue = reply()
