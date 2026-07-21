@@ -145,7 +145,8 @@ struct TerminalApplicationOpenFailure: Equatable, Sendable {
 protocol TerminalApplicationOpening {
     func openApplication(
         at applicationURL: URL,
-        initialAppleEvent: NSAppleEventDescriptor
+        initialAppleEvent: NSAppleEventDescriptor,
+        activates: Bool
     ) async -> TerminalApplicationOpenFailure?
 }
 
@@ -153,10 +154,11 @@ protocol TerminalApplicationOpening {
 struct WorkspaceTerminalApplicationOpener: TerminalApplicationOpening {
     func openApplication(
         at applicationURL: URL,
-        initialAppleEvent: NSAppleEventDescriptor
+        initialAppleEvent: NSAppleEventDescriptor,
+        activates: Bool
     ) async -> TerminalApplicationOpenFailure? {
         let configuration = NSWorkspace.OpenConfiguration()
-        configuration.activates = true
+        configuration.activates = activates
         configuration.addsToRecentItems = false
         configuration.appleEvent = initialAppleEvent
 
@@ -263,8 +265,14 @@ struct TerminalOpenAdapter: TerminalHandoffPerforming {
                     bundleIdentifier: host.bundleIdentifier
                 ) ? .noWindow : .notRunning
         case .iTerm2:
+            try await openHost(
+                applicationURL: applicationURL,
+                event: NativeAppleEvent.iTermQuietLaunch(),
+                host: host,
+                activates: true
+            )
             windowState = placement == .newTab
-                ? try frontWindowState(for: host)
+                ? try frontWindowState(for: host, assumesRunning: true)
                 : .noWindow
         }
         let placementPlan = TerminalPlacementPlanner.plan(
@@ -302,9 +310,10 @@ struct TerminalOpenAdapter: TerminalHandoffPerforming {
     }
 
     private func frontWindowState(
-        for host: TerminalHost
+        for host: TerminalHost,
+        assumesRunning: Bool = false
     ) throws -> TerminalFrontWindowState {
-        guard applicationState.isRunning(
+        guard assumesRunning || applicationState.isRunning(
             bundleIdentifier: host.bundleIdentifier
         ) else {
             return .notRunning
@@ -358,7 +367,7 @@ struct TerminalOpenAdapter: TerminalHandoffPerforming {
     ) async throws {
         let event = NativeAppleEvent.terminalNewWindow(command: command)
         guard isRunning else {
-            try await openTerminal(
+            try await openHost(
                 applicationURL: applicationURL,
                 event: event,
                 host: host
@@ -369,7 +378,7 @@ struct TerminalOpenAdapter: TerminalHandoffPerforming {
         do {
             _ = try eventSender.send(event)
         } catch RawAppleEventError.status(-600) {
-            try await openTerminal(
+            try await openHost(
                 applicationURL: applicationURL,
                 event: event,
                 host: host
@@ -382,14 +391,16 @@ struct TerminalOpenAdapter: TerminalHandoffPerforming {
         }
     }
 
-    private func openTerminal(
+    private func openHost(
         applicationURL: URL,
         event: NSAppleEventDescriptor,
-        host: TerminalHost
+        host: TerminalHost,
+        activates: Bool = true
     ) async throws {
         guard let failure = await applicationOpener.openApplication(
             at: applicationURL,
-            initialAppleEvent: event
+            initialAppleEvent: event,
+            activates: activates
         ) else {
             return
         }

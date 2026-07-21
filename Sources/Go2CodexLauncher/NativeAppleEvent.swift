@@ -23,6 +23,8 @@ enum ITermCurrentWindowReply: Equatable {
 @MainActor
 enum NativeAppleEvent {
     private enum Code {
+        static let appleEvent: UInt32 = 0x61657674
+        static let openDocuments: UInt32 = 0x6f646f63
         static let core: UInt32 = 0x636f7265
         static let getData: UInt32 = 0x67657464
         static let doScript: UInt32 = 0x646f7363
@@ -93,6 +95,37 @@ enum NativeAppleEvent {
             try propertySpecifier(Code.iTermCurrentWindow, container: .null()),
             forKeyword: Code.directObject
         )
+        return event
+    }
+
+    static var iTermQuietLaunchSentinelURL: URL {
+        let applicationSupportURL = FileManager.default
+            .urls(for: .applicationSupportDirectory, in: .userDomainMask)
+            .first ?? FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent(
+                "Library/Application Support",
+                isDirectory: true
+            )
+        return applicationSupportURL
+            .appendingPathComponent("iTerm2/version.txt", isDirectory: false)
+    }
+
+    static func iTermQuietLaunch(
+        sentinelURL: URL? = nil
+    ) -> NSAppleEventDescriptor {
+        let directObject = NSAppleEventDescriptor.list()
+        directObject.insert(
+            .init(fileURL: sentinelURL ?? iTermQuietLaunchSentinelURL),
+            at: 1
+        )
+        let event = NSAppleEventDescriptor(
+            eventClass: Code.appleEvent,
+            eventID: Code.openDocuments,
+            targetDescriptor: nil,
+            returnID: -1,
+            transactionID: 0
+        )
+        event.setParam(directObject, forKeyword: Code.directObject)
         return event
     }
 
