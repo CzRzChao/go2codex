@@ -29,4 +29,4 @@ Go2Codex hands a folder to a separate coding agent and stops observing after han
 
 ## Distribution and Gatekeeper
 
-GitHub Preview Releases are ad-hoc signed and are not Developer ID signed or notarized, so Gatekeeper blocks their first launch; see the Gatekeeper section of the [README](README.md). A future stable release will use Developer ID Application signing and Apple notarization while remaining distributed as a ZIP through GitHub Releases ([ADR 0003](docs/adr/0003-distribute-outside-the-mac-app-store.md)).
+GitHub Preview Releases are ad-hoc signed and are not Developer ID signed or notarized, so Gatekeeper blocks their first launch; see the Gatekeeper section of the [README](README.md). A future stable release will use Developer ID Application signing and Apple notarization while remaining distributed as a ZIP through GitHub Releases.

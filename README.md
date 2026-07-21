@@ -4,10 +4,6 @@ Hand the folder you are looking at in Finder to a Codex or Claude coding agent, 
 
 Go2Codex adds a single button to the Finder toolbar. Click it and Go2Codex takes the exact folder shown by the frontmost Finder window (the **Workspace**) and opens it in your preferred coding agent — either a desktop app (via its URL scheme) or a CLI (by running `cd <folder> && codex` or `cd <folder> && claude` in your terminal).
 
-<!-- TODO: screenshot — Finder toolbar with the Go2Codex button -->
-<!-- TODO: demo GIF — click button, agent opens on the current folder -->
-<!-- TODO: screenshot — Settings window (General / CLI / Finder Toolbar) -->
-
 ## Requirements
 
 - **Apple Silicon** Mac (no Intel or Universal build is shipped).
@@ -60,7 +56,7 @@ Only continue if you trust this repository and the downloaded SHA-256 matches th
 2. Scroll to **Security** and choose **Open Anyway** for Go2Codex.
 3. Authenticate and confirm **Open**. macOS saves this choice as an exception for that app build.
 
-The override might be unavailable on an organization-managed Mac. A future stable Public Release will be signed with a Developer ID Application certificate and notarized by Apple, so this step will no longer be needed. See [ADR 0003](docs/adr/0003-distribute-outside-the-mac-app-store.md).
+The override might be unavailable on an organization-managed Mac. A future stable Public Release will be signed with a Developer ID Application certificate and notarized by Apple, so this step will no longer be needed.
 
 ## Installing the toolbar button
 
@@ -96,10 +92,24 @@ Not in scope: VS Code / Cursor / other editors, a menu-bar resident, session res
   Scripts/test.sh
   ```
 
-- For the full local build / install / smoke / promote / rollback workflow, see the [Local Development SOP](docs/local-development-sop.md). Build and install scripts (`build-personal.sh`, `install-personal.sh`, etc.) target a real signed Mac and are not meant for CI.
-- Release maintainers should follow the [GitHub Preview Release SOP](docs/github-preview-release.md). Only `vX.Y.Z-preview.N` tags can produce an unsigned GitHub pre-release; stable `vX.Y.Z` tags are reserved for a future Developer ID-signed and notarized workflow.
+The other scripts under `Scripts/` are maintainer workflows for building, verifying, installing, or rolling back local builds. Review them before running them because some operate on an installed application.
 
-Project context and invariants live in [CONTEXT.md](CONTEXT.md); the gated delivery plan is in [docs/implementation-plan.md](docs/implementation-plan.md).
+## Publishing an unsigned preview (maintainers)
+
+Preview releases are automated by `.github/workflows/release.yml`. A release tag must be exactly `vX.Y.Z-preview.N`: `X.Y.Z` must match `MARKETING_VERSION`, and `N` must be the positive, no-leading-zero `CURRENT_PROJECT_VERSION`. Stable `vX.Y.Z` tags are rejected until Developer ID signing and notarization are available.
+
+Merge the reviewed release commit into `main` and wait for CI to pass. From a clean, up-to-date `main` checkout, check the release contract and create the annotated tag:
+
+```sh
+git switch main
+git pull --ff-only origin main
+Scripts/test-github-release.sh
+Scripts/package-github-release.sh --validate-only v0.1.0-preview.1
+git tag -a v0.1.0-preview.1 -m "Go2Codex 0.1.0 preview 1"
+git push origin v0.1.0-preview.1
+```
+
+Pushing the tag is the publication action; never push a release tag merely to test the workflow. Keep the `v*-preview.*` tag-protection ruleset active, and never move or delete a published release tag. The workflow builds and verifies an ad-hoc-signed arm64 app, checks the ZIP round trip and SHA-256, and publishes a GitHub pre-release that is not marked as the latest stable release. After publication, download both assets, verify the checksum, confirm the documented Gatekeeper override, and manually test the supported Finder and target matrix.
 
 ## License
 
