@@ -295,10 +295,44 @@ struct SettingsPreferencesStoreTests {
     }
 
     @Test
-    func failedResetSynchronizationReportsWriteFailed() throws {
+    func resetAcceptsVerifiedAbsenceWhenSynchronizationReportsFailure() throws {
         let backend = PreferencesUserDefaultsBackendFake(
             storedObject: "not-data",
             synchronizeResults: [false]
+        )
+        let store = try makeStore(backend)
+
+        try store.reset()
+
+        #expect(backend.storedObject == nil)
+        #expect(store.load() == .firstRun)
+    }
+
+    @Test
+    func resetClearsUncertainIntegrityAfterVerifiedRemoval() throws {
+        let backend = PreferencesUserDefaultsBackendFake(
+            synchronizeResults: [false, false, false]
+        )
+        let store = try makeStore(backend)
+
+        let firstError: UserDefaultsPreferencesStoreError? = capturedError {
+            _ = try store.completeFirstRun(selection: completeSelection())
+        }
+        #expect(firstError == .writeFailed)
+        #expect(store.load() == .recoveryRequired(.storageReadFailed))
+
+        try store.reset()
+
+        #expect(backend.storedObject == nil)
+        #expect(store.load() == .firstRun)
+    }
+
+    @Test
+    func resetFailsWhenAnObjectRemainsAfterRemoval() throws {
+        let backend = PreferencesUserDefaultsBackendFake(
+            storedObject: "not-data",
+            synchronizeResults: [false],
+            synchronizationEffects: [.replace("still-present")]
         )
         let store = try makeStore(backend)
 
@@ -307,6 +341,27 @@ struct SettingsPreferencesStoreTests {
         }
 
         #expect(error == .writeFailed)
+        #expect(backend.storedObject as? String == "still-present")
+        #expect(store.load() == .recoveryRequired(.corruptData))
+    }
+
+    @Test
+    func resetPreservesAConcurrentConfiguredEnvelope() throws {
+        let envelope = configuredEnvelope()
+        let data = try PreferencesCodec().encode(envelope)
+        let backend = PreferencesUserDefaultsBackendFake(
+            storedObject: "not-data",
+            synchronizationEffects: [.replace(data)]
+        )
+        let store = try makeStore(backend)
+
+        let error: UserDefaultsPreferencesStoreError? = capturedError {
+            try store.reset()
+        }
+
+        #expect(error == .writeFailed)
+        #expect(backend.storedObject as? Data == data)
+        #expect(store.load() == .configured(envelope))
     }
 
     @Test

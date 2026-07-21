@@ -32,7 +32,7 @@ iTerm2 declares exact creation events for both placement modes and a write event
 
 The first native implementation sent create and write as two Swift-owned Apple Events. A real iTerm2 3.6.10 invocation returned a bare `type(cwin)` descriptor whose outer type was `type` (`1954115685`), not an object specifier with the identity of the newly created window. Reproducing the compiled command's `subj` attributes did not change that result. Go2Codex must not guess `current window`, diff window collections, or coerce a class value into object identity, because another window can become current between IPC points.
 
-The Launcher now loads the precompiled `ITermHandoff.scpt` resource and invokes one of two fixed handlers through the standard `ascr/psbr` subroutine event. The generated command is the single `utxt` argument in the `----` list; the handler name is selected from a closed placement enum. Inside the same AppleScript invocation, the handler creates a default-profile window or tab, keeps that returned object inside the interpreter, writes exactly once to its current session, and returns explicit Boolean true. Swift never parses the create result.
+The Launcher now loads the precompiled `ITermHandoff.scpt` resource and invokes one of two fixed handlers through the standard `ascr/psbr` subroutine event. The generated command is the single `utxt` argument in the `----` list; the handler name is selected from a closed placement enum. Each handler derives the current user's `Library/Application Support/iTerm2/version.txt` path and sends it to iTerm2 as the first `open file` event. In the [iTerm2 3.6.10 application delegate](https://gitlab.com/gnachman/iterm2/-/blob/a19c18e6/sources/iTermApplicationDelegate.m#L670-728), that event sets the internal quiet-start flag and immediately returns when the path equals iTerm2's version-file path; the [path implementation](https://gitlab.com/gnachman/iterm2/-/blob/a19c18e6/sources/NSFileManager%2BiTerm.m#L223-225) resolves to this exact per-user location. Startup activities then skip the default window and window restoration before the new-window handler explicitly creates one default-profile window. A generic AppleScript `launch` is intentionally forbidden because it does not set iTerm2's quiet flag and can race the deferred startup activities. Inside the same AppleScript invocation, each handler keeps the returned window or tab object inside the interpreter, writes exactly once to its current session, and returns explicit Boolean true. Swift never parses the create result.
 
 iTerm2's [AppleScript documentation](https://iterm2.com/3.5/documentation-scripting.html) says that supplying the optional creation `command` replaces the profile's command or login shell. The handlers therefore omit that parameter and write text after the default-profile shell starts. This preserves the configured profile, shell, PATH, and startup files.
 
@@ -54,7 +54,8 @@ Terminal also registers the public macOS Service â€œNew Terminal Tab at Folderâ€
 - exact Terminal event class, ID, target bundle, direct parameter, and cold-open application URL;
 - exact iTerm2 subroutine event, fixed handler names, one `utxt` argument, and adversarial command preservation;
 - compiled script resource presence and loadability;
-- iTerm2 new-window/new-tab selection and exactly one handler invocation;
+- iTerm2 existing-window and no-window placement selection with exactly one handler invocation;
+- the compiled iTerm2 handlers each derive the exact quiet-start version-file path and open it as the timeout's first target command, with no generic `launch`, activate/run/reopen, delay, or close-on-failure path;
 - explicit Boolean-true success contract;
 - resource, load, invalid-result, permission, consent, timeout, unavailable-process, unavailable-object, and generic event failures without retry or cross-host fallback;
 - Terminal front-window-query and direct-command `-600` races falling back exactly once, with no duplicate direct submission;
@@ -68,10 +69,10 @@ Automated tests load but never execute the production iTerm2 handlers. They send
 1. Completely quit Terminal, then invoke New Window and no-window New Tab; each must create exactly one command-bearing window with no extra blank window.
 2. Leave Terminal running with no window, then repeat both placements and confirm one command window each.
 3. With an existing Terminal window, New Tab must fail before command submission; New Window must create a distinct window and submit once.
-4. In iTerm2, test New Window with and without an existing window.
-5. In iTerm2, test New Tab with an existing window and the no-window conversion to New Window.
-6. Confirm every iTerm2 session uses the configured default profile and that input lands only in the newly created session.
-7. Repeat iTerm2 operations several times to detect duplicate sessions, late submission, or a current-window race.
+4. Completely quit iTerm2 before each case, then test New Window and no-window New Tab; each must create exactly one command-bearing window with no extra blank window or tab.
+5. Leave iTerm2 running with no window, then repeat both placements and confirm one command-bearing window each.
+6. With an existing iTerm2 window, test New Window and New Tab; input must land only in the newly created session and the original session must remain unchanged.
+7. Confirm every iTerm2 session uses the configured default profile, then repeat each state several times to detect duplicate sessions, late submission, or a current-window race.
 8. Repeat one invocation in each host with Automation denied and confirm one typed permission error with no retry.
 9. Finally launch `codex` and `claude` through each supported host/placement shape and confirm the exact Workspace and lack of target arguments.
 

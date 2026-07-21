@@ -416,16 +416,24 @@ done
 [[ -f "$inner_path/Contents/Resources/en.lproj/InfoPlist.strings" ]] || fail "Launcher English Info.plist localization is missing"
 [[ -f "$inner_path/Contents/Resources/zh-Hans.lproj/InfoPlist.strings" ]] || fail "Launcher zh-Hans Info.plist localization is missing"
 if [[ "$content_contract" == "current" ]]; then
+    "$script_dir/verify-iterm-handoff.sh" >/dev/null \
+        || fail "repository iTerm handoff provenance is invalid"
     iterm_script="$inner_path/Contents/Resources/ITermHandoff.scpt"
+    iterm_provenance="$project_dir/Sources/Go2CodexLauncher/Resources/ITermHandoff.provenance"
     [[ -f "$iterm_script" && ! -L "$iterm_script" ]] || fail "Launcher iTerm handoff script is missing"
+    expected_iterm_sha="$(/usr/bin/awk -F= '$1 == "COMPILED_SHA256" { print $2; exit }' "$iterm_provenance")"
+    actual_iterm_sha="$(/usr/bin/shasum -a 256 "$iterm_script" | /usr/bin/awk '{ print $1 }')"
     assert_equal "$(/usr/bin/file -b "$iterm_script")" "AppleScript compiled" "Launcher iTerm handoff script type"
+    assert_equal "$actual_iterm_sha" "$expected_iterm_sha" "Launcher iTerm handoff script checksum"
     [[ ! -e "$app_path/Contents/Resources/ITermHandoff.scpt" ]] || fail "iTerm handoff script must be packaged only in Launcher"
+    [[ ! -e "$inner_path/Contents/Resources/ITermHandoff.applescript" ]] || fail "iTerm handoff source must not be packaged"
+    [[ ! -e "$inner_path/Contents/Resources/ITermHandoff.provenance" ]] || fail "iTerm handoff provenance must not be packaged"
 fi
 assert_equal "$(localization_list "$app_path/Contents/Resources")" "en,zh-Hans" "outer packaged localizations"
 assert_equal "$(localization_list "$inner_path/Contents/Resources")" "en,zh-Hans" "Launcher packaged localizations"
 if [[ "$content_contract" == "current" ]]; then
-    assert_equal "$(plist_key_count "$app_path/Contents/Resources/zh-Hans.lproj/Localizable.strings")" "75" "outer Simplified Chinese string count"
-    assert_equal "$(plist_key_count "$inner_path/Contents/Resources/zh-Hans.lproj/Localizable.strings")" "75" "Launcher Simplified Chinese string count"
+    assert_equal "$(plist_key_count "$app_path/Contents/Resources/zh-Hans.lproj/Localizable.strings")" "80" "outer Simplified Chinese string count"
+    assert_equal "$(plist_key_count "$inner_path/Contents/Resources/zh-Hans.lproj/Localizable.strings")" "80" "Launcher Simplified Chinese string count"
 fi
 for strings_file in \
     "$app_path/Contents/Resources/zh-Hans.lproj/Localizable.strings" \
@@ -439,6 +447,8 @@ for strings_file in \
     if [[ "$content_contract" == "current" ]]; then
         assert_equal "$(plist_value "$strings_file" "This Finder view is not a folder")" "当前 Finder 位置不是实际文件夹" "Finder virtual-view title localization"
         assert_equal "$(plist_value "$strings_file" "Open a regular folder in Finder, then try again. Smart folders such as Recents cannot be used as a workspace.")" "请先在 Finder 中打开一个普通文件夹再重试。“最近使用”等智能文件夹不能作为工作目录。" "Finder virtual-view guidance localization"
+        assert_equal "$(plist_value "$strings_file" "Go2Codex could not determine whether iTerm has a window")" "Go2Codex 无法判断 iTerm 是否有窗口" "iTerm window-state title localization"
+        assert_equal "$(plist_value "$strings_file" "No terminal session was opened. Try again, or choose New Window in Go2Codex Settings.")" "未打开任何终端会话。请重试，或在 Go2Codex 设置中选择“新窗口”。" "iTerm window-state guidance localization"
     fi
 done
 assert_equal "$(plist_key_count "$app_path/Contents/Resources/en.lproj/InfoPlist.strings")" "1" "outer English Info.plist string count"

@@ -794,7 +794,7 @@ struct M3DiagnosticsTests {
             #expect(TerminalHandoffError.mapAppleEventStatus(-1744, host: host) == .consentRequired(host))
             #expect(TerminalHandoffError.mapAppleEventStatus(-1712, host: host) == .replyTimeout(host))
             #expect(TerminalHandoffError.mapAppleEventStatus(-600, host: host) == .terminalUnavailable(host))
-            #expect(TerminalHandoffError.mapAppleEventStatus(-1719, host: host) == .terminalUnavailable(host))
+            #expect(TerminalHandoffError.mapAppleEventStatus(-1719, host: host) == .appleEventFailure(host, status: -1719))
             #expect(TerminalHandoffError.mapAppleEventStatus(-999, host: host) == .appleEventFailure(host, status: -999))
         }
     }

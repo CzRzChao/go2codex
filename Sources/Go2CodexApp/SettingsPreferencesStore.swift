@@ -207,7 +207,9 @@ final class UserDefaultsPreferencesStore: SettingsPreferencesServing {
     }
 
     func reset() throws {
-        guard restoreEnvelopeData(nil) else {
+        defaults.removeObject(forKey: PreferencesStorageKey.envelope)
+        _ = defaults.synchronize()
+        guard defaults.object(forKey: PreferencesStorageKey.envelope) == nil else {
             throw UserDefaultsPreferencesStoreError.writeFailed
         }
         storageIntegrityIsUncertain = false

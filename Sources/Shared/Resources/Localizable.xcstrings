@@ -551,6 +551,26 @@
         }
       }
     },
+    "Go2Codex could not determine whether iTerm has a window": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Go2Codex 无法判断 iTerm 是否有窗口"
+          }
+        }
+      }
+    },
+    "No terminal session was opened. Try again, or choose New Window in Go2Codex Settings.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未打开任何终端会话。请重试，或在 Go2Codex 设置中选择“新窗口”。"
+          }
+        }
+      }
+    },
     "New Tab is not supported in Terminal": {
       "localizations": {
         "zh-Hans": {

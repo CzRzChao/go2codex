@@ -40,6 +40,25 @@ struct NativeAppleEventTests {
     }
 
     @Test
+    func terminalFrontWindowQueryUsesExactWindowSpecifier() throws {
+        let query = try NativeAppleEvent.frontWindowQuery(
+            bundleIdentifier: "com.apple.Terminal"
+        )
+
+        #expect(query.eventClass == code("core"))
+        #expect(query.eventID == code("getd"))
+        try expectTarget(query, bundleIdentifier: "com.apple.Terminal")
+        let window = try #require(query.paramDescriptor(
+            forKeyword: code("----")
+        ))
+        #expect(window.descriptorType == code("obj "))
+        #expect(window.forKeyword(code("want"))?.typeCodeValue == code("cwin"))
+        #expect(window.forKeyword(code("form"))?.enumCodeValue == code("indx"))
+        #expect(window.forKeyword(code("seld"))?.int32Value == 1)
+        #expect(window.forKeyword(code("from"))?.descriptorType == code("null"))
+    }
+
+    @Test
     func iTermCurrentWindowQueryUsesExactProperty() throws {
         let query = try NativeAppleEvent.iTermCurrentWindowQuery()
 
@@ -52,6 +71,128 @@ struct NativeAppleEventTests {
     }
 
     @Test
+    func iTermCurrentWindowReplyAcceptsOnlyDeclaredWindowShapes() throws {
+        let missingDirectObject = reply()
+        #expect(NativeAppleEvent.classifyITermCurrentWindowReply(
+            missingDirectObject
+        ) == .invalid(nil))
+
+        let noWindow = reply()
+        noWindow.setParam(
+            .init(typeCode: code("msng")),
+            forKeyword: code("----")
+        )
+        #expect(NativeAppleEvent.classifyITermCurrentWindowReply(
+            noWindow
+        ) == .noWindow)
+
+        let legacyNoWindow = reply()
+        legacyNoWindow.setParam(
+            try #require(NSAppleEventDescriptor(
+                descriptorType: code("msng"),
+                data: nil
+            )),
+            forKeyword: code("----")
+        )
+        #expect(NativeAppleEvent.classifyITermCurrentWindowReply(
+            legacyNoWindow
+        ) == .noWindow)
+
+        let nullValue = reply()
+        nullValue.setParam(.null(), forKeyword: code("----"))
+        #expect(NativeAppleEvent.classifyITermCurrentWindowReply(
+            nullValue
+        ) == .invalid(code("null")))
+
+        let classValue = reply()
+        classValue.setParam(
+            .init(typeCode: code("cwin")),
+            forKeyword: code("----")
+        )
+        #expect(NativeAppleEvent.classifyITermCurrentWindowReply(
+            classValue
+        ) == .window)
+
+        let wrongClassValue = reply()
+        wrongClassValue.setParam(
+            .init(typeCode: code("ctab")),
+            forKeyword: code("----")
+        )
+        #expect(NativeAppleEvent.classifyITermCurrentWindowReply(
+            wrongClassValue
+        ) == .invalid(code("type")))
+
+        let record = NSAppleEventDescriptor.record()
+        record.setDescriptor(
+            .init(typeCode: code("cwin")),
+            forKeyword: code("want")
+        )
+        record.setDescriptor(.null(), forKeyword: code("from"))
+        record.setDescriptor(
+            .init(enumCode: code("indx")),
+            forKeyword: code("form")
+        )
+        record.setDescriptor(.init(int32: 1), forKeyword: code("seld"))
+        let objectSpecifier = try #require(record.coerce(
+            toDescriptorType: code("obj ")
+        ))
+        let objectReference = reply()
+        objectReference.setParam(objectSpecifier, forKeyword: code("----"))
+        #expect(NativeAppleEvent.classifyITermCurrentWindowReply(
+            objectReference
+        ) == .window)
+
+        let incompleteRecord = NSAppleEventDescriptor.record()
+        incompleteRecord.setDescriptor(
+            .init(typeCode: code("cwin")),
+            forKeyword: code("want")
+        )
+        let incompleteSpecifier = try #require(incompleteRecord.coerce(
+            toDescriptorType: code("obj ")
+        ))
+        let incompleteReference = reply()
+        incompleteReference.setParam(
+            incompleteSpecifier,
+            forKeyword: code("----")
+        )
+        #expect(NativeAppleEvent.classifyITermCurrentWindowReply(
+            incompleteReference
+        ) == .invalid(code("obj ")))
+
+        let invalidFormRecord = NSAppleEventDescriptor.record()
+        invalidFormRecord.setDescriptor(
+            .init(typeCode: code("cwin")),
+            forKeyword: code("want")
+        )
+        invalidFormRecord.setDescriptor(.null(), forKeyword: code("from"))
+        invalidFormRecord.setDescriptor(
+            .init(int32: 1),
+            forKeyword: code("form")
+        )
+        invalidFormRecord.setDescriptor(
+            .init(int32: 1),
+            forKeyword: code("seld")
+        )
+        let invalidFormSpecifier = try #require(invalidFormRecord.coerce(
+            toDescriptorType: code("obj ")
+        ))
+        let invalidFormReference = reply()
+        invalidFormReference.setParam(
+            invalidFormSpecifier,
+            forKeyword: code("----")
+        )
+        #expect(NativeAppleEvent.classifyITermCurrentWindowReply(
+            invalidFormReference
+        ) == .invalid(code("obj ")))
+
+        let unknown = reply()
+        unknown.setParam(.init(int32: 1), forKeyword: code("----"))
+        #expect(NativeAppleEvent.classifyITermCurrentWindowReply(
+            unknown
+        ) == .invalid(code("long")))
+    }
+
+    @Test
     func replyAndTransportErrorsMapToRawStatuses() throws {
         let success = reply()
         #expect(try NativeAppleEvent.validateReply(success) === success)
@@ -59,7 +200,7 @@ struct NativeAppleEventTests {
         let explicitZero = reply(status: 0)
         #expect(try NativeAppleEvent.validateReply(explicitZero) === explicitZero)
 
-        for status: Int32 in [-1743, -1744, -1712, -600, -1728, -1] {
+        for status: Int32 in [-1743, -1744, -1712, -600, -1728, -1719, -1] {
             #expect(capturedRawError {
                 try NativeAppleEvent.validateReply(reply(status: status))
             } == .status(status))

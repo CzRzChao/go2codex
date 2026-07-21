@@ -20,6 +20,9 @@ jobs:
         with:
           xcode-version: "16.2"
 
+      - name: Verify iTerm handoff generated resource
+        run: ./Scripts/verify-iterm-handoff.sh
+
       # We intentionally call xcodebuild directly instead of Scripts/test.sh.
       #
       # Scripts/test.sh is written for a real developer Mac: it acquires a

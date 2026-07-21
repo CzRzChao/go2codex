@@ -694,6 +694,21 @@ struct LauncherFailureCopyTests {
         #expect(resolver.informativeTextKey(for: failure) ==
             "Open a regular folder in Finder, then try again. Smart folders such as Recents cannot be used as a workspace.")
     }
+
+    @Test
+    func malformedITermWindowReplyHasActionableGuidance() {
+        let failure = LauncherWorkflowFailure(
+            error: TerminalAdapterError.iTermWindowQueryReplyInvalid(nil),
+            stage: .terminalHandoff,
+            terminalHost: .iTerm2
+        )
+        let resolver = LauncherFailureCopyResolver()
+
+        #expect(resolver.messageKey(for: failure) ==
+            "Go2Codex could not determine whether iTerm has a window")
+        #expect(resolver.informativeTextKey(for: failure) ==
+            "No terminal session was opened. Try again, or choose New Window in Go2Codex Settings.")
+    }
 }
 
 @MainActor
