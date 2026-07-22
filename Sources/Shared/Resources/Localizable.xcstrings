@@ -601,6 +601,86 @@
         }
       }
     },
+    "Go2Codex could not start the CLI in the Terminal tab": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Go2Codex 无法在 Terminal 标签页中启动 CLI"
+          }
+        }
+      }
+    },
+    "The Terminal tab was created, but its TTY did not become ready, so no command was submitted. Close the empty tab and try again, or choose New Window in Go2Codex Settings.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Terminal 标签页已创建，但其 TTY 未就绪，因此未提交任何命令。请关闭空标签页后重试，或在 Go2Codex 设置中选择“新窗口”。"
+          }
+        }
+      }
+    },
+    "A Terminal tab was created, but Go2Codex could not safely identify it, so no command was submitted. Close the empty tab and try again, or choose New Window in Go2Codex Settings.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Terminal 标签页已创建，但 Go2Codex 无法安全识别它，因此未提交任何命令。请关闭空标签页后重试，或在 Go2Codex 设置中选择“新窗口”。"
+          }
+        }
+      }
+    },
+    "No command was submitted. Try again, or choose New Window in Go2Codex Settings.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未提交任何命令。请重试，或在 Go2Codex 设置中选择“新窗口”。"
+          }
+        }
+      }
+    },
+    "Go2Codex could not start the iTerm session": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Go2Codex 无法启动 iTerm 会话"
+          }
+        }
+      }
+    },
+    "No iTerm session was opened because the account login shell is unavailable or unsupported. Check the login shell in System Settings, then try again.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "由于账户登录 shell 不可用或不受支持，未打开 iTerm 会话。请在“系统设置”中检查登录 shell，然后重试。"
+          }
+        }
+      }
+    },
+    "Go2Codex could not confirm the iTerm session": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Go2Codex 无法确认 iTerm 会话"
+          }
+        }
+      }
+    },
+    "iTerm may already have created the requested session. Check iTerm before trying again to avoid opening a duplicate session.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "iTerm 可能已经创建了请求的会话。请先检查 iTerm 再重试，以免打开重复会话。"
+          }
+        }
+      }
+    },
     "Terminal New Tab needs the current Go2CodexLauncher in Accessibility. If an older Go2CodexLauncher entry exists, remove it. Then choose Locate Current Launcher, add the revealed launcher to Accessibility, turn it on, and try again. Unsigned preview updates can invalidate an earlier entry.": {
       "localizations": {
         "zh-Hans": {
@@ -617,16 +697,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "请在“系统设置”>“隐私与安全性”>“自动化”中允许 Go2Codex 控制“系统事件”，然后重试。"
-          }
-        }
-      }
-    },
-    "No command was submitted. Bring Terminal to the front and try again, or choose New Window in Go2Codex Settings.": {
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "未提交任何命令。请将 Terminal 置于前台后重试，或在 Go2Codex 设置中选择“新窗口”。"
           }
         }
       }

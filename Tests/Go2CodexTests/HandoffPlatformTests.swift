@@ -200,8 +200,12 @@ struct HandoffPlatformTests {
         let sender = AppleEventSenderStub()
         sender.outcomes = [
             .reply(makeTerminalWindowIDReply(42)),
+            .reply(makeTerminalWindowIDReply(42)),
+            .reply(makeTerminalTabCountReply(1)),
             .reply(makeTerminalTabTTYsReply(["/dev/ttys001"])),
             .reply(makeReply()),
+            .reply(makeTerminalTabCountReply(2)),
+            .reply(makeTerminalSelectedTabTTYReply("/dev/ttys009")),
             .reply(makeTerminalTabTTYsReply([
                 "/dev/ttys001",
                 "/dev/ttys009",
@@ -229,12 +233,16 @@ struct HandoffPlatformTests {
         #expect(sender.events.map(\.eventID) == [
             eventCode("getd"),
             eventCode("getd"),
+            eventCode("cnte"),
+            eventCode("getd"),
             eventCode("kprs"),
+            eventCode("cnte"),
+            eventCode("getd"),
             eventCode("getd"),
             eventCode("dosc"),
         ])
         try expectTerminalDoScriptEvent(
-            sender.events[4],
+            sender.events[8],
             targetTabTTY: "/dev/ttys009",
             targetWindowID: 42
         )
@@ -314,8 +322,12 @@ struct HandoffPlatformTests {
         let sender = AppleEventSenderStub()
         sender.outcomes = [
             .reply(makeTerminalWindowIDReply(42)),
+            .reply(makeTerminalWindowIDReply(42)),
+            .reply(makeTerminalTabCountReply(1)),
             .reply(makeTerminalTabTTYsReply(["/dev/ttys001"])),
             .reply(makeReply()),
+            .reply(makeTerminalTabCountReply(2)),
+            .reply(makeTerminalSelectedTabTTYReply("/dev/ttys009")),
             .reply(makeTerminalTabTTYsReply([
                 "/dev/ttys001",
                 "/dev/ttys009",
@@ -339,7 +351,11 @@ struct HandoffPlatformTests {
         #expect(sender.events.map(\.eventID) == [
             eventCode("getd"),
             eventCode("getd"),
+            eventCode("cnte"),
+            eventCode("getd"),
             eventCode("kprs"),
+            eventCode("cnte"),
+            eventCode("getd"),
             eventCode("getd"),
             eventCode("dosc"),
         ])
@@ -349,13 +365,448 @@ struct HandoffPlatformTests {
         ])
         #expect(sender.accessibilityPermissionRequestCount == 1)
         #expect(state.activationRequests == ["com.apple.Terminal"])
-        try expectSystemEventsTerminalNewTabShortcut(sender.events[2])
+        try expectSystemEventsTerminalNewTabShortcut(sender.events[4])
         try expectTerminalDoScriptEvent(
-            sender.events[4],
+            sender.events[8],
             targetTabTTY: "/dev/ttys009",
             targetWindowID: 42
         )
         #expect(opener.events.isEmpty)
+    }
+
+    @Test
+    func terminalNewTabWaitsForFrontmostThenResolvesTheActivatedWindow()
+        async throws {
+        let state = TerminalApplicationStateStub()
+        state.isRunning = true
+        state.frontmostResults = [false, false, true]
+        let opener = TerminalApplicationOpenerStub()
+        let sender = AppleEventSenderStub()
+        sender.outcomes = [
+            .reply(makeTerminalWindowIDReply(41)),
+            .reply(makeTerminalWindowIDReply(42)),
+            .reply(makeTerminalTabCountReply(1)),
+            .reply(makeTerminalTabTTYsReply(["/dev/ttys001"])),
+            .reply(makeReply()),
+            .reply(makeTerminalTabCountReply(2)),
+            .reply(makeTerminalSelectedTabTTYReply("/dev/ttys009")),
+            .reply(makeTerminalTabTTYsReply([
+                "/dev/ttys001",
+                "/dev/ttys009",
+            ])),
+            .reply(makeReply()),
+        ]
+        let adapter = TerminalOpenAdapter(
+            applicationState: state,
+            applicationOpener: opener,
+            eventSender: sender,
+            terminalActivationPollAttempts: 3,
+            terminalTabPollDelay: {}
+        )
+
+        let acceptance = try await adapter.open(
+            testCommand,
+            in: .terminal,
+            placement: .newTab
+        )
+
+        #expect(acceptance == .acceptedByTerminalHost)
+        #expect(state.frontmostLookups == [
+            "com.apple.Terminal",
+            "com.apple.Terminal",
+            "com.apple.Terminal",
+            "com.apple.Terminal",
+        ])
+        try expectTerminalDoScriptEvent(
+            #require(sender.events.last),
+            targetTabTTY: "/dev/ttys009",
+            targetWindowID: 42
+        )
+    }
+
+    @Test
+    func terminalNewTabFailsBeforeShortcutWhenActivationNeverBecomesFrontmost()
+        async {
+        let state = TerminalApplicationStateStub()
+        state.isRunning = true
+        state.frontmostResults = [false, false]
+        let opener = TerminalApplicationOpenerStub()
+        let sender = AppleEventSenderStub()
+        sender.outcomes = [.reply(makeTerminalWindowIDReply(41))]
+        let adapter = TerminalOpenAdapter(
+            applicationState: state,
+            applicationOpener: opener,
+            eventSender: sender,
+            terminalActivationPollAttempts: 2,
+            terminalTabPollDelay: {}
+        )
+
+        let error = await capturedTerminalAdapterError {
+            try await adapter.open(
+                testCommand,
+                in: .terminal,
+                placement: .newTab
+            )
+        }
+
+        #expect(error == .terminalActivationTimedOut)
+        #expect(sender.events.map(\.eventID) == [eventCode("getd")])
+        #expect(state.frontmostLookups.count == 2)
+    }
+
+    @Test
+    func terminalNewTabFailsBeforeShortcutWhenTerminalLosesFocus() async {
+        let state = TerminalApplicationStateStub()
+        state.isRunning = true
+        state.frontmostResults = [true, false]
+        let opener = TerminalApplicationOpenerStub()
+        let sender = AppleEventSenderStub()
+        sender.outcomes = [
+            .reply(makeTerminalWindowIDReply(42)),
+            .reply(makeTerminalWindowIDReply(42)),
+            .reply(makeTerminalTabCountReply(1)),
+            .reply(makeTerminalTabTTYsReply(["/dev/ttys001"])),
+        ]
+        let adapter = TerminalOpenAdapter(
+            applicationState: state,
+            applicationOpener: opener,
+            eventSender: sender,
+            terminalTabPollDelay: {}
+        )
+
+        let error = await capturedTerminalAdapterError {
+            try await adapter.open(
+                testCommand,
+                in: .terminal,
+                placement: .newTab
+            )
+        }
+
+        #expect(error == .terminalFocusLostBeforeShortcut)
+        #expect(!sender.events.contains(where: { $0.eventID == eventCode("kprs") }))
+        #expect(!sender.events.contains(where: { $0.eventID == eventCode("dosc") }))
+    }
+
+    @Test
+    func terminalNewTabWaitsForTheCreatedTabsTTYWithoutRequiringOldTTYsAgain()
+        async throws {
+        let state = TerminalApplicationStateStub()
+        state.isRunning = true
+        let opener = TerminalApplicationOpenerStub()
+        let sender = AppleEventSenderStub()
+        sender.outcomes = [
+            .reply(makeTerminalWindowIDReply(42)),
+            .reply(makeTerminalWindowIDReply(42)),
+            .reply(makeTerminalTabCountReply(1)),
+            .reply(makeTerminalTabTTYsReply(["/dev/ttys001"])),
+            .reply(makeReply()),
+            .reply(makeTerminalTabCountReply(2)),
+            .reply(makeTerminalSelectedTabTTYNotReadyReply()),
+            .reply(makeTerminalTabCountReply(2)),
+            .reply(makeTerminalSelectedTabTTYReply("/dev/ttys009")),
+            .reply(makeTerminalTabTTYsReply([
+                "/dev/ttys001",
+                "/dev/ttys009",
+            ])),
+            .reply(makeReply()),
+        ]
+        let adapter = TerminalOpenAdapter(
+            applicationState: state,
+            applicationOpener: opener,
+            eventSender: sender,
+            terminalTabPollAttempts: 2,
+            terminalTabPollDelay: {}
+        )
+
+        let acceptance = try await adapter.open(
+            testCommand,
+            in: .terminal,
+            placement: .newTab
+        )
+
+        #expect(acceptance == .acceptedByTerminalHost)
+        #expect(sender.events.map(\.eventID) == [
+            eventCode("getd"),
+            eventCode("getd"),
+            eventCode("cnte"),
+            eventCode("getd"),
+            eventCode("kprs"),
+            eventCode("cnte"),
+            eventCode("getd"),
+            eventCode("cnte"),
+            eventCode("getd"),
+            eventCode("getd"),
+            eventCode("dosc"),
+        ])
+        try expectTerminalDoScriptEvent(
+            #require(sender.events.last),
+            targetTabTTY: "/dev/ttys009",
+            targetWindowID: 42
+        )
+    }
+
+    @Test
+    func terminalNewTabWaitsWhenSelectionStillPointsAtAnExistingTTY()
+        async throws {
+        let state = TerminalApplicationStateStub()
+        state.isRunning = true
+        let opener = TerminalApplicationOpenerStub()
+        let sender = AppleEventSenderStub()
+        sender.outcomes = [
+            .reply(makeTerminalWindowIDReply(42)),
+            .reply(makeTerminalWindowIDReply(42)),
+            .reply(makeTerminalTabCountReply(1)),
+            .reply(makeTerminalTabTTYsReply(["/dev/ttys001"])),
+            .reply(makeReply()),
+            .reply(makeTerminalTabCountReply(2)),
+            .reply(makeTerminalSelectedTabTTYReply("/dev/ttys001")),
+            .reply(makeTerminalTabCountReply(2)),
+            .reply(makeTerminalSelectedTabTTYReply("/dev/ttys009")),
+            .reply(makeTerminalTabTTYsReply([
+                "/dev/ttys001",
+                "/dev/ttys009",
+            ])),
+            .reply(makeReply()),
+        ]
+        let adapter = TerminalOpenAdapter(
+            applicationState: state,
+            applicationOpener: opener,
+            eventSender: sender,
+            terminalTabPollAttempts: 2,
+            terminalTabPollDelay: {}
+        )
+
+        let acceptance = try await adapter.open(
+            testCommand,
+            in: .terminal,
+            placement: .newTab
+        )
+
+        #expect(acceptance == .acceptedByTerminalHost)
+        try expectTerminalDoScriptEvent(
+            #require(sender.events.last),
+            targetTabTTY: "/dev/ttys009",
+            targetWindowID: 42
+        )
+    }
+
+    @Test
+    func terminalNewTabNeverSubmitsIntoAnExistingSelectedTTY() async {
+        let state = TerminalApplicationStateStub()
+        state.isRunning = true
+        let opener = TerminalApplicationOpenerStub()
+        let sender = AppleEventSenderStub()
+        sender.outcomes = [
+            .reply(makeTerminalWindowIDReply(42)),
+            .reply(makeTerminalWindowIDReply(42)),
+            .reply(makeTerminalTabCountReply(1)),
+            .reply(makeTerminalTabTTYsReply(["/dev/ttys001"])),
+            .reply(makeReply()),
+            .reply(makeTerminalTabCountReply(2)),
+            .reply(makeTerminalSelectedTabTTYReply("/dev/ttys001")),
+            .reply(makeTerminalTabCountReply(2)),
+            .reply(makeTerminalSelectedTabTTYReply("/dev/ttys001")),
+        ]
+        let adapter = TerminalOpenAdapter(
+            applicationState: state,
+            applicationOpener: opener,
+            eventSender: sender,
+            terminalTabPollAttempts: 2,
+            terminalTabPollDelay: {}
+        )
+
+        let error = await capturedTerminalAdapterError {
+            try await adapter.open(
+                testCommand,
+                in: .terminal,
+                placement: .newTab
+            )
+        }
+
+        #expect(error == .terminalTabCreationTimedOut(
+            TerminalTabCreationEvidence(
+                initialTabCount: 1,
+                latestTabCount: 2,
+                sawExpectedTabCount: true,
+                selectedTabTTYBecameReady: true
+            )
+        ))
+        #expect(error?.diagnosticCode.rawValue ==
+            "terminal-tab-identity-timeout")
+        #expect(!sender.events.contains(where: { $0.eventID == eventCode("dosc") }))
+    }
+
+    @Test
+    func terminalNewTabReportsIdentityAmbiguityWhenAnotherTabAppears() async {
+        let state = TerminalApplicationStateStub()
+        state.isRunning = true
+        let opener = TerminalApplicationOpenerStub()
+        let sender = AppleEventSenderStub()
+        sender.outcomes = [
+            .reply(makeTerminalWindowIDReply(42)),
+            .reply(makeTerminalWindowIDReply(42)),
+            .reply(makeTerminalTabCountReply(1)),
+            .reply(makeTerminalTabTTYsReply(["/dev/ttys001"])),
+            .reply(makeReply()),
+            .reply(makeTerminalTabCountReply(3)),
+        ]
+        let adapter = TerminalOpenAdapter(
+            applicationState: state,
+            applicationOpener: opener,
+            eventSender: sender,
+            terminalTabPollDelay: {}
+        )
+
+        let error = await capturedTerminalAdapterError {
+            try await adapter.open(
+                testCommand,
+                in: .terminal,
+                placement: .newTab
+            )
+        }
+
+        #expect(error == .terminalTabCreationTimedOut(
+            TerminalTabCreationEvidence(
+                initialTabCount: 1,
+                latestTabCount: 3,
+                sawExpectedTabCount: false,
+                selectedTabTTYBecameReady: false
+            )
+        ))
+        #expect(error?.diagnosticCode.rawValue ==
+            "terminal-tab-identity-timeout")
+        #expect(!sender.events.contains(where: { $0.eventID == eventCode("dosc") }))
+    }
+
+    @Test
+    func terminalNewTabRechecksIdentityAfterReadingTheSelectedTTY() async {
+        let state = TerminalApplicationStateStub()
+        state.isRunning = true
+        let opener = TerminalApplicationOpenerStub()
+        let sender = AppleEventSenderStub()
+        sender.outcomes = [
+            .reply(makeTerminalWindowIDReply(42)),
+            .reply(makeTerminalWindowIDReply(42)),
+            .reply(makeTerminalTabCountReply(1)),
+            .reply(makeTerminalTabTTYsReply(["/dev/ttys001"])),
+            .reply(makeReply()),
+            .reply(makeTerminalTabCountReply(2)),
+            .reply(makeTerminalSelectedTabTTYReply("/dev/ttys009")),
+            .reply(makeTerminalTabTTYsReply([
+                "/dev/ttys001",
+                "/dev/ttys009",
+                "/dev/ttys010",
+            ])),
+        ]
+        let adapter = TerminalOpenAdapter(
+            applicationState: state,
+            applicationOpener: opener,
+            eventSender: sender,
+            terminalTabPollDelay: {}
+        )
+
+        let error = await capturedTerminalAdapterError {
+            try await adapter.open(
+                testCommand,
+                in: .terminal,
+                placement: .newTab
+            )
+        }
+
+        #expect(error == .terminalTabCreationTimedOut(
+            TerminalTabCreationEvidence(
+                initialTabCount: 1,
+                latestTabCount: 3,
+                sawExpectedTabCount: true,
+                selectedTabTTYBecameReady: true
+            )
+        ))
+        #expect(error?.diagnosticCode.rawValue ==
+            "terminal-tab-identity-timeout")
+        #expect(!sender.events.contains(where: { $0.eventID == eventCode("dosc") }))
+    }
+
+    @Test
+    func terminalCreatedTabWithUnreadyTTYHasADistinctTimeoutDiagnostic()
+        async {
+        let state = TerminalApplicationStateStub()
+        state.isRunning = true
+        let opener = TerminalApplicationOpenerStub()
+        let sender = AppleEventSenderStub()
+        sender.outcomes = [
+            .reply(makeTerminalWindowIDReply(42)),
+            .reply(makeTerminalWindowIDReply(42)),
+            .reply(makeTerminalTabCountReply(1)),
+            .reply(makeTerminalTabTTYsReply(["/dev/ttys001"])),
+            .reply(makeReply()),
+            .reply(makeTerminalTabCountReply(2)),
+            .reply(makeTerminalSelectedTabTTYNotReadyReply()),
+            .reply(makeTerminalTabCountReply(2)),
+            .reply(makeTerminalSelectedTabTTYNotReadyReply()),
+        ]
+        let adapter = TerminalOpenAdapter(
+            applicationState: state,
+            applicationOpener: opener,
+            eventSender: sender,
+            terminalTabPollAttempts: 2,
+            terminalTabPollDelay: {}
+        )
+
+        let error = await capturedTerminalAdapterError {
+            try await adapter.open(
+                testCommand,
+                in: .terminal,
+                placement: .newTab
+            )
+        }
+
+        let expected = TerminalAdapterError.terminalTabCreationTimedOut(
+            TerminalTabCreationEvidence(
+                initialTabCount: 1,
+                latestTabCount: 2,
+                sawExpectedTabCount: true,
+                selectedTabTTYBecameReady: false
+            )
+        )
+        #expect(error == expected)
+        #expect(error?.diagnosticCode.rawValue == "terminal-tab-tty-timeout")
+        #expect(!sender.events.contains(where: { $0.eventID == eventCode("dosc") }))
+    }
+
+    @Test
+    func terminalNewTabRejectsAMalformedSelectedTTYWithoutSubmittingCommand()
+        async {
+        let state = TerminalApplicationStateStub()
+        state.isRunning = true
+        let opener = TerminalApplicationOpenerStub()
+        let sender = AppleEventSenderStub()
+        sender.outcomes = [
+            .reply(makeTerminalWindowIDReply(42)),
+            .reply(makeTerminalWindowIDReply(42)),
+            .reply(makeTerminalTabCountReply(1)),
+            .reply(makeTerminalTabTTYsReply(["/dev/ttys001"])),
+            .reply(makeReply()),
+            .reply(makeTerminalTabCountReply(2)),
+            .reply(makeReply()),
+        ]
+        let adapter = TerminalOpenAdapter(
+            applicationState: state,
+            applicationOpener: opener,
+            eventSender: sender,
+            terminalTabPollDelay: {}
+        )
+
+        let error = await capturedTerminalAdapterError {
+            try await adapter.open(
+                testCommand,
+                in: .terminal,
+                placement: .newTab
+            )
+        }
+
+        #expect(error == .terminalSelectedTabTTYReplyInvalid(nil))
+        #expect(sender.events.last?.eventID == eventCode("getd"))
+        #expect(!sender.events.contains(where: { $0.eventID == eventCode("dosc") }))
     }
 
     @Test
@@ -433,10 +884,12 @@ struct HandoffPlatformTests {
         let sender = AppleEventSenderStub()
         sender.outcomes = [
             .reply(makeTerminalWindowIDReply(42)),
+            .reply(makeTerminalWindowIDReply(42)),
+            .reply(makeTerminalTabCountReply(1)),
             .reply(makeTerminalTabTTYsReply(["/dev/ttys001"])),
             .reply(makeReply()),
-            .reply(makeTerminalTabTTYsReply(["/dev/ttys001"])),
-            .reply(makeTerminalTabTTYsReply(["/dev/ttys001"])),
+            .reply(makeTerminalTabCountReply(1)),
+            .reply(makeTerminalTabCountReply(1)),
         ]
         let adapter = TerminalOpenAdapter(
             applicationState: state,
@@ -454,13 +907,22 @@ struct HandoffPlatformTests {
             )
         }
 
-        #expect(error == .terminalTabCreationTimedOut)
+        #expect(error == .terminalTabCreationTimedOut(
+            TerminalTabCreationEvidence(
+                initialTabCount: 1,
+                latestTabCount: 1,
+                sawExpectedTabCount: false,
+                selectedTabTTYBecameReady: false
+            )
+        ))
         #expect(sender.events.map(\.eventID) == [
             eventCode("getd"),
             eventCode("getd"),
+            eventCode("cnte"),
+            eventCode("getd"),
             eventCode("kprs"),
-            eventCode("getd"),
-            eventCode("getd"),
+            eventCode("cnte"),
+            eventCode("cnte"),
         ])
     }
 
@@ -681,6 +1143,37 @@ struct HandoffPlatformTests {
     }
 
     @Test
+    func iTermUnavailableLoginShellFailsBeforeLaunchingOrSubmitting() async {
+        let state = TerminalApplicationStateStub()
+        let opener = TerminalApplicationOpenerStub()
+        let sender = AppleEventSenderStub()
+        let script = ITermScriptExecutorStub()
+        let adapter = TerminalOpenAdapter(
+            applicationState: state,
+            applicationOpener: opener,
+            eventSender: sender,
+            iTermScriptExecutor: script,
+            loginShellPathLookup: LoginShellPathLookupStub(
+                path: "/missing/go2codex-shell"
+            )
+        )
+
+        let error = await capturedTerminalAdapterError {
+            try await adapter.open(
+                testCommand,
+                in: .iTerm2,
+                placement: .newWindow
+            )
+        }
+
+        #expect(error == .iTermLoginShellUnavailable)
+        #expect(state.runningLookups.isEmpty)
+        #expect(opener.applicationURLs.isEmpty)
+        #expect(sender.events.isEmpty)
+        #expect(script.events.isEmpty)
+    }
+
+    @Test
     func iTermQuietLaunchPermissionFailurePreventsSubmission() async {
         let state = TerminalApplicationStateStub()
         let opener = TerminalApplicationOpenerStub()
@@ -694,7 +1187,8 @@ struct HandoffPlatformTests {
             applicationState: state,
             applicationOpener: opener,
             eventSender: sender,
-            iTermScriptExecutor: script
+            iTermScriptExecutor: script,
+            loginShellPathLookup: supportedLoginShellPathLookup
         )
 
         let error = await capturedTerminalError {
@@ -723,7 +1217,8 @@ struct HandoffPlatformTests {
             applicationState: state,
             applicationOpener: opener,
             eventSender: sender,
-            iTermScriptExecutor: script
+            iTermScriptExecutor: script,
+            loginShellPathLookup: supportedLoginShellPathLookup
         )
 
         let error = await capturedTerminalAdapterError {
@@ -755,7 +1250,8 @@ struct HandoffPlatformTests {
             applicationState: state,
             applicationOpener: opener,
             eventSender: sender,
-            iTermScriptExecutor: script
+            iTermScriptExecutor: script,
+            loginShellPathLookup: supportedLoginShellPathLookup
         )
 
         let error = await capturedTerminalError {
@@ -789,7 +1285,8 @@ struct HandoffPlatformTests {
             applicationState: state,
             applicationOpener: opener,
             eventSender: sender,
-            iTermScriptExecutor: script
+            iTermScriptExecutor: script,
+            loginShellPathLookup: supportedLoginShellPathLookup
         )
 
         let acceptance = try await adapter.open(
@@ -808,8 +1305,8 @@ struct HandoffPlatformTests {
             .applicationOpen,
             .automationPermission,
             .appleEvent,
-            .activation,
             .script,
+            .activation,
         ])
     }
 
@@ -825,7 +1322,8 @@ struct HandoffPlatformTests {
             applicationState: state,
             applicationOpener: opener,
             eventSender: sender,
-            iTermScriptExecutor: script
+            iTermScriptExecutor: script,
+            loginShellPathLookup: supportedLoginShellPathLookup
         )
 
         let acceptance = try await adapter.open(
@@ -862,7 +1360,8 @@ struct HandoffPlatformTests {
             applicationState: state,
             applicationOpener: opener,
             eventSender: sender,
-            iTermScriptExecutor: script
+            iTermScriptExecutor: script,
+            loginShellPathLookup: supportedLoginShellPathLookup
         )
 
         let acceptance = try await adapter.open(
@@ -894,7 +1393,8 @@ struct HandoffPlatformTests {
             applicationState: state,
             applicationOpener: opener,
             eventSender: sender,
-            iTermScriptExecutor: script
+            iTermScriptExecutor: script,
+            loginShellPathLookup: supportedLoginShellPathLookup
         )
 
         let acceptance = try await adapter.open(
@@ -916,7 +1416,8 @@ struct HandoffPlatformTests {
     }
 
     @Test
-    func iTermRejectsTabBeforeSubmissionWhenActivationFails() async {
+    func iTermAcceptedTabIsNotReportedAsFailedWhenRevealActivationFails()
+        async throws {
         let state = TerminalApplicationStateStub()
         state.isRunning = true
         state.activationResult = false
@@ -928,19 +1429,22 @@ struct HandoffPlatformTests {
             applicationState: state,
             applicationOpener: opener,
             eventSender: sender,
-            iTermScriptExecutor: script
+            iTermScriptExecutor: script,
+            loginShellPathLookup: supportedLoginShellPathLookup
         )
 
-        let error = await capturedTerminalAdapterError {
-            try await adapter.open(
-                testCommand,
-                in: .iTerm2,
-                placement: .newTab
-            )
-        }
+        let acceptance = try await adapter.open(
+            testCommand,
+            in: .iTerm2,
+            placement: .newTab
+        )
 
-        #expect(error == .terminalActivationFailed)
-        #expect(script.events.isEmpty)
+        #expect(acceptance == .acceptedByTerminalHost)
+        #expect(script.events.count == 1)
+        try expectITermScriptInvocation(
+            #require(script.events.first),
+            handler: "go2codexNewTab"
+        )
         #expect(state.activationRequests == ["com.googlecode.iterm2"])
         expectNoITermApplicationOpen(opener)
     }
@@ -964,8 +1468,14 @@ struct HandoffPlatformTests {
                 if host == .terminal && placement == .newTab {
                     sender.outcomes = [
                         .reply(makeTerminalWindowIDReply(42)),
+                        .reply(makeTerminalWindowIDReply(42)),
+                        .reply(makeTerminalTabCountReply(1)),
                         .reply(makeTerminalTabTTYsReply(["/dev/ttys001"])),
                         .reply(makeReply()),
+                        .reply(makeTerminalTabCountReply(2)),
+                        .reply(makeTerminalSelectedTabTTYReply(
+                            "/dev/ttys009"
+                        )),
                         .reply(makeTerminalTabTTYsReply([
                             "/dev/ttys001",
                             "/dev/ttys009",
@@ -980,6 +1490,7 @@ struct HandoffPlatformTests {
                     applicationOpener: opener,
                     eventSender: sender,
                     iTermScriptExecutor: script,
+                    loginShellPathLookup: supportedLoginShellPathLookup,
                     terminalTabPollDelay: {}
                 )
 
@@ -1027,7 +1538,8 @@ struct HandoffPlatformTests {
             applicationState: state,
             applicationOpener: opener,
             eventSender: sender,
-            iTermScriptExecutor: script
+            iTermScriptExecutor: script,
+            loginShellPathLookup: supportedLoginShellPathLookup
         )
 
         let acceptance = try await adapter.open(
@@ -1059,7 +1571,8 @@ struct HandoffPlatformTests {
             applicationState: state,
             applicationOpener: opener,
             eventSender: sender,
-            iTermScriptExecutor: script
+            iTermScriptExecutor: script,
+            loginShellPathLookup: supportedLoginShellPathLookup
         )
 
         let error = await capturedTerminalAdapterError {
@@ -1088,7 +1601,8 @@ struct HandoffPlatformTests {
             applicationState: state,
             applicationOpener: opener,
             eventSender: sender,
-            iTermScriptExecutor: script
+            iTermScriptExecutor: script,
+            loginShellPathLookup: supportedLoginShellPathLookup
         )
 
         let error = await capturedTerminalAdapterError {
@@ -1116,7 +1630,8 @@ struct HandoffPlatformTests {
             applicationState: state,
             applicationOpener: opener,
             eventSender: sender,
-            iTermScriptExecutor: script
+            iTermScriptExecutor: script,
+            loginShellPathLookup: supportedLoginShellPathLookup
         )
 
         let error = await capturedTerminalAdapterError {
@@ -1144,7 +1659,8 @@ struct HandoffPlatformTests {
             applicationState: state,
             applicationOpener: opener,
             eventSender: sender,
-            iTermScriptExecutor: script
+            iTermScriptExecutor: script,
+            loginShellPathLookup: supportedLoginShellPathLookup
         )
 
         let error = await capturedTerminalAdapterError {
@@ -1155,9 +1671,7 @@ struct HandoffPlatformTests {
             )
         }
 
-        #expect(error == .iTermScriptResultInvalid(
-            eventCode("utxt")
-        ))
+        #expect(error == .iTermHandoffOutcomeUnknown(nil))
         #expect(sender.events.isEmpty)
         #expect(script.events.count == 1)
         expectSingleITermQuietLaunch(opener)
@@ -1174,7 +1688,8 @@ struct HandoffPlatformTests {
             applicationState: state,
             applicationOpener: opener,
             eventSender: sender,
-            iTermScriptExecutor: script
+            iTermScriptExecutor: script,
+            loginShellPathLookup: supportedLoginShellPathLookup
         )
 
         let error = await capturedTerminalAdapterError {
@@ -1185,12 +1700,42 @@ struct HandoffPlatformTests {
             )
         }
 
-        #expect(error == .iTermScriptResultInvalid(
-            eventCode("bool")
-        ))
+        #expect(error == .iTermHandoffOutcomeUnknown(nil))
         #expect(sender.events.isEmpty)
         #expect(script.events.count == 1)
         expectSingleITermQuietLaunch(opener)
+    }
+
+    @Test(arguments: [Int32(-1712), -1728, -1719, -1708, -600])
+    func iTermUncertainExecutionErrorsAreOutcomeUnknownAndAreNotRetried(
+        status: Int32
+    ) async {
+        let state = TerminalApplicationStateStub()
+        state.isRunning = true
+        let opener = TerminalApplicationOpenerStub()
+        let sender = AppleEventSenderStub()
+        let script = ITermScriptExecutorStub()
+        script.error = RawAppleEventError.status(status)
+        let adapter = TerminalOpenAdapter(
+            applicationState: state,
+            applicationOpener: opener,
+            eventSender: sender,
+            iTermScriptExecutor: script,
+            loginShellPathLookup: supportedLoginShellPathLookup
+        )
+
+        let error = await capturedTerminalAdapterError {
+            try await adapter.open(
+                testCommand,
+                in: .iTerm2,
+                placement: .newWindow
+            )
+        }
+
+        #expect(error == .iTermHandoffOutcomeUnknown(status))
+        #expect(script.events.count == 1)
+        #expect(state.activationRequests.isEmpty)
+        expectNoITermApplicationOpen(opener)
     }
 
     @Test(arguments: terminalStatusCases)
@@ -1234,7 +1779,8 @@ struct HandoffPlatformTests {
             applicationState: state,
             applicationOpener: opener,
             eventSender: sender,
-            iTermScriptExecutor: script
+            iTermScriptExecutor: script,
+            loginShellPathLookup: supportedLoginShellPathLookup
         )
 
         let error = await capturedTerminalError {
@@ -1264,7 +1810,8 @@ struct HandoffPlatformTests {
             applicationState: state,
             applicationOpener: opener,
             eventSender: sender,
-            iTermScriptExecutor: script
+            iTermScriptExecutor: script,
+            loginShellPathLookup: supportedLoginShellPathLookup
         )
 
         let error = await capturedTerminalError {
@@ -1293,7 +1840,8 @@ struct HandoffPlatformTests {
             applicationState: state,
             applicationOpener: opener,
             eventSender: sender,
-            iTermScriptExecutor: script
+            iTermScriptExecutor: script,
+            loginShellPathLookup: supportedLoginShellPathLookup
         )
 
         let error = await capturedTerminalError {
@@ -1346,6 +1894,7 @@ private enum TerminalOperation: Equatable {
     case appleEvent
     case script
     case activation
+    case frontmostCheck
 }
 
 @MainActor
@@ -1373,9 +1922,12 @@ private final class TerminalApplicationStateStub:
     ]
     var isRunning = false
     var activationResult = true
+    var isFrontmost = true
+    var frontmostResults: [Bool] = []
     var operationLog: TerminalOperationLog?
     private(set) var registrationLookups: [String] = []
     private(set) var runningLookups: [String] = []
+    private(set) var frontmostLookups: [String] = []
     private(set) var activationRequests: [String] = []
 
     func applicationURL(bundleIdentifier: String) -> URL? {
@@ -1388,11 +1940,36 @@ private final class TerminalApplicationStateStub:
         return isRunning
     }
 
+    func isFrontmost(bundleIdentifier: String) -> Bool {
+        operationLog?.append(.frontmostCheck)
+        frontmostLookups.append(bundleIdentifier)
+        guard !frontmostResults.isEmpty else {
+            return isFrontmost
+        }
+        return frontmostResults.removeFirst()
+    }
+
     func activate(bundleIdentifier: String) -> Bool {
         operationLog?.append(.activation)
         activationRequests.append(bundleIdentifier)
         return activationResult
     }
+}
+
+@MainActor
+private struct LoginShellPathLookupStub: LoginShellPathLookingUp {
+    let path: String?
+
+    func loginShellPath() -> String? {
+        path
+    }
+}
+
+private let testLoginShellPath = "/bin/zsh"
+
+@MainActor
+private var supportedLoginShellPathLookup: LoginShellPathLookupStub {
+    LoginShellPathLookupStub(path: testLoginShellPath)
 }
 
 @MainActor
@@ -1570,26 +2147,6 @@ private let iTermStatusCases = [
         status: -1744,
         expectedError: .consentRequired(.iTerm2)
     ),
-    TerminalStatusCase(
-        status: -1712,
-        expectedError: .replyTimeout(.iTerm2)
-    ),
-    TerminalStatusCase(
-        status: -600,
-        expectedError: .terminalUnavailable(.iTerm2)
-    ),
-    TerminalStatusCase(
-        status: -1728,
-        expectedError: .appleEventFailure(.iTerm2, status: -1728)
-    ),
-    TerminalStatusCase(
-        status: -1719,
-        expectedError: .appleEventFailure(.iTerm2, status: -1719)
-    ),
-    TerminalStatusCase(
-        status: -1708,
-        expectedError: .appleEventFailure(.iTerm2, status: -1708)
-    ),
 ]
 
 private let testCommand = TerminalCommand(
@@ -1738,7 +2295,11 @@ private func expectITermScriptInvocation(
         forKeyword: eventCode("----")
     ))
     #expect(arguments.numberOfItems == 1)
-    #expect(arguments.atIndex(1)?.stringValue == command.line)
+    let expectedCommand = try ITermCustomCommandBuilder.command(
+        for: command,
+        loginShellPath: testLoginShellPath
+    )
+    #expect(arguments.atIndex(1)?.stringValue == expectedCommand)
 }
 
 @MainActor
@@ -1797,6 +2358,14 @@ private func makeTerminalWindowIDReply(_ windowID: Int32)
 }
 
 @MainActor
+private func makeTerminalTabCountReply(_ count: Int32)
+    -> NSAppleEventDescriptor {
+    let reply = makeReply()
+    reply.setParam(.init(int32: count), forKeyword: eventCode("----"))
+    return reply
+}
+
+@MainActor
 private func makeTerminalTabTTYsReply(_ ttys: [String])
     -> NSAppleEventDescriptor {
     let reply = makeReply()
@@ -1805,6 +2374,25 @@ private func makeTerminalTabTTYsReply(_ ttys: [String])
         values.insert(.init(string: tty), at: offset + 1)
     }
     reply.setParam(values, forKeyword: eventCode("----"))
+    return reply
+}
+
+@MainActor
+private func makeTerminalSelectedTabTTYReply(_ tty: String)
+    -> NSAppleEventDescriptor {
+    let reply = makeReply()
+    reply.setParam(.init(string: tty), forKeyword: eventCode("----"))
+    return reply
+}
+
+@MainActor
+private func makeTerminalSelectedTabTTYNotReadyReply()
+    -> NSAppleEventDescriptor {
+    let reply = makeReply()
+    reply.setParam(
+        .init(typeCode: eventCode("msng")),
+        forKeyword: eventCode("----")
+    )
     return reply
 }
 

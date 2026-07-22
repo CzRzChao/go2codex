@@ -774,7 +774,14 @@ struct LauncherFailureCopyTests {
             terminalHost: .terminal
         )
         let ordinaryFailure = LauncherWorkflowFailure(
-            error: TerminalAdapterError.terminalTabCreationTimedOut,
+            error: TerminalAdapterError.terminalTabCreationTimedOut(
+                TerminalTabCreationEvidence(
+                    initialTabCount: 1,
+                    latestTabCount: 1,
+                    sawExpectedTabCount: false,
+                    selectedTabTTYBecameReady: false
+                )
+            ),
             stage: .terminalHandoff,
             terminalHost: .terminal
         )
@@ -789,6 +796,92 @@ struct LauncherFailureCopyTests {
             .acknowledge,
             .copyDiagnostics,
         ])
+    }
+
+    @Test
+    func createdTerminalTabWithUnreadyTTYExplainsTheEmptyTab() {
+        let failure = LauncherWorkflowFailure(
+            error: TerminalAdapterError.terminalTabCreationTimedOut(
+                TerminalTabCreationEvidence(
+                    initialTabCount: 1,
+                    latestTabCount: 2,
+                    sawExpectedTabCount: true,
+                    selectedTabTTYBecameReady: false
+                )
+            ),
+            stage: .terminalHandoff,
+            terminalHost: .terminal
+        )
+        let resolver = LauncherFailureCopyResolver()
+
+        #expect(failure.code.rawValue == "terminal-tab-tty-timeout")
+        #expect(resolver.messageKey(for: failure) ==
+            "Go2Codex could not start the CLI in the Terminal tab")
+        #expect(resolver.informativeTextKey(for: failure) ==
+            "The Terminal tab was created, but its TTY did not become ready, so no command was submitted. Close the empty tab and try again, or choose New Window in Go2Codex Settings.")
+    }
+
+    @Test
+    func ambiguousTerminalTabIdentityExplainsTheFailClosedResult() {
+        let failure = LauncherWorkflowFailure(
+            error: TerminalAdapterError.terminalTabCreationTimedOut(
+                TerminalTabCreationEvidence(
+                    initialTabCount: 1,
+                    latestTabCount: 2,
+                    sawExpectedTabCount: true,
+                    selectedTabTTYBecameReady: true
+                )
+            ),
+            stage: .terminalHandoff,
+            terminalHost: .terminal
+        )
+        let resolver = LauncherFailureCopyResolver()
+
+        #expect(failure.code.rawValue == "terminal-tab-identity-timeout")
+        #expect(resolver.messageKey(for: failure) ==
+            "Go2Codex could not start the CLI in the Terminal tab")
+        #expect(resolver.informativeTextKey(for: failure) ==
+            "A Terminal tab was created, but Go2Codex could not safely identify it, so no command was submitted. Close the empty tab and try again, or choose New Window in Go2Codex Settings.")
+
+        let malformedTTYFailure = LauncherWorkflowFailure(
+            error: TerminalAdapterError.terminalSelectedTabTTYReplyInvalid(nil),
+            stage: .terminalHandoff,
+            terminalHost: .terminal
+        )
+        #expect(resolver.informativeTextKey(for: malformedTTYFailure) ==
+            "A Terminal tab was created, but Go2Codex could not safely identify it, so no command was submitted. Close the empty tab and try again, or choose New Window in Go2Codex Settings.")
+    }
+
+    @Test
+    func unknownITermOutcomeWarnsAgainstDuplicateRetry() {
+        let failure = LauncherWorkflowFailure(
+            error: TerminalAdapterError.iTermHandoffOutcomeUnknown(-1712),
+            stage: .terminalHandoff,
+            terminalHost: .iTerm2
+        )
+        let resolver = LauncherFailureCopyResolver()
+
+        #expect(failure.code.rawValue == "iterm-handoff-outcome-unknown")
+        #expect(resolver.messageKey(for: failure) ==
+            "Go2Codex could not confirm the iTerm session")
+        #expect(resolver.informativeTextKey(for: failure) ==
+            "iTerm may already have created the requested session. Check iTerm before trying again to avoid opening a duplicate session.")
+    }
+
+    @Test
+    func unsupportedITermLoginShellHasActionableGuidance() {
+        let failure = LauncherWorkflowFailure(
+            error: ITermCustomCommandBuildError.loginShellUnsupported,
+            stage: .terminalHandoff,
+            terminalHost: .iTerm2
+        )
+        let resolver = LauncherFailureCopyResolver()
+
+        #expect(failure.code.rawValue == "iterm-login-shell-unsupported")
+        #expect(resolver.messageKey(for: failure) ==
+            "Go2Codex could not start the iTerm session")
+        #expect(resolver.informativeTextKey(for: failure) ==
+            "No iTerm session was opened because the account login shell is unavailable or unsupported. Check the login shell in System Settings, then try again.")
     }
 
     @Test

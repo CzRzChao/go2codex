@@ -173,6 +173,64 @@ public enum TerminalCommandBuilder {
     }
 }
 
+public enum ITermCustomCommandBuildError: Error, Equatable, Sendable,
+    DiagnosticCodeProviding {
+    case loginShellPathNotAbsolute
+    case loginShellPathContainsUnsupportedCharacter
+    case loginShellUnsupported
+
+    public var diagnosticCode: DiagnosticCode {
+        switch self {
+        case .loginShellPathNotAbsolute:
+            DiagnosticCode(rawValue: "iterm-login-shell-path-not-absolute")
+        case .loginShellPathContainsUnsupportedCharacter:
+            DiagnosticCode(rawValue: "iterm-login-shell-path-invalid")
+        case .loginShellUnsupported:
+            DiagnosticCode(rawValue: "iterm-login-shell-unsupported")
+        }
+    }
+}
+
+public enum ITermCustomCommandBuilder {
+    private static let supportedLoginShellNames: Set<String> = [
+        "bash",
+        "fish",
+        "zsh",
+    ]
+
+    public static func command(
+        for terminalCommand: TerminalCommand,
+        loginShellPath: String
+    ) throws -> String {
+        guard loginShellPath.hasPrefix("/") else {
+            throw ITermCustomCommandBuildError.loginShellPathNotAbsolute
+        }
+        guard !loginShellPath.unicodeScalars.contains(where: {
+            $0.value == 0 || CharacterSet.newlines.contains($0)
+        }) else {
+            throw ITermCustomCommandBuildError.loginShellPathContainsUnsupportedCharacter
+        }
+        guard supportedLoginShellNames.contains(
+            URL(fileURLWithPath: loginShellPath).lastPathComponent
+        ) else {
+            throw ITermCustomCommandBuildError.loginShellUnsupported
+        }
+
+        let quotedShellPath = POSIXShellQuoting.singleQuote(loginShellPath)
+        let innerCommand = "\(terminalCommand.line); exec \(quotedShellPath) -l"
+        return [loginShellPath, "-l", "-i", "-c", innerCommand]
+            .map(iTermCommandArgument)
+            .joined(separator: " ")
+    }
+
+    private static func iTermCommandArgument(_ value: String) -> String {
+        let escaped = value
+            .replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "\"", with: "\\\"")
+        return "\"\(escaped)\""
+    }
+}
+
 public struct FourCharacterCode: RawRepresentable, Equatable, Hashable, Sendable {
     public let rawValue: UInt32
 

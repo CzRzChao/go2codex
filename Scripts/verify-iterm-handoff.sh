@@ -5,6 +5,32 @@ set -euo pipefail
 script_dir="$(cd "$(dirname "$0")" && /bin/pwd -P)"
 project_dir="$(cd "$script_dir/.." && /bin/pwd -P)"
 source "$script_dir/lib/safety.sh"
+source "$script_dir/lib/iterm-handoff-safety.sh"
+
+verification_root=""
+
+cleanup_verification() {
+    local status="$1"
+    local cleanup_failed=0
+    trap - EXIT
+    trap '' INT TERM
+    if [[ -n "$verification_root" ]]; then
+        if [[ -d "$verification_root" && ! -L "$verification_root" \
+            && "$verification_root" == /private/tmp/go2codex-iterm-verify.* ]]; then
+            /bin/rm -rf -- "$verification_root" || cleanup_failed=1
+        else
+            cleanup_failed=1
+        fi
+    fi
+    if [[ "$cleanup_failed" != "0" && "$status" == "0" ]]; then
+        status=1
+    fi
+    exit "$status"
+}
+
+trap 'cleanup_verification "$?"' EXIT
+trap 'cleanup_verification 130' INT
+trap 'cleanup_verification 143' TERM
 
 usage() {
     echo "Usage: $0" >&2
@@ -62,4 +88,14 @@ actual_compiled_sha="$(/usr/bin/shasum -a 256 "$compiled_path" | /usr/bin/awk '{
 [[ "$(/usr/bin/file -b "$compiled_path")" == "AppleScript compiled" ]] \
     || safety_die "iTerm handoff compiled resource has an unexpected file type"
 
-echo "verify-iterm-handoff: source and compiled resource match their provenance"
+assert_iterm_handoff_source_contract "$source_path"
+verification_root="$(mktemp -d "/private/tmp/go2codex-iterm-verify.XXXXXX")" \
+    || safety_die "iTerm handoff verification directory could not be created"
+decompiled_path="$verification_root/ITermHandoff.decompiled.applescript"
+/usr/bin/osadecompile "$compiled_path" >"$decompiled_path" \
+    || safety_die "iTerm handoff compiled resource could not be decompiled"
+[[ -f "$decompiled_path" && ! -L "$decompiled_path" ]] \
+    || safety_die "iTerm handoff decompiled output is missing or unsafe"
+assert_iterm_handoff_decompiled_contract "$decompiled_path"
+
+echo "verify-iterm-handoff: source and compiled resource match their provenance and allowlist"
