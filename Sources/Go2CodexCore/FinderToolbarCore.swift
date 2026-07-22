@@ -617,7 +617,7 @@ public enum FinderToolbarDetector {
                 guard let payload = layout.itemPlists[index] else {
                     return .manualSetupRequired(.orphanCustomIdentifier(index))
                 }
-                guard let url = payloadFileURL(payload) else {
+                guard let storedURL = payloadStoredURL(payload) else {
                     return .manualSetupRequired(.invalidURL(index))
                 }
                 guard payload[FinderToolbarPreferenceKey.urlStringType] == .integer(15) else {
@@ -626,20 +626,17 @@ public enum FinderToolbarDetector {
                 customEntries.append(
                     FinderToolbarDetectedCustomEntry(
                         index: index,
-                        url: url,
                         payload: payload,
-                        usesFinderFileReference: payloadUsesFinderFileReference(payload)
+                        storedURL: storedURL
                     )
                 )
             }
 
             let currentMatches = customEntries.filter {
-                $0.usesFinderFileReference
-                    ? aliasURLsEqual(
-                        context.aliasResolutions[$0.index] ?? .absent,
-                        identity.url
-                    )
-                    : fileURLsEqual($0.url, identity.url)
+                $0.matches(
+                    identity.url,
+                    aliasResolution: context.aliasResolutions[$0.index] ?? .absent
+                )
             }
             guard currentMatches.count <= 1 else {
                 return .manualSetupRequired(.duplicateOwnership)
@@ -648,12 +645,10 @@ public enum FinderToolbarDetector {
                 let otherLegacyMatches = customEntries.filter { entry in
                     entry.index != current.index
                         && context.legacyLauncherURLs.contains(where: { legacyURL in
-                            entry.usesFinderFileReference
-                                ? aliasURLsEqual(
-                                    context.aliasResolutions[entry.index] ?? .absent,
-                                    legacyURL
-                                )
-                                : fileURLsEqual(entry.url, legacyURL)
+                            entry.matches(
+                                legacyURL,
+                                aliasResolution: context.aliasResolutions[entry.index] ?? .absent
+                            )
                         })
                 }
                 guard otherLegacyMatches.isEmpty else {
@@ -662,12 +657,10 @@ public enum FinderToolbarDetector {
                 if let receipt = validReceipt,
                    !fileURLsEqual(receipt.lastVerifiedLauncherURL, identity.url) {
                     let receiptMatches = customEntries.filter {
-                        $0.usesFinderFileReference
-                            ? aliasURLsEqual(
-                                context.aliasResolutions[$0.index] ?? .absent,
-                                receipt.lastVerifiedLauncherURL
-                            )
-                            : fileURLsEqual($0.url, receipt.lastVerifiedLauncherURL)
+                        $0.matches(
+                            receipt.lastVerifiedLauncherURL,
+                            aliasResolution: context.aliasResolutions[$0.index] ?? .absent
+                        )
                     }
                     guard receiptMatches.isEmpty else {
                         return .manualSetupRequired(.duplicateOwnership)
@@ -690,12 +683,10 @@ public enum FinderToolbarDetector {
 
             let legacyMatches = customEntries.compactMap { entry -> (Int, URL)? in
                 guard let legacyURL = context.legacyLauncherURLs.first(where: {
-                    entry.usesFinderFileReference
-                        ? aliasURLsEqual(
-                            context.aliasResolutions[entry.index] ?? .absent,
-                            $0
-                        )
-                        : fileURLsEqual(entry.url, $0)
+                    entry.matches(
+                        $0,
+                        aliasResolution: context.aliasResolutions[entry.index] ?? .absent
+                    )
                 }) else {
                     return nil
                 }
@@ -717,12 +708,10 @@ public enum FinderToolbarDetector {
                 return .manualSetupRequired(.unmanagedExplicitShape)
             }
             let receiptMatches = customEntries.filter {
-                $0.usesFinderFileReference
-                    ? aliasURLsEqual(
-                        context.aliasResolutions[$0.index] ?? .absent,
-                        receipt.lastVerifiedLauncherURL
-                    )
-                    : fileURLsEqual($0.url, receipt.lastVerifiedLauncherURL)
+                $0.matches(
+                    receipt.lastVerifiedLauncherURL,
+                    aliasResolution: context.aliasResolutions[$0.index] ?? .absent
+                )
             }
             guard receiptMatches.count <= 1 else {
                 return .manualSetupRequired(.duplicateOwnership)
@@ -1132,13 +1121,12 @@ public enum FinderToolbarSemanticVerifier {
         }
         var normalizedPayload = observedPayload
         normalizedPayload.removeValue(forKey: FinderToolbarPreferenceKey.aliasData)
-        guard let expectedURL = payloadFileURL(expectedPayload) else {
+        guard case let .absoluteFileURL(expectedURL)? = payloadStoredURL(expectedPayload) else {
             return .rejected(.unexpectedDifference)
         }
 
         if normalizedPayload != expectedPayload {
-            guard payloadFileURL(normalizedPayload) != nil,
-                  payloadUsesFinderFileReference(normalizedPayload) else {
+            guard case .finderFileReference? = payloadStoredURL(normalizedPayload) else {
                 return .rejected(.unexpectedDifference)
             }
             normalizedPayload[FinderToolbarPreferenceKey.urlString] = expectedPayload[
@@ -1499,27 +1487,67 @@ public enum FinderToolbarFaultPlanner {
 
 private struct FinderToolbarDetectedCustomEntry {
     let index: Int
-    let url: URL
     let payload: FinderToolbarItemPayload
-    let usesFinderFileReference: Bool
+    let storedURL: FinderToolbarStoredURL
+
+    func matches(
+        _ expectedURL: URL,
+        aliasResolution: FinderToolbarAliasResolution
+    ) -> Bool {
+        switch storedURL {
+        case let .absoluteFileURL(url):
+            fileURLsEqual(url, expectedURL)
+        case .finderFileReference:
+            aliasURLsEqual(aliasResolution, expectedURL)
+        }
+    }
 }
 
-private func payloadFileURL(_ payload: FinderToolbarItemPayload) -> URL? {
-    guard case let .string(string)? = payload[FinderToolbarPreferenceKey.urlString],
+private enum FinderToolbarStoredURL {
+    case absoluteFileURL(URL)
+    case finderFileReference(String)
+}
+
+private let finderFileReferencePrefix = "file:///.file/id="
+
+private func payloadStoredURL(
+    _ payload: FinderToolbarItemPayload
+) -> FinderToolbarStoredURL? {
+    guard case let .string(string)? = payload[FinderToolbarPreferenceKey.urlString] else {
+        return nil
+    }
+    if isValidFinderFileReference(string) {
+        return .finderFileReference(string)
+    }
+    guard !string.hasPrefix(finderFileReferencePrefix),
           let url = URL(string: string),
           canonicalFileURL(url) != nil else {
         return nil
     }
-    return url
+    return .absoluteFileURL(url)
 }
 
-private func payloadUsesFinderFileReference(
-    _ payload: FinderToolbarItemPayload
+private func isValidFinderFileReference(
+    _ string: String
 ) -> Bool {
-    guard case let .string(string)? = payload[FinderToolbarPreferenceKey.urlString] else {
+    guard string.hasPrefix(finderFileReferencePrefix),
+          string.hasSuffix("/") else {
         return false
     }
-    return string.hasPrefix("file:///.file/id=")
+    let identifier = string
+        .dropFirst(finderFileReferencePrefix.count)
+        .dropLast()
+    let components = identifier.split(
+        separator: ".",
+        omittingEmptySubsequences: false
+    )
+    return components.count == 2
+        && components.allSatisfy { component in
+            !component.isEmpty
+                && component.utf8.allSatisfy { byte in
+                    byte >= 48 && byte <= 57
+                }
+        }
 }
 
 private func canonicalFileURL(_ url: URL) -> String? {

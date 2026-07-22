@@ -6,6 +6,7 @@ private let profile = FinderToolbarProfile.finder146Build23G80
 private let currentLauncherURL = URL(fileURLWithPath: "/Applications/Go2Codex.app/Contents/Helpers/Go2CodexLauncher.app")
 private let staleLauncherURL = URL(fileURLWithPath: "/Applications/Old Go2Codex.app/Contents/Helpers/Go2CodexLauncher.app")
 private let otherLauncherURL = URL(fileURLWithPath: "/Applications/Other.app")
+private let opaqueFinderFileReference = "file:///.file/id=999999999.999999999/"
 
 private let launcherIdentity = FinderToolbarLauncherIdentity(
     url: currentLauncherURL,
@@ -494,6 +495,11 @@ func detectionAndMutationPlannersRejectInvalidCustomItemURLs() {
         .integer(1),
         .string("https://example.com/Go2CodexLauncher.app"),
         .string("Go2CodexLauncher.app"),
+        .string("file:///.file/id="),
+        .string("file:///.file/id=1/"),
+        .string("file:///.file/id=1.2/extra/"),
+        .string("file:///.file/id=1.2/?query=1"),
+        .string("file:///.file/id=1.2/#fragment"),
     ]
 
     for representation in invalidRepresentations {
@@ -549,7 +555,7 @@ func detectionAcceptsFinderFileReferenceOnlyWhenAliasResolvesToLauncher() {
     identifiers.insert(FinderToolbarPreferenceKey.customItemIdentifier, at: index)
     var fileReferencePayload = payload(url: currentLauncherURL)
     fileReferencePayload[FinderToolbarPreferenceKey.urlString] = .string(
-        "file:///.file/id=6571367.539421599/"
+        opaqueFinderFileReference
     )
 
     func context(alias: FinderToolbarAliasResolution) -> FinderToolbarDetectionContext {
@@ -567,6 +573,14 @@ func detectionAcceptsFinderFileReferenceOnlyWhenAliasResolvesToLauncher() {
     #expect(FinderToolbarDetector.detect(context(alias: .resolved(currentLauncherURL))) == .installed(index: index))
     #expect(
         FinderToolbarDetector.detect(context(alias: .resolved(otherLauncherURL)))
+            == .manualSetupRequired(.unmanagedExplicitShape)
+    )
+    #expect(
+        FinderToolbarDetector.detect(context(alias: .absent))
+            == .manualSetupRequired(.unmanagedExplicitShape)
+    )
+    #expect(
+        FinderToolbarDetector.detect(context(alias: .unresolvable))
             == .manualSetupRequired(.unmanagedExplicitShape)
     )
 }
@@ -980,7 +994,7 @@ func semanticVerifierAcceptsFinderFileReferenceNormalizationWithMatchingAlias() 
             transform: { payload in
                 var payload = payload
                 payload[FinderToolbarPreferenceKey.urlString] = .string(
-                    "file:///.file/id=6571367.539421599/"
+                    opaqueFinderFileReference
                 )
                 return payload
             }
@@ -1002,6 +1016,13 @@ func semanticVerifierAcceptsFinderFileReferenceNormalizationWithMatchingAlias() 
             observed: normalized,
             aliasResolution: .resolved(otherLauncherURL)
         ) == .rejected(.conflictingAlias)
+    )
+    #expect(
+        FinderToolbarSemanticVerifier.verify(
+            plan: plan,
+            observed: normalized,
+            aliasResolution: .unresolvable
+        ) == .rejected(.unresolvedAlias)
     )
 }
 
