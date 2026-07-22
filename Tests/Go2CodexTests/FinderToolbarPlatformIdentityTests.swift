@@ -322,19 +322,28 @@ private final class StubFinderToolbarPlatformContext: FinderToolbarPlatformConte
 private final class StubFinderToolbarPlatformInspector: FinderToolbarPlatformInspecting {
     var inspection: FinderToolbarPlatformInspection
     var receiptWriteResult: Bool
+    var subsequentInspections: [FinderToolbarPlatformInspection]
 
+    private(set) var inspectionReadCount = 0
     private(set) var recordedContexts: [FinderToolbarDetectionContext] = []
 
     init(
         inspection: FinderToolbarPlatformInspection,
+        subsequentInspections: [FinderToolbarPlatformInspection] = [],
         receiptWriteResult: Bool = true
     ) {
         self.inspection = inspection
+        self.subsequentInspections = subsequentInspections
         self.receiptWriteResult = receiptWriteResult
     }
 
     func inspect() -> FinderToolbarPlatformInspection {
-        inspection
+        inspectionReadCount += 1
+        let result = inspection
+        if !subsequentInspections.isEmpty {
+            inspection = subsequentInspections.removeFirst()
+        }
+        return result
     }
 
     func embeddedLauncherURL() -> Result<URL, FinderToolbarPlatformFailure> {
@@ -855,6 +864,112 @@ func settingsServiceConfirmsAndExecutesSupportedAutomaticInstall() async {
     #expect(confirmations == [.install])
     #expect(executor.executionPlans.count == 1)
     #expect(executor.executionPlans.first?.operation == .install)
+}
+
+@MainActor
+@Test(arguments: [
+    ToolbarSettingsAction.install,
+    ToolbarSettingsAction.repair,
+    ToolbarSettingsAction.uninstall,
+])
+func settingsServiceReconcilesExecutorFailureAfterRecoveryReachesExpectedStatus(
+    _ action: ToolbarSettingsAction
+) async {
+    let profile = FinderToolbarProfile.finder146Build23G80
+    let identity = launcherIdentity(
+        at: URL(fileURLWithPath: "/Applications/Go2Codex.app/Contents/Helpers/Go2CodexLauncher.app")
+    )
+    let notInstalled = FinderToolbarDetectionContext(
+        snapshot: FinderToolbarSnapshot(
+            configurationWasPresent: true,
+            fields: profile.scalarFields
+        ),
+        environment: profile.environment,
+        launcherIdentity: .verified(identity)
+    )
+    let installed = installedContext(identity: identity)
+    let needsRepair = needsRepairContext(
+        identity: identity,
+        staleURL: URL(fileURLWithPath: "/Applications/OldGo2Codex.app/Contents/Helpers/Go2CodexLauncher.app")
+    )
+    let initialContext: FinderToolbarDetectionContext
+    let expectedContext: FinderToolbarDetectionContext
+    let expectedStatus: ToolbarSettingsStatus
+    switch action {
+    case .install:
+        initialContext = notInstalled
+        expectedContext = installed
+        expectedStatus = .installed
+    case .repair:
+        initialContext = needsRepair
+        expectedContext = installed
+        expectedStatus = .installed
+    case .uninstall:
+        initialContext = installed
+        expectedContext = notInstalled
+        expectedStatus = .notInstalled
+    case .showManualSetup:
+        Issue.record("Unexpected manual setup test argument")
+        return
+    }
+    let inspector = StubFinderToolbarPlatformInspector(
+        inspection: .verified(initialContext, automaticActionsLocationEligible: true),
+        subsequentInspections: [
+            .verified(initialContext, automaticActionsLocationEligible: true),
+            .verified(expectedContext, automaticActionsLocationEligible: true),
+        ]
+    )
+    let executor = StubFinderToolbarMutationExecutor()
+    executor.executionResult = false
+    executor.recoveryResult = .recovered
+    let service = FinderToolbarSettingsService(
+        inspector: inspector,
+        mutationExecutor: executor,
+        automaticMutationConfirmation: { $0 == action }
+    )
+
+    #expect(await service.perform(action) == .status(expectedStatus))
+    #expect(executor.executionPlans.count == 1)
+    #expect(executor.recoveryCalls.count == 1)
+    #expect(inspector.inspectionReadCount == 3)
+    if expectedStatus == .installed {
+        #expect(inspector.recordedContexts == [installed])
+    } else {
+        #expect(inspector.recordedContexts.isEmpty)
+    }
+}
+
+@MainActor
+@Test
+func settingsServiceKeepsExecutorFailureWhenRecoveryDoesNotReachInstalledState() async {
+    let profile = FinderToolbarProfile.finder146Build23G80
+    let identity = launcherIdentity(
+        at: URL(fileURLWithPath: "/Applications/Go2Codex.app/Contents/Helpers/Go2CodexLauncher.app")
+    )
+    let notInstalled = FinderToolbarDetectionContext(
+        snapshot: FinderToolbarSnapshot(
+            configurationWasPresent: true,
+            fields: profile.scalarFields
+        ),
+        environment: profile.environment,
+        launcherIdentity: .verified(identity)
+    )
+    let inspector = StubFinderToolbarPlatformInspector(
+        inspection: .verified(notInstalled, automaticActionsLocationEligible: true)
+    )
+    let executor = StubFinderToolbarMutationExecutor()
+    executor.executionResult = false
+    let service = FinderToolbarSettingsService(
+        inspector: inspector,
+        mutationExecutor: executor,
+        automaticMutationConfirmation: { $0 == .install }
+    )
+
+    #expect(await service.perform(.install) == .failed)
+    #expect(executor.executionPlans.count == 1)
+    #expect(executor.recoveryCalls.count == 1)
+    #expect(inspector.inspectionReadCount == 2)
+    #expect(inspector.recordedContexts.isEmpty)
 }
 
 @MainActor

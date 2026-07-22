@@ -457,8 +457,8 @@ fi
 assert_equal "$(localization_list "$app_path/Contents/Resources")" "en,zh-Hans" "outer packaged localizations"
 assert_equal "$(localization_list "$inner_path/Contents/Resources")" "en,zh-Hans" "Launcher packaged localizations"
 if [[ "$content_contract" == "current" ]]; then
-    assert_equal "$(plist_key_count "$app_path/Contents/Resources/zh-Hans.lproj/Localizable.strings")" "97" "outer Simplified Chinese string count"
-    assert_equal "$(plist_key_count "$inner_path/Contents/Resources/zh-Hans.lproj/Localizable.strings")" "97" "Launcher Simplified Chinese string count"
+    assert_equal "$(plist_key_count "$app_path/Contents/Resources/zh-Hans.lproj/Localizable.strings")" "102" "outer Simplified Chinese string count"
+    assert_equal "$(plist_key_count "$inner_path/Contents/Resources/zh-Hans.lproj/Localizable.strings")" "102" "Launcher Simplified Chinese string count"
 fi
 for strings_file in \
     "$app_path/Contents/Resources/zh-Hans.lproj/Localizable.strings" \
@@ -478,6 +478,8 @@ for strings_file in \
         assert_equal "$(plist_value "$strings_file" "Install and Restart Finder")" "安装并重启 Finder" "automatic Finder install localization"
         assert_equal "$(plist_value "$strings_file" "Open Accessibility Settings")" "打开“辅助功能”设置" "Accessibility settings localization"
         assert_equal "$(plist_value "$strings_file" "Automation permission is required for Terminal tabs")" "Terminal 标签页需要“自动化”权限" "Terminal tab Automation localization"
+        assert_equal "$(plist_value "$strings_file" "Locate Current Launcher")" "定位当前 Launcher" "current Launcher reveal localization"
+        assert_equal "$(plist_value "$strings_file" "Current Launcher could not be located")" "无法定位当前 Launcher" "current Launcher fallback title localization"
     fi
 done
 assert_equal "$(plist_key_count "$app_path/Contents/Resources/en.lproj/InfoPlist.strings")" "1" "outer English Info.plist string count"

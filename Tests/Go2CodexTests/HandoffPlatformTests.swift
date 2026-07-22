@@ -774,14 +774,17 @@ struct HandoffPlatformTests {
     }
 
     @Test
-    func iTermColdStartPreflightsAfterBootstrapBeforeControlEvents() async {
+    func iTermColdStartPreflightsAfterBootstrapBeforeControlEvents() async throws {
+        let operations = TerminalOperationLog()
         let state = TerminalApplicationStateStub()
+        state.operationLog = operations
         let opener = TerminalApplicationOpenerStub()
+        opener.operationLog = operations
         let sender = AppleEventSenderStub()
-        sender.permissionStatusesByBundleIdentifier[
-            TerminalHost.iTerm2.bundleIdentifier
-        ] = -1743
+        sender.operationLog = operations
+        sender.outcomes = [.reply(makeITermWindowReply())]
         let script = ITermScriptExecutorStub()
+        script.operationLog = operations
         let adapter = TerminalOpenAdapter(
             applicationState: state,
             applicationOpener: opener,
@@ -789,19 +792,25 @@ struct HandoffPlatformTests {
             iTermScriptExecutor: script
         )
 
-        let error = await capturedTerminalError {
-            try await adapter.open(
-                testCommand,
-                in: .iTerm2,
-                placement: .newTab
-            )
-        }
+        let acceptance = try await adapter.open(
+            testCommand,
+            in: .iTerm2,
+            placement: .newTab
+        )
 
-        #expect(error == .automationPermissionDenied(.iTerm2))
+        #expect(acceptance == .acceptedByTerminalHost)
         expectSingleITermQuietLaunch(opener)
         #expect(sender.permissionRequests == [hostPermissionRequest(.iTerm2)])
-        #expect(sender.events.isEmpty)
-        #expect(script.events.isEmpty)
+        #expect(sender.events.map(\.eventID) == [eventCode("getd")])
+        #expect(script.events.count == 1)
+        #expect(state.activationRequests == [TerminalHost.iTerm2.bundleIdentifier])
+        #expect(operations.values == [
+            .applicationOpen,
+            .automationPermission,
+            .appleEvent,
+            .activation,
+            .script,
+        ])
     }
 
     @Test
@@ -836,8 +845,9 @@ struct HandoffPlatformTests {
             #require(script.events.first),
             handler: "go2codexNewTab"
         )
-        expectSingleITermQuietLaunch(opener)
+        expectNoITermApplicationOpen(opener)
         #expect(state.runningLookups == ["com.googlecode.iterm2"])
+        #expect(state.activationRequests == ["com.googlecode.iterm2"])
     }
 
     @Test
@@ -868,8 +878,9 @@ struct HandoffPlatformTests {
             #require(script.events.first),
             handler: "go2codexNewWindow"
         )
-        expectSingleITermQuietLaunch(opener)
+        expectNoITermApplicationOpen(opener)
         #expect(state.runningLookups == ["com.googlecode.iterm2"])
+        #expect(state.activationRequests.isEmpty)
     }
 
     @Test
@@ -899,8 +910,39 @@ struct HandoffPlatformTests {
             #require(script.events.first),
             handler: "go2codexNewWindow"
         )
-        expectSingleITermQuietLaunch(opener)
+        expectNoITermApplicationOpen(opener)
         #expect(state.runningLookups == ["com.googlecode.iterm2"])
+        #expect(state.activationRequests.isEmpty)
+    }
+
+    @Test
+    func iTermRejectsTabBeforeSubmissionWhenActivationFails() async {
+        let state = TerminalApplicationStateStub()
+        state.isRunning = true
+        state.activationResult = false
+        let opener = TerminalApplicationOpenerStub()
+        let sender = AppleEventSenderStub()
+        sender.outcomes = [.reply(makeITermWindowReply())]
+        let script = ITermScriptExecutorStub()
+        let adapter = TerminalOpenAdapter(
+            applicationState: state,
+            applicationOpener: opener,
+            eventSender: sender,
+            iTermScriptExecutor: script
+        )
+
+        let error = await capturedTerminalAdapterError {
+            try await adapter.open(
+                testCommand,
+                in: .iTerm2,
+                placement: .newTab
+            )
+        }
+
+        #expect(error == .terminalActivationFailed)
+        #expect(script.events.isEmpty)
+        #expect(state.activationRequests == ["com.googlecode.iterm2"])
+        expectNoITermApplicationOpen(opener)
     }
 
     @Test(arguments: CLIExecutable.allCases)
@@ -1001,7 +1043,7 @@ struct HandoffPlatformTests {
             #require(script.events.first),
             handler: "go2codexNewWindow"
         )
-        expectSingleITermQuietLaunch(opener)
+        expectNoITermApplicationOpen(opener)
         #expect(state.runningLookups == ["com.googlecode.iterm2"])
     }
 
@@ -1031,7 +1073,7 @@ struct HandoffPlatformTests {
         #expect(error == .iTermWindowQueryReplyInvalid(nil))
         #expect(sender.events.map(\.eventID) == [eventCode("getd")])
         #expect(script.events.isEmpty)
-        expectSingleITermQuietLaunch(opener)
+        expectNoITermApplicationOpen(opener)
     }
 
     @Test
@@ -1060,7 +1102,7 @@ struct HandoffPlatformTests {
         #expect(error == .iTermWindowQueryReplyInvalid(eventCode("long")))
         #expect(sender.events.map(\.eventID) == [eventCode("getd")])
         #expect(script.events.isEmpty)
-        expectSingleITermQuietLaunch(opener)
+        expectNoITermApplicationOpen(opener)
     }
 
     @Test
@@ -1206,7 +1248,7 @@ struct HandoffPlatformTests {
         #expect(error == .automationPermissionDenied(.iTerm2))
         #expect(sender.events.map(\.eventID) == [eventCode("getd")])
         #expect(script.events.isEmpty)
-        expectSingleITermQuietLaunch(opener)
+        expectNoITermApplicationOpen(opener)
     }
 
     @Test(arguments: iTermStatusCases)
@@ -1265,7 +1307,7 @@ struct HandoffPlatformTests {
         #expect(error == .terminalUnavailable(.iTerm2))
         #expect(sender.events.map(\.eventID) == [eventCode("getd")])
         #expect(script.events.isEmpty)
-        expectSingleITermQuietLaunch(opener)
+        expectNoITermApplicationOpen(opener)
     }
 }
 
@@ -1298,6 +1340,23 @@ private struct DesktopPlatformOpenCall: Equatable {
     let applicationURL: URL
 }
 
+private enum TerminalOperation: Equatable {
+    case applicationOpen
+    case automationPermission
+    case appleEvent
+    case script
+    case activation
+}
+
+@MainActor
+private final class TerminalOperationLog {
+    private(set) var values: [TerminalOperation] = []
+
+    func append(_ operation: TerminalOperation) {
+        values.append(operation)
+    }
+}
+
 @MainActor
 private final class TerminalApplicationStateStub:
     TerminalApplicationStateLookingUp {
@@ -1314,6 +1373,7 @@ private final class TerminalApplicationStateStub:
     ]
     var isRunning = false
     var activationResult = true
+    var operationLog: TerminalOperationLog?
     private(set) var registrationLookups: [String] = []
     private(set) var runningLookups: [String] = []
     private(set) var activationRequests: [String] = []
@@ -1329,6 +1389,7 @@ private final class TerminalApplicationStateStub:
     }
 
     func activate(bundleIdentifier: String) -> Bool {
+        operationLog?.append(.activation)
         activationRequests.append(bundleIdentifier)
         return activationResult
     }
@@ -1337,6 +1398,7 @@ private final class TerminalApplicationStateStub:
 @MainActor
 private final class TerminalApplicationOpenerStub: TerminalApplicationOpening {
     var failure: TerminalApplicationOpenFailure?
+    var operationLog: TerminalOperationLog?
     private(set) var applicationURLs: [URL] = []
     private(set) var events: [NSAppleEventDescriptor] = []
     private(set) var activations: [Bool] = []
@@ -1347,6 +1409,7 @@ private final class TerminalApplicationOpenerStub: TerminalApplicationOpening {
         initialAppleEvent: NSAppleEventDescriptor?,
         activates: Bool
     ) async -> TerminalApplicationOpenFailure? {
+        operationLog?.append(.applicationOpen)
         applicationURLs.append(applicationURL)
         if let initialAppleEvent {
             events.append(initialAppleEvent)
@@ -1364,6 +1427,7 @@ private final class AppleEventSenderStub: NativeAppleEventSending {
     var outcomes: [AppleEventOutcome] = []
     var permissionStatusesByBundleIdentifier: [String: Int32] = [:]
     var accessibilityPermissionGranted = true
+    var operationLog: TerminalOperationLog?
     private(set) var events: [NSAppleEventDescriptor] = []
     private(set) var permissionRequests: [AutomationPermissionRequest] = []
     private(set) var accessibilityPermissionRequestCount = 0
@@ -1371,6 +1435,7 @@ private final class AppleEventSenderStub: NativeAppleEventSending {
     func send(
         _ event: NSAppleEventDescriptor
     ) throws -> NSAppleEventDescriptor {
+        operationLog?.append(.appleEvent)
         events.append(event)
         guard !outcomes.isEmpty else {
             return makeReply()
@@ -1386,6 +1451,7 @@ private final class AppleEventSenderStub: NativeAppleEventSending {
     func requestAutomationPermission(
         _ request: AutomationPermissionRequest
     ) async -> Int32 {
+        operationLog?.append(.automationPermission)
         permissionRequests.append(request)
         await Task.yield()
         return permissionStatusesByBundleIdentifier[request.bundleIdentifier]
@@ -1402,11 +1468,13 @@ private final class AppleEventSenderStub: NativeAppleEventSending {
 private final class ITermScriptExecutorStub: ITermHandoffScriptExecuting {
     var result = NSAppleEventDescriptor(boolean: true)
     var error: (any Error)?
+    var operationLog: TerminalOperationLog?
     private(set) var events: [NSAppleEventDescriptor] = []
 
     func execute(
         _ event: NSAppleEventDescriptor
     ) throws -> NSAppleEventDescriptor {
+        operationLog?.append(.script)
         events.append(event)
         if let error {
             throw error
@@ -1681,7 +1749,7 @@ private func expectSingleITermQuietLaunch(
         fileURLWithPath: "/Applications/iTerm.app"
     )])
     #expect(opener.events.count == 1)
-    #expect(opener.activations == [true])
+    #expect(opener.activations == [false])
     guard let event = opener.events.first else {
         return
     }
@@ -1697,6 +1765,16 @@ private func expectSingleITermQuietLaunch(
     #expect(documents?.numberOfItems == 1)
     #expect(documents?.atIndex(1)?.fileURLValue ==
         NativeAppleEvent.iTermQuietLaunchSentinelURL)
+}
+
+@MainActor
+private func expectNoITermApplicationOpen(
+    _ opener: TerminalApplicationOpenerStub
+) {
+    #expect(opener.applicationURLs.isEmpty)
+    #expect(opener.events.isEmpty)
+    #expect(opener.activations.isEmpty)
+    #expect(opener.launchesWithoutInitialEvent == 0)
 }
 
 @MainActor

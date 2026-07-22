@@ -732,7 +732,7 @@ struct LauncherFailureCopyTests {
         #expect(resolver.messageKey(for: accessibilityFailure) ==
             "Accessibility permission is required for Terminal tabs")
         #expect(resolver.informativeTextKey(for: accessibilityFailure) ==
-            "Allow Go2Codex in System Settings > Privacy & Security > Accessibility, then try again.")
+            "Terminal New Tab needs the current Go2CodexLauncher in Accessibility. If an older Go2CodexLauncher entry exists, remove it. Then choose Locate Current Launcher, add the revealed launcher to Accessibility, turn it on, and try again. Unsigned preview updates can invalidate an earlier entry.")
         #expect(accessibilityFailure.permissionContext == nil)
 
         #expect(resolver.messageKey(for: systemEventsFailure) ==
@@ -740,6 +740,84 @@ struct LauncherFailureCopyTests {
         #expect(resolver.informativeTextKey(for: systemEventsFailure) ==
             "Allow Go2Codex to control System Events in System Settings > Privacy & Security > Automation, then try again.")
         #expect(systemEventsFailure.permissionContext == .terminal(.terminal))
+    }
+
+    @Test
+    func accessibilityFailureOffersExplicitUnsignedPreviewRecovery() {
+        let failure = LauncherWorkflowFailure(
+            error: TerminalAdapterError.accessibilityPermissionDenied,
+            stage: .terminalHandoff,
+            terminalHost: .terminal
+        )
+
+        let plan = LauncherFailurePresentationPlanResolver().resolve(
+            failure: failure
+        )
+
+        #expect(plan == LauncherFailurePresentationPlan(actions: [
+            .showCurrentLauncher,
+            .copyDiagnostics,
+            .cancel,
+        ]))
+        #expect(plan.actions.map(\.titleKey) == [
+            "Locate Current Launcher",
+            "Copy Diagnostics",
+            "Cancel",
+        ])
+    }
+
+    @Test
+    func automationAndOrdinaryFailuresKeepTheirExistingActions() {
+        let automationFailure = LauncherWorkflowFailure(
+            error: TerminalAdapterError.systemEventsAutomationPermissionDenied,
+            stage: .terminalHandoff,
+            terminalHost: .terminal
+        )
+        let ordinaryFailure = LauncherWorkflowFailure(
+            error: TerminalAdapterError.terminalTabCreationTimedOut,
+            stage: .terminalHandoff,
+            terminalHost: .terminal
+        )
+        let resolver = LauncherFailurePresentationPlanResolver()
+
+        #expect(resolver.resolve(failure: automationFailure).actions == [
+            .openAutomationSettings,
+            .copyDiagnostics,
+            .cancel,
+        ])
+        #expect(resolver.resolve(failure: ordinaryFailure).actions == [
+            .acknowledge,
+            .copyDiagnostics,
+        ])
+    }
+
+    @Test
+    func currentLauncherResolverAcceptsOnlyTheNestedHelperBundle() {
+        let resolver = CurrentLauncherURLResolver()
+        let launcherURL = URL(fileURLWithPath:
+            "/Applications/Go2Codex.app/Contents/Helpers/Go2CodexLauncher.app"
+        )
+
+        #expect(resolver.resolve(
+            bundleURL: launcherURL,
+            bundleIdentifier: "io.github.czrzchao.go2codex.launcher"
+        ) == launcherURL)
+        #expect(resolver.resolve(
+            bundleURL: URL(fileURLWithPath: "/Applications/Go2Codex.app"),
+            bundleIdentifier: "io.github.czrzchao.go2codex"
+        ) == nil)
+        #expect(resolver.resolve(
+            bundleURL: URL(fileURLWithPath: "/tmp/Go2CodexLauncher.app"),
+            bundleIdentifier: "io.github.czrzchao.go2codex.launcher"
+        ) == nil)
+        #expect(resolver.resolve(
+            bundleURL: launcherURL,
+            bundleIdentifier: "io.github.czrzchao.go2codex"
+        ) == nil)
+        #expect(resolver.resolve(
+            bundleURL: URL(string: "https://example.com/Go2CodexLauncher.app")!,
+            bundleIdentifier: "io.github.czrzchao.go2codex.launcher"
+        ) == nil)
     }
 }
 

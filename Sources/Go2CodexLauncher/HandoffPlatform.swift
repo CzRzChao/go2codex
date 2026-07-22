@@ -443,20 +443,17 @@ struct TerminalOpenAdapter: TerminalHandoffPerforming {
         let wasRunning = applicationState.isRunning(
             bundleIdentifier: host.bundleIdentifier
         )
-        if wasRunning {
-            try await requestHostAutomationPermission(host)
-        }
-        // AEDeterminePermission requires a running target. This bootstrap event
-        // suppresses iTerm window restoration before cold-start preflight.
-        try await openHost(
-            applicationURL: applicationURL,
-            event: NativeAppleEvent.iTermQuietLaunch(),
-            host: host,
-            activates: true
-        )
         if !wasRunning {
-            try await requestHostAutomationPermission(host)
+            // AEDeterminePermission requires a running target. This bootstrap
+            // event suppresses window restoration without stealing focus.
+            try await openHost(
+                applicationURL: applicationURL,
+                event: NativeAppleEvent.iTermQuietLaunch(),
+                host: host,
+                activates: false
+            )
         }
+        try await requestHostAutomationPermission(host)
         let windowState = placement == .newTab
             ? try frontWindowState(for: host, assumesRunning: true)
             : .noWindow
@@ -467,6 +464,11 @@ struct TerminalOpenAdapter: TerminalHandoffPerforming {
         )
         switch placementPlan {
         case .createTabInFrontWindow:
+            guard applicationState.activate(
+                bundleIdentifier: host.bundleIdentifier
+            ) else {
+                throw TerminalAdapterError.terminalActivationFailed
+            }
             try sendITerm(
                 command: command,
                 targetFrontWindow: true,
