@@ -409,6 +409,7 @@ cleanup_build_registrations() {
     esac
 
     for path in \
+        "$product_directory/$outer_name/Contents/Helpers/Go2CodexLauncher.app" \
         "$product_directory/$outer_name/Contents/Applications/Go2CodexLauncher.app" \
         "$product_directory/$outer_name" \
         "$product_directory/Go2CodexLauncher.app" \
@@ -439,7 +440,7 @@ cleanup_all_project_build_registrations() {
         }
         [[ "$path" == "$prefix"* ]] || continue
         case "$path" in
-            *"/Build/Products/"*"/Go2Codex.app"|*"/Build/Products/"*"/Go2CodexDebug.app"|*"/Build/Products/"*"/Go2CodexLauncher.app"|*"/Build/Products/"*"/Go2Codex.app/Contents/Applications/Go2CodexLauncher.app"|*"/Build/Products/"*"/Go2CodexDebug.app/Contents/Applications/Go2CodexLauncher.app")
+            *"/Build/Products/"*"/Go2Codex.app"|*"/Build/Products/"*"/Go2CodexDebug.app"|*"/Build/Products/"*"/Go2CodexLauncher.app"|*"/Build/Products/"*"/Go2Codex.app/Contents/Helpers/Go2CodexLauncher.app"|*"/Build/Products/"*"/Go2CodexDebug.app/Contents/Helpers/Go2CodexLauncher.app"|*"/Build/Products/"*"/Go2Codex.app/Contents/Applications/Go2CodexLauncher.app"|*"/Build/Products/"*"/Go2CodexDebug.app/Contents/Applications/Go2CodexLauncher.app")
                 "$GO2CODEX_LSREGISTER" -u "$path" >/dev/null 2>&1 || true
                 ;;
             *)
@@ -775,12 +776,36 @@ terminate_exact_app_processes() {
     safety_die "Go2Codex did not exit after TERM; no files were changed"
 }
 
+compatible_launcher_path() {
+    local app_path="$1"
+    local current_path="$app_path/Contents/Helpers/Go2CodexLauncher.app"
+    local legacy_path="$app_path/Contents/Applications/Go2CodexLauncher.app"
+    local current_present=0
+    local legacy_present=0
+
+    if [[ -e "$current_path" || -L "$current_path" ]]; then
+        [[ -d "$current_path" && ! -L "$current_path" ]] || return 1
+        current_present=1
+    fi
+    if [[ -e "$legacy_path" || -L "$legacy_path" ]]; then
+        [[ -d "$legacy_path" && ! -L "$legacy_path" ]] || return 1
+        legacy_present=1
+    fi
+    [[ $((current_present + legacy_present)) == 1 ]] || return 1
+    if [[ "$current_present" == "1" ]]; then
+        /usr/bin/printf '%s\n' "$current_path"
+    else
+        /usr/bin/printf '%s\n' "$legacy_path"
+    fi
+}
+
 register_exact_app() {
     local app_path="$1"
-    local inner_path="$app_path/Contents/Applications/Go2CodexLauncher.app"
+    local inner_path
 
     [[ -d "$app_path" && ! -L "$app_path" ]] || safety_die "cannot register a missing or symbolic-link app"
-    [[ -d "$inner_path" && ! -L "$inner_path" ]] || safety_die "cannot register a missing or symbolic-link Launcher"
+    inner_path="$(compatible_launcher_path "$app_path")" \
+        || safety_die "cannot register a missing, ambiguous, or symbolic-link Launcher"
     "$GO2CODEX_LSREGISTER" -f "$inner_path" || return 1
     "$GO2CODEX_LSREGISTER" -f "$app_path" || return 1
     return 0
@@ -788,7 +813,8 @@ register_exact_app() {
 
 assert_exact_app_paths_not_registered() {
     local app_path="$1"
-    local inner_path="$app_path/Contents/Applications/Go2CodexLauncher.app"
+    local current_inner_path="$app_path/Contents/Helpers/Go2CodexLauncher.app"
+    local legacy_inner_path="$app_path/Contents/Applications/Go2CodexLauncher.app"
     local dump_file
     local line
     local registered_path
@@ -804,7 +830,9 @@ assert_exact_app_paths_not_registered() {
             /bin/rm -f "$dump_file"
             return 1
         }
-        if [[ "$registered_path" == "$app_path" || "$registered_path" == "$inner_path" ]]; then
+        if [[ "$registered_path" == "$app_path" \
+            || "$registered_path" == "$current_inner_path" \
+            || "$registered_path" == "$legacy_inner_path" ]]; then
             /bin/rm -f "$dump_file" || true
             return 1
         fi
@@ -815,9 +843,11 @@ assert_exact_app_paths_not_registered() {
 
 unregister_exact_app_paths() {
     local app_path="$1"
-    local inner_path="$app_path/Contents/Applications/Go2CodexLauncher.app"
+    local current_inner_path="$app_path/Contents/Helpers/Go2CodexLauncher.app"
+    local legacy_inner_path="$app_path/Contents/Applications/Go2CodexLauncher.app"
 
-    "$GO2CODEX_LSREGISTER" -u "$inner_path" >/dev/null 2>&1 || true
+    "$GO2CODEX_LSREGISTER" -u "$current_inner_path" >/dev/null 2>&1 || true
+    "$GO2CODEX_LSREGISTER" -u "$legacy_inner_path" >/dev/null 2>&1 || true
     "$GO2CODEX_LSREGISTER" -u "$app_path" >/dev/null 2>&1 || true
     assert_exact_app_paths_not_registered "$app_path" || return 1
     return 0

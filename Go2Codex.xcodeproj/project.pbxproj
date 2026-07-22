@@ -30,6 +30,8 @@
 		A00000000000000000000015 /* FinderToolbarCore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000017 /* FinderToolbarCore.swift */; };
 		A00000000000000000000016 /* FinderToolbarCoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000018 /* FinderToolbarCoreTests.swift */; };
 		A00000000000000000000017 /* FinderToolbarPlatform.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000024 /* FinderToolbarPlatform.swift */; };
+		A12121212121212121212121 /* FinderToolbarMutationPlatform.swift in Sources */ = {isa = PBXBuildFile; fileRef = B12121212121212121212121 /* FinderToolbarMutationPlatform.swift */; };
+		A12121212121212121212122 /* FinderToolbarMutationPlatform.swift in Sources */ = {isa = PBXBuildFile; fileRef = B12121212121212121212121 /* FinderToolbarMutationPlatform.swift */; };
 		A00000000000000000000018 /* LauncherRoutingCore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000025 /* LauncherRoutingCore.swift */; };
 		A00000000000000000000019 /* LauncherRoutingCoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000026 /* LauncherRoutingCoreTests.swift */; };
 		A0000000000000000000001A /* FinderToolbarPlatformPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000029 /* FinderToolbarPlatformPolicy.swift */; };
@@ -103,7 +105,7 @@
 		D00000000000000000000004 /* Embed Launcher */ = {
 			isa = PBXCopyFilesBuildPhase;
 			buildActionMask = 2147483647;
-			dstPath = Contents/Applications;
+			dstPath = Contents/Helpers;
 			dstSubfolderSpec = 1;
 			files = (
 				A0000000000000000000000C /* Go2CodexLauncher.app in Embed Launcher */,
@@ -139,6 +141,7 @@
 		B00000000000000000000017 /* FinderToolbarCore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FinderToolbarCore.swift; sourceTree = "<group>"; };
 		B00000000000000000000018 /* FinderToolbarCoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FinderToolbarCoreTests.swift; sourceTree = "<group>"; };
 		B00000000000000000000024 /* FinderToolbarPlatform.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FinderToolbarPlatform.swift; sourceTree = "<group>"; };
+		B12121212121212121212121 /* FinderToolbarMutationPlatform.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FinderToolbarMutationPlatform.swift; sourceTree = "<group>"; };
 		B00000000000000000000025 /* LauncherRoutingCore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LauncherRoutingCore.swift; sourceTree = "<group>"; };
 		B00000000000000000000026 /* LauncherRoutingCoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LauncherRoutingCoreTests.swift; sourceTree = "<group>"; };
 		B00000000000000000000027 /* test.sh */ = {isa = PBXFileReference; lastKnownFileType = text.script.sh; path = test.sh; sourceTree = "<group>"; };
@@ -258,6 +261,7 @@
 				B33333333333333333333001 /* SettingsPreferencesStore.swift */,
 				B00000000000000000000006 /* SettingsView.swift */,
 				B00000000000000000000024 /* FinderToolbarPlatform.swift */,
+				B12121212121212121212121 /* FinderToolbarMutationPlatform.swift */,
 				B44444444444444444444001 /* FinderToolbarPlatformSupport.swift */,
 				B00000000000000000000007 /* Info.plist */,
 				B00000000000000000000008 /* Go2Codex.entitlements */,
@@ -514,6 +518,7 @@
 				A33333333333333333333001 /* SettingsPreferencesStore.swift in Sources */,
 				A00000000000000000000002 /* SettingsView.swift in Sources */,
 				A00000000000000000000017 /* FinderToolbarPlatform.swift in Sources */,
+				A12121212121212121212121 /* FinderToolbarMutationPlatform.swift in Sources */,
 				A44444444444444444444001 /* FinderToolbarPlatformSupport.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -574,6 +579,7 @@
 				A44444444444444444444002 /* FinderToolbarPlatformSupport.swift in Sources */,
 				A44444444444444444444003 /* FinderToolbarPlatformSupportTests.swift in Sources */,
 				A77777777777777777777001 /* FinderToolbarPlatform.swift in Sources */,
+				A12121212121212121212122 /* FinderToolbarMutationPlatform.swift in Sources */,
 				A77777777777777777777002 /* FinderToolbarPlatformIdentityTests.swift in Sources */,
 				A88888888888888888888002 /* LauncherRuntime.swift in Sources */,
 				A88888888888888888888003 /* LauncherRuntimeTests.swift in Sources */,

@@ -714,6 +714,33 @@ struct LauncherFailureCopyTests {
         #expect(resolver.informativeTextKey(for: failure) ==
             "No terminal session was opened. Try again, or choose New Window in Go2Codex Settings.")
     }
+
+    @Test
+    func terminalTabPermissionFailuresNameTheRequiredPrivacySection() {
+        let accessibilityFailure = LauncherWorkflowFailure(
+            error: TerminalAdapterError.accessibilityPermissionDenied,
+            stage: .terminalHandoff,
+            terminalHost: .terminal
+        )
+        let systemEventsFailure = LauncherWorkflowFailure(
+            error: TerminalAdapterError.systemEventsAutomationPermissionDenied,
+            stage: .terminalHandoff,
+            terminalHost: .terminal
+        )
+        let resolver = LauncherFailureCopyResolver()
+
+        #expect(resolver.messageKey(for: accessibilityFailure) ==
+            "Accessibility permission is required for Terminal tabs")
+        #expect(resolver.informativeTextKey(for: accessibilityFailure) ==
+            "Allow Go2Codex in System Settings > Privacy & Security > Accessibility, then try again.")
+        #expect(accessibilityFailure.permissionContext == nil)
+
+        #expect(resolver.messageKey(for: systemEventsFailure) ==
+            "Automation permission is required for Terminal tabs")
+        #expect(resolver.informativeTextKey(for: systemEventsFailure) ==
+            "Allow Go2Codex to control System Events in System Settings > Privacy & Security > Automation, then try again.")
+        #expect(systemEventsFailure.permissionContext == .terminal(.terminal))
+    }
 }
 
 @MainActor

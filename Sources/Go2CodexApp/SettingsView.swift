@@ -57,7 +57,7 @@ extension SettingsModel {
         }
         return SettingsModel(
             preferences: preferences,
-            toolbar: ReadOnlyFinderToolbarSettingsService(),
+            toolbar: FinderToolbarSettingsService(),
             availability: LaunchServicesSettingsAvailabilityService()
         )
     }
@@ -160,6 +160,7 @@ struct SettingsView: View {
                         unavailable: model.terminalHostIsKnownUnavailable(terminalHost)
                     )
                     .tag(Optional(terminalHost))
+                    .disabled(model.terminalHostIsKnownUnavailable(terminalHost))
                 }
             }
             .disabled(!model.controlsAreEnabled)
@@ -263,13 +264,13 @@ struct SettingsView: View {
     }
 
     private var firstRunActionTitle: LocalizedStringKey {
-        model.supportsAutomaticToolbarMutation
+        model.supportsAutomaticToolbarMutation && model.toolbarStatus != .manualSetupRequired
             ? "Complete Setup and Install in Finder"
             : "Complete Setup and Show Manual Setup"
     }
 
     private var firstRunExplanation: LocalizedStringKey {
-        model.supportsAutomaticToolbarMutation
+        model.supportsAutomaticToolbarMutation && model.toolbarStatus != .manualSetupRequired
             ? "Your choices are saved before Finder installation begins."
             : "Your choices are saved before manual Finder setup begins."
     }

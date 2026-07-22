@@ -13,14 +13,58 @@ protocol ToolbarAutomaticMutationCapability: AnyObject {
 }
 
 @MainActor
-final class ReadOnlyFinderToolbarSettingsService: ToolbarSettingsServing, ToolbarAutomaticMutationCapability {
-    let supportsAutomaticMutation = false
+protocol FinderToolbarMutationExecuting: AnyObject {
+    func recoverIfNeeded(
+        profile: FinderToolbarProfile,
+        launcherIdentity: FinderToolbarLauncherIdentity
+    ) async -> FinderToolbarMutationRecoveryResult
+
+    func execute(
+        plan: FinderToolbarMutationPlan,
+        profile: FinderToolbarProfile,
+        launcherIdentity: FinderToolbarLauncherIdentity
+    ) async -> Bool
+}
+
+enum FinderToolbarMutationRecoveryResult: Equatable, Sendable {
+    case none
+    case recovered
+    case manualInterventionRequired
+}
+
+@MainActor
+final class FinderToolbarSettingsService: ToolbarSettingsServing, ToolbarAutomaticMutationCapability {
+    let supportsAutomaticMutation = true
 
     private let inspector: FinderToolbarPlatformInspecting
+    private let mutationExecutor: any FinderToolbarMutationExecuting
+    private let automaticMutationConfirmation: ((ToolbarSettingsAction) -> Bool)?
     private let logger: Logger
 
-    init(inspector: FinderToolbarPlatformInspecting = FinderToolbarPlatformInspector()) {
+    convenience init() {
+        self.init(
+            inspector: FinderToolbarPlatformInspector(),
+            mutationExecutor: SystemFinderToolbarMutationExecutor(),
+            automaticMutationConfirmation: nil
+        )
+    }
+
+    convenience init(inspector: FinderToolbarPlatformInspecting) {
+        self.init(
+            inspector: inspector,
+            mutationExecutor: SystemFinderToolbarMutationExecutor(),
+            automaticMutationConfirmation: nil
+        )
+    }
+
+    init(
+        inspector: FinderToolbarPlatformInspecting,
+        mutationExecutor: any FinderToolbarMutationExecuting,
+        automaticMutationConfirmation: ((ToolbarSettingsAction) -> Bool)? = nil
+    ) {
         self.inspector = inspector
+        self.mutationExecutor = mutationExecutor
+        self.automaticMutationConfirmation = automaticMutationConfirmation
         let subsystem = Bundle.main.object(
             forInfoDictionaryKey: "Go2CodexPreferencesDomain"
         ) as? String ?? "io.github.czrzchao.go2codex"
@@ -28,7 +72,25 @@ final class ReadOnlyFinderToolbarSettingsService: ToolbarSettingsServing, Toolba
     }
 
     func currentStatus() async -> ToolbarSettingsStatus {
-        switch inspector.inspect() {
+        var inspection = inspector.inspect()
+        if case let .verified(context, _) = inspection,
+           let profile = FinderToolbarProfileRegistry.profile(for: context.environment),
+           case let .verified(identity) = context.launcherIdentity {
+            switch await mutationExecutor.recoverIfNeeded(
+                profile: profile,
+                launcherIdentity: identity
+            ) {
+            case .none:
+                break
+            case .recovered:
+                inspection = inspector.inspect()
+            case .manualInterventionRequired:
+                logger.error("Interrupted Finder toolbar transaction requires manual recovery")
+                return .manualSetupRequired
+            }
+        }
+
+        switch inspection {
         case let .verified(context, _):
             switch FinderToolbarDetector.detect(context) {
             case .installed:
@@ -59,25 +121,84 @@ final class ReadOnlyFinderToolbarSettingsService: ToolbarSettingsServing, Toolba
             case .failed:
                 return .failed
             }
-        case .install, .repair:
-            logger.info("Automatic Finder mutation unavailable; offering manual setup")
-            guard confirmManualFallback(for: action) else {
+        case .install, .repair, .uninstall:
+            return await performMutationOrFallback(action)
+        }
+    }
+
+    private func performMutationOrFallback(
+        _ action: ToolbarSettingsAction
+    ) async -> ToolbarSettingsActionResult {
+        guard case let .verified(context, automaticActionsLocationEligible) = inspector.inspect(),
+              automaticActionsLocationEligible,
+              let profile = FinderToolbarProfileRegistry.profile(for: context.environment),
+              case let .verified(identity) = context.launcherIdentity else {
+            return await performManualFallback(action)
+        }
+
+        let planned: FinderToolbarMutationResult
+        switch action {
+        case .install:
+            planned = FinderToolbarMutationPlanner.install(context, profile: profile)
+        case .repair:
+            planned = FinderToolbarMutationPlanner.repair(context, profile: profile)
+        case .uninstall:
+            planned = FinderToolbarMutationPlanner.uninstall(context, profile: profile)
+        case .showManualSetup:
+            return .failed
+        }
+
+        switch planned {
+        case .noChange:
+            return .status(await currentStatus())
+        case .blocked:
+            return await performManualFallback(action)
+        case let .mutation(plan):
+            guard confirmAutomaticMutation(for: action) else {
                 return .cancelled
             }
-            switch showManualSetup() {
-            case .shown, .handled:
-                return .status(await currentStatus())
-            case .failed:
+            guard await mutationExecutor.execute(
+                plan: plan,
+                profile: profile,
+                launcherIdentity: identity
+            ) else {
+                logger.error("Experimental Finder toolbar mutation failed operation=\(action.debugName, privacy: .public)")
                 return .failed
             }
-        case .uninstall:
-            logger.info("Automatic Finder removal unavailable; offering manual removal")
-            guard confirmManualFallback(for: action) else {
-                return .cancelled
-            }
+            return .status(await currentStatus())
+        }
+    }
+
+    private func performManualFallback(
+        _ action: ToolbarSettingsAction
+    ) async -> ToolbarSettingsActionResult {
+        logger.info("Automatic Finder mutation unavailable; offering manual fallback")
+        guard confirmManualFallback(for: action) else {
+            return .cancelled
+        }
+        if action == .uninstall {
             showManualRemovalInstructions()
             return .status(await currentStatus())
         }
+        switch showManualSetup() {
+        case .shown, .handled:
+            return .status(await currentStatus())
+        case .failed:
+            return .failed
+        }
+    }
+
+    private func confirmAutomaticMutation(for action: ToolbarSettingsAction) -> Bool {
+        if let automaticMutationConfirmation {
+            return automaticMutationConfirmation(action)
+        }
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.messageText = action.confirmationTitle
+        alert.informativeText = action.confirmationMessage
+        alert.addButton(withTitle: action.confirmationButtonTitle)
+        alert.addButton(withTitle: NSLocalizedString("Cancel", comment: "Cancel a Finder toolbar action"))
+        return alert.runModal() == .alertFirstButtonReturn
     }
 
     private func confirmManualFallback(for action: ToolbarSettingsAction) -> Bool {
@@ -117,8 +238,6 @@ final class ReadOnlyFinderToolbarSettingsService: ToolbarSettingsServing, Toolba
         guard case let .success(launcherURL) = launcherInspection else {
             return .failed
         }
-        NSWorkspace.shared.activateFileViewerSelecting([launcherURL])
-
         let alert = NSAlert()
         alert.alertStyle = .informational
         alert.messageText = NSLocalizedString("Manual Finder Setup", comment: "Finder toolbar manual setup title")
@@ -126,8 +245,12 @@ final class ReadOnlyFinderToolbarSettingsService: ToolbarSettingsServing, Toolba
             "In the Finder window, hold Command (⌘) and drag Go2Codex into the toolbar.",
             comment: "Command-drag the nested Launcher into Finder's toolbar"
         )
-        alert.addButton(withTitle: NSLocalizedString("OK", comment: "Dismiss manual Finder setup instructions"))
-        alert.runModal()
+        alert.addButton(withTitle: NSLocalizedString("Show in Finder", comment: "Reveal the toolbar Launcher in Finder"))
+        alert.addButton(withTitle: NSLocalizedString("Cancel", comment: "Cancel manual Finder setup"))
+        guard alert.runModal() == .alertFirstButtonReturn else {
+            return .handled
+        }
+        NSWorkspace.shared.activateFileViewerSelecting([launcherURL])
         return .shown
     }
 
@@ -165,6 +288,65 @@ final class ReadOnlyFinderToolbarSettingsService: ToolbarSettingsServing, Toolba
     }
 }
 
+private extension ToolbarSettingsAction {
+    var debugName: String {
+        switch self {
+        case .install: "install"
+        case .repair: "repair"
+        case .uninstall: "uninstall"
+        case .showManualSetup: "show-manual-setup"
+        }
+    }
+
+    var confirmationTitle: String {
+        switch self {
+        case .install:
+            NSLocalizedString("Install Go2Codex in Finder?", comment: "Experimental Finder install confirmation title")
+        case .repair:
+            NSLocalizedString("Repair Go2Codex in Finder?", comment: "Experimental Finder repair confirmation title")
+        case .uninstall:
+            NSLocalizedString("Remove Go2Codex from Finder?", comment: "Experimental Finder uninstall confirmation title")
+        case .showManualSetup:
+            NSLocalizedString("Manual Finder Setup", comment: "Finder toolbar manual setup title")
+        }
+    }
+
+    var confirmationMessage: String {
+        switch self {
+        case .install:
+            NSLocalizedString(
+                "Experimental setup will update your private Finder toolbar preferences and restart Finder. Go2Codex creates a recovery journal first and preserves unrelated toolbar items.",
+                comment: "Experimental Finder install confirmation"
+            )
+        case .repair:
+            NSLocalizedString(
+                "Experimental repair will update the existing Go2Codex toolbar item and restart Finder. Go2Codex creates a recovery journal first and preserves unrelated toolbar items.",
+                comment: "Experimental Finder repair confirmation"
+            )
+        case .uninstall:
+            NSLocalizedString(
+                "Experimental removal will remove only the verified Go2Codex toolbar item and restart Finder. Go2Codex creates a recovery journal first.",
+                comment: "Experimental Finder uninstall confirmation"
+            )
+        case .showManualSetup:
+            ""
+        }
+    }
+
+    var confirmationButtonTitle: String {
+        switch self {
+        case .install:
+            NSLocalizedString("Install and Restart Finder", comment: "Confirm experimental Finder install")
+        case .repair:
+            NSLocalizedString("Repair and Restart Finder", comment: "Confirm experimental Finder repair")
+        case .uninstall:
+            NSLocalizedString("Remove and Restart Finder", comment: "Confirm experimental Finder uninstall")
+        case .showManualSetup:
+            NSLocalizedString("Continue Manually", comment: "Continue to Finder manual steps")
+        }
+    }
+}
+
 @MainActor
 protocol FinderToolbarPlatformInspecting: AnyObject {
     func inspect() -> FinderToolbarPlatformInspection
@@ -193,6 +375,10 @@ enum FinderToolbarPlatformFailure: Error, Equatable, Sendable {
     case invalidSigningRelationship
     case invalidReceiptStore
     case unstableReleaseLocation
+    case transactionJournalUnavailable
+    case finderPreferenceWriteFailed
+    case finderRestartFailed
+    case semanticVerificationFailed
 }
 
 @MainActor
@@ -204,7 +390,19 @@ protocol FinderToolbarPlatformContextAccessing: AnyObject {
 }
 
 @MainActor
-final class SystemFinderToolbarPlatformContext: FinderToolbarPlatformContextAccessing {
+protocol FinderToolbarMutationPlatformAccessing: AnyObject {
+    func readSnapshot() -> Result<FinderToolbarSnapshot, FinderToolbarPlatformFailure>
+    func writeSnapshot(_ snapshot: FinderToolbarSnapshot) -> Bool
+    func writeReceipt(_ receipt: FinderToolbarInstallationReceipt) -> Bool
+    func clearReceipt() -> Bool
+    func restartFinder() async -> Bool
+    func resolveAlias(
+        _ value: FinderToolbarPropertyListValue?
+    ) -> FinderToolbarAliasResolution
+}
+
+@MainActor
+final class SystemFinderToolbarPlatformContext: FinderToolbarPlatformContextAccessing, FinderToolbarMutationPlatformAccessing {
     private let outerBundle: Bundle
     private let fileManager: FileManager
     private let workspace: NSWorkspace
@@ -321,6 +519,59 @@ final class SystemFinderToolbarPlatformContext: FinderToolbarPlatformContextAcce
         return defaults.data(forKey: FinderToolbarPlatformInspector.receiptStorageKey) == data
     }
 
+    func clearReceipt() -> Bool {
+        guard let defaults = receiptDefaults() else {
+            return false
+        }
+        defaults.removeObject(forKey: FinderToolbarPlatformInspector.receiptStorageKey)
+        guard defaults.synchronize() else {
+            return false
+        }
+        return defaults.object(forKey: FinderToolbarPlatformInspector.receiptStorageKey) == nil
+    }
+
+    func writeSnapshot(_ snapshot: FinderToolbarSnapshot) -> Bool {
+        let domain = FinderToolbarPreferenceKey.domain as CFString
+        let key = FinderToolbarPreferenceKey.configuration as CFString
+        if let encoded = FinderToolbarSnapshotAdapter.encode(snapshot) {
+            CFPreferencesSetAppValue(key, encoded as CFPropertyList, domain)
+        } else {
+            CFPreferencesSetAppValue(key, nil, domain)
+        }
+        return CFPreferencesAppSynchronize(domain)
+    }
+
+    func restartFinder() async -> Bool {
+        let finderIdentifier = FinderToolbarPreferenceKey.domain
+        guard let currentFinder = workspace.runningApplications.first(where: {
+            $0.bundleIdentifier == finderIdentifier && !$0.isTerminated
+        }) else {
+            return false
+        }
+        let previousProcessIdentifier = currentFinder.processIdentifier
+        if !currentFinder.terminate(), kill(previousProcessIdentifier, SIGTERM) != 0 {
+            return false
+        }
+
+        for _ in 0..<50 {
+            try? await Task.sleep(nanoseconds: 200_000_000)
+            if workspace.runningApplications.contains(where: {
+                $0.bundleIdentifier == finderIdentifier
+                    && !$0.isTerminated
+                    && $0.processIdentifier != previousProcessIdentifier
+            }) {
+                return true
+            }
+        }
+        return false
+    }
+
+    func resolveAlias(
+        _ value: FinderToolbarPropertyListValue?
+    ) -> FinderToolbarAliasResolution {
+        FinderToolbarAliasRecordResolver.resolve(value)
+    }
+
     private func systemBuildVersion() -> String? {
         var size = 0
         guard sysctlbyname("kern.osversion", nil, &size, nil, 0) == 0, size > 1 else {
@@ -428,6 +679,15 @@ final class FinderToolbarPlatformInspector: FinderToolbarPlatformInspecting {
                 }
             }
         }
+        let legacyLauncherURL = outerBundle.bundleURL.standardizedFileURL
+            .appendingPathComponent(
+                "Contents/Applications/Go2CodexLauncher.app",
+                isDirectory: true
+            )
+            .standardizedFileURL
+        storedPathStates[legacyLauncherURL.absoluteString] = fileManager.fileExists(
+            atPath: legacyLauncherURL.path
+        ) ? .present : .missing
 
         let context = FinderToolbarDetectionContext(
             snapshot: snapshot,
@@ -435,7 +695,8 @@ final class FinderToolbarPlatformInspector: FinderToolbarPlatformInspecting {
             launcherIdentity: .verified(identityResult.identity),
             receipt: receipt,
             aliasResolutions: aliasResolutions,
-            storedPathStates: storedPathStates
+            storedPathStates: storedPathStates,
+            legacyLauncherURLs: [legacyLauncherURL]
         )
         return .verified(
             context,
@@ -455,11 +716,12 @@ final class FinderToolbarPlatformInspector: FinderToolbarPlatformInspecting {
     func recordVerifiedInstalledReceipt(for context: FinderToolbarDetectionContext) -> Bool {
         guard case let .installed(index) = FinderToolbarDetector.detect(context),
               index >= 0,
+              let profile = FinderToolbarProfileRegistry.profile(for: context.environment),
               case let .verified(identity) = context.launcherIdentity else {
             return false
         }
         let receipt = FinderToolbarInstallationReceipt(
-            profileIdentifier: FinderToolbarProfile.finder146Build23G80.identifier,
+            profileIdentifier: profile.identifier,
             environment: context.environment,
             lastVerifiedLauncherURL: identity.url,
             launcherIdentityFingerprint: identity.fingerprint,
@@ -475,14 +737,14 @@ final class FinderToolbarPlatformInspector: FinderToolbarPlatformInspecting {
         }
         let outerURL = outerBundle.bundleURL.standardizedFileURL
         let launcherURL = outerURL
-            .appendingPathComponent("Contents/Applications/Go2CodexLauncher.app", isDirectory: true)
+            .appendingPathComponent("Contents/Helpers/Go2CodexLauncher.app", isDirectory: true)
             .standardizedFileURL
         guard fileManager.fileExists(atPath: launcherURL.path) else {
             return .failure(.launcherMissing)
         }
 
         let expectedParent = outerURL
-            .appendingPathComponent("Contents/Applications", isDirectory: true)
+            .appendingPathComponent("Contents/Helpers", isDirectory: true)
             .standardizedFileURL
         guard launcherURL.deletingLastPathComponent().standardizedFileURL == expectedParent,
               launcherURL == expectedParent

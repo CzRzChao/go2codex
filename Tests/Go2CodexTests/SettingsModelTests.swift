@@ -25,6 +25,76 @@ struct SettingsModelTests {
     }
 
     @Test
+    func unavailableTerminalHostCannotBeSelectedButAvailableAlternativeCompletesFirstRun() async {
+        let preferences = SettingsPreferencesFake(state: .firstRun)
+        let availability = SettingsAvailabilityFake()
+        availability.terminalHosts = [
+            .terminal: true,
+            .iTerm2: false,
+        ]
+        let model = makeModel(
+            preferences: preferences,
+            availability: availability
+        )
+
+        await model.loadIfNeeded()
+        model.selectDefaultTarget(.codexCLI)
+        model.selectDefaultTerminalHost(.iTerm2)
+
+        #expect(model.defaultTerminalHost == nil)
+        #expect(model.terminalHostIsKnownUnavailable(.iTerm2))
+        #expect(!model.canCompleteFirstRun)
+        #expect(preferences.completedSelections.isEmpty)
+
+        model.selectDefaultTerminalHost(.terminal)
+
+        #expect(model.defaultTerminalHost == .terminal)
+        #expect(model.canCompleteFirstRun)
+
+        await model.completeFirstRunAndInstall()
+
+        #expect(model.phase == .configured)
+        #expect(preferences.completedSelections.count == 1)
+        #expect(preferences.completedSelections.first?.defaultTerminalHost == .terminal)
+    }
+
+    @Test
+    func removedSavedTerminalHostDoesNotBlockOtherEditsOrAvailableReplacement() async {
+        let initial = PreferencesEnvelope(
+            defaultTarget: .codexCLI,
+            alternateTrigger: .shiftClick,
+            defaultTerminalHost: .iTerm2,
+            sessionPlacement: .newTab
+        )
+        let preferences = SettingsPreferencesFake(state: .configured(initial))
+        let availability = SettingsAvailabilityFake()
+        availability.terminalHosts = [
+            .terminal: true,
+            .iTerm2: false,
+        ]
+        let model = makeModel(
+            preferences: preferences,
+            availability: availability
+        )
+
+        await model.loadIfNeeded()
+
+        #expect(model.defaultTerminalHost == .iTerm2)
+        #expect(model.terminalHostIsKnownUnavailable(.iTerm2))
+        #expect(model.controlsAreEnabled)
+
+        model.selectAlternateTrigger(.disabled)
+        model.selectDefaultTerminalHost(.terminal)
+
+        #expect(model.defaultTerminalHost == .terminal)
+        #expect(!model.hasSaveError)
+        #expect(preferences.changes == [
+            PreferencesChange(alternateTrigger: .disabled),
+            PreferencesChange(defaultTerminalHost: .terminal),
+        ])
+    }
+
+    @Test
     func firstRunCommitsOneEnvelopeBeforeStartingTheInstallOrFallbackFlow() async {
         let events = SettingsEventLog()
         let preferences = SettingsPreferencesFake(state: .firstRun, events: events)

@@ -30,8 +30,11 @@ enum NativeAppleEvent {
         static let doScript: UInt32 = 0x646f7363
         static let directObject: UInt32 = 0x2d2d2d2d
         static let errorNumber: UInt32 = 0x6572726e
+        static let subject: UInt32 = 0x7375626a
+        static let terminalTarget: UInt32 = 0x6b66696c
 
         static let objectSpecifier: UInt32 = 0x6f626a20
+        static let absoluteOrdinal: UInt32 = 0x6162736f
         static let typeCode: UInt32 = 0x74797065
         static let enumerated: UInt32 = 0x656e756d
         static let null: UInt32 = 0x6e756c6c
@@ -39,15 +42,34 @@ enum NativeAppleEvent {
         static let container: UInt32 = 0x66726f6d
         static let keyForm: UInt32 = 0x666f726d
         static let keyData: UInt32 = 0x73656c64
+        static let comparisonOperator: UInt32 = 0x72656c6f
+        static let comparisonObject1: UInt32 = 0x6f626a31
+        static let comparisonObject2: UInt32 = 0x6f626a32
         static let propertyClass: UInt32 = 0x70726f70
         static let propertyForm: UInt32 = 0x70726f70
         static let absolutePositionForm: UInt32 = 0x696e6478
+        static let nameForm: UInt32 = 0x6e616d65
+        static let uniqueIDForm: UInt32 = 0x49442020
+        static let testForm: UInt32 = 0x74657374
+        static let allElements: UInt32 = 0x616c6c20
+        static let equals: UInt32 = 0x3d202020
+        static let comparisonDescriptor: UInt32 = 0x636d7064
+        static let objectBeingExamined: UInt32 = 0x65786d6e
+        static let list: UInt32 = 0x6c697374
 
         static let finderWindow: UInt32 = 0x62726f77
         static let finderTarget: UInt32 = 0x66767467
         static let finderURL: UInt32 = 0x7055524c
         static let window: UInt32 = 0x6377696e
+        static let terminalTab: UInt32 = 0x74746162
+        static let terminalWindowID: UInt32 = 0x49442020
+        static let terminalTTY: UInt32 = 0x74747479
         static let iTermCurrentWindow: UInt32 = 0x4372776e
+
+        static let systemEventsProcessSuite: UInt32 = 0x70726373
+        static let systemEventsKeystroke: UInt32 = 0x6b707273
+        static let systemEventsUsing: UInt32 = 0x6661616c
+        static let commandDown: UInt32 = 0x4b636d64
     }
 
     static func finderWorkspace() throws -> NSAppleEventDescriptor {
@@ -141,6 +163,126 @@ enum NativeAppleEvent {
         return event
     }
 
+    static func terminalCommand(
+        command: String,
+        targetFrontWindow: Bool
+    ) throws -> NSAppleEventDescriptor {
+        let event = terminalNewWindow(command: command)
+        if targetFrontWindow {
+            event.setParam(
+                try frontWindowSpecifier(),
+                forKeyword: Code.terminalTarget
+            )
+        }
+        return event
+    }
+
+    static func terminalCommand(
+        command: String,
+        targetTabTTY: String,
+        inWindowID windowID: Int32
+    ) throws -> NSAppleEventDescriptor {
+        let event = terminalNewWindow(command: command)
+        event.setParam(
+            try terminalTabSpecifier(
+                tty: targetTabTTY,
+                windowID: windowID
+            ),
+            forKeyword: Code.terminalTarget
+        )
+        return event
+    }
+
+    static func terminalFrontWindowIDQuery() throws
+        -> NSAppleEventDescriptor {
+        let event = event(
+            eventClass: Code.core,
+            eventID: Code.getData,
+            bundleIdentifier: TerminalHost.terminal.bundleIdentifier
+        )
+        event.setParam(
+            try propertySpecifier(
+                Code.terminalWindowID,
+                container: try frontWindowSpecifier()
+            ),
+            forKeyword: Code.directObject
+        )
+        return event
+    }
+
+    static func terminalWindowID(
+        from reply: NSAppleEventDescriptor
+    ) -> Int32? {
+        guard let value = reply.paramDescriptor(
+            forKeyword: Code.directObject
+        )?.coerce(toDescriptorType: typeSInt32),
+              value.int32Value > 0 else {
+            return nil
+        }
+        return value.int32Value
+    }
+
+    static func terminalTabTTYsQuery(
+        windowID: Int32
+    ) throws -> NSAppleEventDescriptor {
+        let tabs = try terminalTabsSpecifier(windowID: windowID)
+        let event = event(
+            eventClass: Code.core,
+            eventID: Code.getData,
+            bundleIdentifier: TerminalHost.terminal.bundleIdentifier
+        )
+        event.setParam(
+            try propertySpecifier(Code.terminalTTY, container: tabs),
+            forKeyword: Code.directObject
+        )
+        return event
+    }
+
+    static func terminalTabTTYs(
+        from reply: NSAppleEventDescriptor
+    ) -> [String]? {
+        guard let values = reply.paramDescriptor(
+            forKeyword: Code.directObject
+        ), values.descriptorType == Code.list else {
+            return nil
+        }
+        var result: [String] = []
+        result.reserveCapacity(values.numberOfItems)
+        guard values.numberOfItems > 0 else {
+            return result
+        }
+        for index in 1...values.numberOfItems {
+            guard let value = values.atIndex(index)?.stringValue,
+                  !value.isEmpty else {
+                return nil
+            }
+            result.append(value)
+        }
+        return result
+    }
+
+    static func systemEventsTerminalNewTabShortcut() throws
+        -> NSAppleEventDescriptor {
+        let terminalProcess = try objectSpecifier(
+            desiredClass: Code.systemEventsProcessSuite,
+            container: .null(),
+            form: Code.nameForm,
+            selector: .init(string: "Terminal")
+        )
+        let event = event(
+            eventClass: Code.systemEventsProcessSuite,
+            eventID: Code.systemEventsKeystroke,
+            bundleIdentifier: systemEventsBundleIdentifier
+        )
+        event.setAttribute(terminalProcess, forKeyword: Code.subject)
+        event.setParam(.init(string: "t"), forKeyword: Code.directObject)
+        event.setParam(
+            .init(enumCode: Code.commandDown),
+            forKeyword: Code.systemEventsUsing
+        )
+        return event
+    }
+
     static func send(_ event: NSAppleEventDescriptor) throws -> NSAppleEventDescriptor {
         do {
             let reply = try event.sendEvent(
@@ -178,6 +320,8 @@ enum NativeAppleEvent {
     static var directObjectKeyword: UInt32 {
         Code.directObject
     }
+
+    static let systemEventsBundleIdentifier = "com.apple.systemevents"
 
     static let missingValueDescriptorType: UInt32 = 0x6d736e67
 
@@ -225,6 +369,67 @@ enum NativeAppleEvent {
         )
     }
 
+    private static func terminalWindowSpecifier(
+        id: Int32
+    ) throws -> NSAppleEventDescriptor {
+        try objectSpecifier(
+            desiredClass: Code.window,
+            container: .null(),
+            form: Code.uniqueIDForm,
+            selector: .init(int32: id)
+        )
+    }
+
+    private static func terminalTabsSpecifier(
+        windowID: Int32
+    ) throws -> NSAppleEventDescriptor {
+        try objectSpecifier(
+            desiredClass: Code.terminalTab,
+            container: try terminalWindowSpecifier(id: windowID),
+            form: Code.absolutePositionForm,
+            selector: try absoluteOrdinal(Code.allElements)
+        )
+    }
+
+    private static func terminalTabSpecifier(
+        tty: String,
+        windowID: Int32
+    ) throws -> NSAppleEventDescriptor {
+        guard let objectBeingExamined = NSAppleEventDescriptor(
+            descriptorType: Code.objectBeingExamined,
+            data: Data()
+        ) else {
+            throw AppleEventConstructionError.objectSpecifier
+        }
+        let comparison = NSAppleEventDescriptor.record()
+        comparison.setDescriptor(
+            try propertySpecifier(
+                Code.terminalTTY,
+                container: objectBeingExamined
+            ),
+            forKeyword: Code.comparisonObject1
+        )
+        comparison.setDescriptor(
+            .init(enumCode: Code.equals),
+            forKeyword: Code.comparisonOperator
+        )
+        comparison.setDescriptor(
+            .init(string: tty),
+            forKeyword: Code.comparisonObject2
+        )
+        guard let predicate = comparison.coerce(
+            toDescriptorType: Code.comparisonDescriptor
+        ) else {
+            throw AppleEventConstructionError.objectSpecifier
+        }
+        return try objectSpecifier(
+            desiredClass: Code.terminalTab,
+            container: try terminalWindowSpecifier(id: windowID),
+            form: Code.testForm,
+            selector: predicate
+        )
+    }
+
     private static func propertySpecifier(
         _ property: UInt32,
         container: NSAppleEventDescriptor
@@ -266,6 +471,19 @@ enum NativeAppleEvent {
         record.setDescriptor(selector, forKeyword: Code.keyData)
         guard let descriptor = record.coerce(
             toDescriptorType: Code.objectSpecifier
+        ) else {
+            throw AppleEventConstructionError.objectSpecifier
+        }
+        return descriptor
+    }
+
+    private static func absoluteOrdinal(
+        _ ordinal: UInt32
+    ) throws -> NSAppleEventDescriptor {
+        let value = NSAppleEventDescriptor(enumCode: ordinal)
+        guard let descriptor = NSAppleEventDescriptor(
+            descriptorType: Code.absoluteOrdinal,
+            data: value.data
         ) else {
             throw AppleEventConstructionError.objectSpecifier
         }

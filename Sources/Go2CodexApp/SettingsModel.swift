@@ -98,10 +98,13 @@ final class SettingsModel: ObservableObject {
     }
 
     var canCompleteFirstRun: Bool {
-        phase == .firstRun
-            && defaultTarget != nil
-            && defaultTerminalHost != nil
-            && !isPerformingAction
+        guard phase == .firstRun,
+              defaultTarget != nil,
+              let defaultTerminalHost,
+              terminalHostAvailability[defaultTerminalHost] == true else {
+            return false
+        }
+        return !isPerformingAction
     }
 
     var supportsAutomaticToolbarMutation: Bool {
@@ -145,6 +148,10 @@ final class SettingsModel: ObservableObject {
     }
 
     func selectDefaultTerminalHost(_ value: TerminalHost?) {
+        refreshAvailability()
+        if let value, terminalHostAvailability[value] != true {
+            return
+        }
         defaultTerminalHost = value
         refreshAvailability()
         guard phase == .configured, let value else {

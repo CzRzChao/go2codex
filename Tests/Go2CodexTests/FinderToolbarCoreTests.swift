@@ -3,8 +3,8 @@ import Testing
 @testable import Go2CodexCore
 
 private let profile = FinderToolbarProfile.finder146Build23G80
-private let currentLauncherURL = URL(fileURLWithPath: "/Applications/Go2Codex.app/Contents/Applications/Go2CodexLauncher.app")
-private let staleLauncherURL = URL(fileURLWithPath: "/Applications/Old Go2Codex.app/Contents/Applications/Go2CodexLauncher.app")
+private let currentLauncherURL = URL(fileURLWithPath: "/Applications/Go2Codex.app/Contents/Helpers/Go2CodexLauncher.app")
+private let staleLauncherURL = URL(fileURLWithPath: "/Applications/Old Go2Codex.app/Contents/Helpers/Go2CodexLauncher.app")
 private let otherLauncherURL = URL(fileURLWithPath: "/Applications/Other.app")
 
 private let launcherIdentity = FinderToolbarLauncherIdentity(
@@ -325,6 +325,22 @@ func profileAcceptsOnlyExact23G80ScalarBeforeShape() {
 }
 
 @Test
+func profileRegistrySelectsOnlyExactSupportedFinderBuilds() {
+    let current = FinderToolbarProfile.finder264Build25F84
+    #expect(FinderToolbarProfileRegistry.profile(for: profile.environment) == profile)
+    #expect(FinderToolbarProfileRegistry.profile(for: current.environment) == current)
+    #expect(
+        FinderToolbarProfileRegistry.profile(
+            for: FinderToolbarEnvironment(
+                macOSBuild: current.environment.macOSBuild,
+                finderVersion: current.environment.finderVersion,
+                finderBundleVersion: "1828.5.3"
+            )
+        ) == nil
+    )
+}
+
+@Test
 func rejectedLegacyIndexEightCandidateIsNotAProfileMatch() {
     let legacyDefaults = [
         "com.apple.finder.BACK", "NSToolbarFlexibleSpaceItem", "com.apple.finder.SWCH",
@@ -527,6 +543,35 @@ func detectionRequiresNonemptyResolvedAgreeingAlias() {
 }
 
 @Test
+func detectionAcceptsFinderFileReferenceOnlyWhenAliasResolvesToLauncher() {
+    let index = 1
+    var identifiers = profile.activeBaseline
+    identifiers.insert(FinderToolbarPreferenceKey.customItemIdentifier, at: index)
+    var fileReferencePayload = payload(url: currentLauncherURL)
+    fileReferencePayload[FinderToolbarPreferenceKey.urlString] = .string(
+        "file:///.file/id=6571367.539421599/"
+    )
+
+    func context(alias: FinderToolbarAliasResolution) -> FinderToolbarDetectionContext {
+        FinderToolbarDetectionContext(
+            snapshot: explicitSnapshot(
+                identifiers: identifiers,
+                itemPlists: [index: fileReferencePayload]
+            ),
+            environment: profile.environment,
+            launcherIdentity: .verified(launcherIdentity),
+            aliasResolutions: [index: alias]
+        )
+    }
+
+    #expect(FinderToolbarDetector.detect(context(alias: .resolved(currentLauncherURL))) == .installed(index: index))
+    #expect(
+        FinderToolbarDetector.detect(context(alias: .resolved(otherLauncherURL)))
+            == .manualSetupRequired(.unmanagedExplicitShape)
+    )
+}
+
+@Test
 func receiptBackedMissingStaleURLIsTheOnlyRepairClassification() {
     #expect(
         FinderToolbarDetector.detect(staleContext(index: 6))
@@ -599,6 +644,38 @@ func receiptBackedMissingStaleURLIsTheOnlyRepairClassification() {
         storedPathStates: base.storedPathStates
     )
     #expect(FinderToolbarDetector.detect(mismatchedIdentity) == .manualSetupRequired(.invalidReceipt))
+}
+
+@Test
+func exactMissingLegacyLauncherPathCanBeRepairedWithoutAReceipt() {
+    let legacyURL = URL(
+        fileURLWithPath: "/Applications/Go2Codex.app/Contents/Applications/Go2CodexLauncher.app"
+    )
+    let index = 4
+    var identifiers = profile.activeBaseline
+    identifiers.insert(FinderToolbarPreferenceKey.customItemIdentifier, at: index)
+    let context = FinderToolbarDetectionContext(
+        snapshot: explicitSnapshot(
+            identifiers: identifiers,
+            itemPlists: [index: payload(url: legacyURL)]
+        ),
+        environment: profile.environment,
+        launcherIdentity: .verified(launcherIdentity),
+        aliasResolutions: [index: .resolved(legacyURL)],
+        storedPathStates: [legacyURL.standardizedFileURL.absoluteString: .missing],
+        legacyLauncherURLs: [legacyURL]
+    )
+
+    #expect(
+        FinderToolbarDetector.detect(context)
+            == .needsRepair(index: index, staleURL: legacyURL)
+    )
+    guard case let .mutation(plan) = FinderToolbarMutationPlanner.repair(context) else {
+        Issue.record("Expected a legacy path repair")
+        return
+    }
+    #expect(plan.ownership == .legacy(legacyURL))
+    #expect(plan.affectedIndex == index)
 }
 
 @Test
@@ -712,7 +789,7 @@ func explicitBuiltInLayoutWithoutCustomItemsIsNotInstalled() {
 }
 
 @Test
-func installMaterializesValidatedBaselineAtIndexTenAndIsIdempotent() throws {
+func installMaterializesValidatedBaselineAndPreservesExplicitLayouts() throws {
     let plan = try installPlan()
     #expect(plan.operation == .install)
     #expect(plan.affectedIndex == 10)
@@ -738,10 +815,15 @@ func installMaterializesValidatedBaselineAtIndexTenAndIsIdempotent() throws {
         environment: profile.environment,
         launcherIdentity: .verified(launcherIdentity)
     )
-    #expect(
-        FinderToolbarMutationPlanner.install(explicitNotInstalled)
-            == .blocked(.unsafe(.unsupportedProfile(.explicitShape)))
-    )
+    guard case let .mutation(explicitPlan) = FinderToolbarMutationPlanner.install(explicitNotInstalled),
+          case let .explicit(explicitLayout) = explicitPlan.expected.layoutClassification else {
+        Issue.record("Expected an explicit-layout install mutation")
+        return
+    }
+    #expect(explicitPlan.before == explicitNotInstalled.snapshot)
+    #expect(explicitPlan.affectedIndex == 10)
+    #expect(explicitLayout.identifiers.count == profile.activeBaseline.count + 1)
+    #expect(explicitLayout.identifiers[10] == FinderToolbarPreferenceKey.customItemIdentifier)
 }
 
 @Test
@@ -888,6 +970,42 @@ func semanticVerifierAcceptsOnlyExactOrResolvedAliasOnlyEnrichment() throws {
 }
 
 @Test
+func semanticVerifierAcceptsFinderFileReferenceNormalizationWithMatchingAlias() throws {
+    let plan = try installPlan()
+    let enriched = try enrichedExpected(plan)
+    guard case let .explicit(layout) = enriched.layoutClassification,
+          case let .success(normalizedLayout) = FinderToolbarLayoutMutation.replacePayload(
+            at: plan.affectedIndex,
+            in: layout,
+            transform: { payload in
+                var payload = payload
+                payload[FinderToolbarPreferenceKey.urlString] = .string(
+                    "file:///.file/id=6571367.539421599/"
+                )
+                return payload
+            }
+          ) else {
+        Issue.record("Expected a normalized Finder payload")
+        return
+    }
+    let normalized = enriched.replacingLayout(normalizedLayout)
+    #expect(
+        FinderToolbarSemanticVerifier.verify(
+            plan: plan,
+            observed: normalized,
+            aliasResolution: .resolved(currentLauncherURL)
+        ) == .acceptedAliasEnrichment
+    )
+    #expect(
+        FinderToolbarSemanticVerifier.verify(
+            plan: plan,
+            observed: normalized,
+            aliasResolution: .resolved(otherLauncherURL)
+        ) == .rejected(.conflictingAlias)
+    )
+}
+
+@Test
 func semanticVerifierRejectsEmptyAliasAndAnyOtherDifference() throws {
     let plan = try installPlan()
     let emptyAlias = try enrichedExpected(plan, alias: Data())
@@ -965,6 +1083,15 @@ func preMutationGateRequiresJournalBoundaryAndFreshConvergedRead() throws {
             plan: plan,
             journal: valid,
             serializationBoundary: .established("validated-window-v1"),
+            disk: plan.before,
+            live: plan.before
+        ) == .proceed
+    )
+    #expect(
+        FinderToolbarPreMutationGate.decide(
+            plan: plan,
+            journal: valid,
+            serializationBoundary: .experimentalBestEffort("user-confirmed-private-preferences-v1"),
             disk: plan.before,
             live: plan.before
         ) == .proceed

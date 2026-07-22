@@ -40,6 +40,114 @@ struct NativeAppleEventTests {
     }
 
     @Test
+    func terminalTargetedCommandUsesTheFrontWindow() throws {
+        let event = try NativeAppleEvent.terminalCommand(
+            command: "printf marker",
+            targetFrontWindow: true
+        )
+
+        #expect(event.eventClass == code("core"))
+        #expect(event.eventID == code("dosc"))
+        try expectTarget(event, bundleIdentifier: "com.apple.Terminal")
+        let target = try #require(event.paramDescriptor(
+            forKeyword: code("kfil")
+        ))
+        #expect(target.descriptorType == code("obj "))
+        #expect(target.forKeyword(code("want"))?.typeCodeValue == code("cwin"))
+        #expect(target.forKeyword(code("form"))?.enumCodeValue == code("indx"))
+        #expect(target.forKeyword(code("seld"))?.int32Value == 1)
+    }
+
+    @Test
+    func terminalExactTabTargetUsesStableWindowIDAndTTY() throws {
+        let event = try NativeAppleEvent.terminalCommand(
+            command: "printf marker",
+            targetTabTTY: "/dev/ttys009",
+            inWindowID: 42
+        )
+
+        let target = try #require(event.paramDescriptor(
+            forKeyword: code("kfil")
+        ))
+        #expect(target.forKeyword(code("want"))?.typeCodeValue == code("ttab"))
+        #expect(target.forKeyword(code("form"))?.enumCodeValue == code("test"))
+        let window = try #require(target.forKeyword(code("from")))
+        #expect(window.forKeyword(code("want"))?.typeCodeValue == code("cwin"))
+        #expect(window.forKeyword(code("form"))?.enumCodeValue == code("ID  "))
+        #expect(window.forKeyword(code("seld"))?.int32Value == 42)
+        let predicate = try #require(target.forKeyword(code("seld")))
+        #expect(predicate.descriptorType == code("cmpd"))
+        #expect(predicate.forKeyword(code("relo"))?.enumCodeValue == code("=   "))
+        #expect(predicate.forKeyword(code("obj2"))?.stringValue == "/dev/ttys009")
+        let tty = try #require(predicate.forKeyword(code("obj1")))
+        try expectPropertySpecifier(tty, selector: "ttty")
+        #expect(tty.forKeyword(code("from"))?.descriptorType == code("exmn"))
+    }
+
+    @Test
+    func terminalWindowIdentityAndTTYQueriesStayInTheSameWindow() throws {
+        let identityQuery = try NativeAppleEvent.terminalFrontWindowIDQuery()
+        let identity = try #require(identityQuery.paramDescriptor(
+            forKeyword: code("----")
+        ))
+        try expectPropertySpecifier(identity, selector: "ID  ")
+        #expect(identity.forKeyword(code("from"))?.forKeyword(
+            code("seld")
+        )?.int32Value == 1)
+
+        let identityReply = reply()
+        identityReply.setParam(.init(int32: 42), forKeyword: code("----"))
+        #expect(NativeAppleEvent.terminalWindowID(from: identityReply) == 42)
+
+        let ttyQuery = try NativeAppleEvent.terminalTabTTYsQuery(windowID: 42)
+        let ttyProperty = try #require(ttyQuery.paramDescriptor(
+            forKeyword: code("----")
+        ))
+        try expectPropertySpecifier(ttyProperty, selector: "ttty")
+        let tabs = try #require(ttyProperty.forKeyword(code("from")))
+        #expect(tabs.forKeyword(code("seld"))?.descriptorType == code("abso"))
+        #expect(tabs.forKeyword(code("seld"))?.enumCodeValue == code("all "))
+        let window = try #require(tabs.forKeyword(code("from")))
+        #expect(window.forKeyword(code("form"))?.enumCodeValue == code("ID  "))
+        #expect(window.forKeyword(code("seld"))?.int32Value == 42)
+
+        let ttyReply = reply()
+        let values = NSAppleEventDescriptor.list()
+        values.insert(.init(string: "/dev/ttys001"), at: 1)
+        values.insert(.init(string: "/dev/ttys009"), at: 2)
+        ttyReply.setParam(values, forKeyword: code("----"))
+        #expect(NativeAppleEvent.terminalTabTTYs(from: ttyReply) == [
+            "/dev/ttys001",
+            "/dev/ttys009",
+        ])
+        #expect(NativeAppleEvent.terminalTabTTYs(from: reply()) == nil)
+    }
+
+    @Test
+    func systemEventsShortcutTargetsOnlyTerminalCommandT() throws {
+        let event = try NativeAppleEvent.systemEventsTerminalNewTabShortcut()
+
+        #expect(event.eventClass == code("prcs"))
+        #expect(event.eventID == code("kprs"))
+        try expectTarget(event, bundleIdentifier: "com.apple.systemevents")
+        #expect(event.paramDescriptor(
+            forKeyword: code("----")
+        )?.stringValue == "t")
+        #expect(event.paramDescriptor(
+            forKeyword: code("faal")
+        )?.enumCodeValue == code("Kcmd"))
+
+        let subject = try #require(event.attributeDescriptor(
+            forKeyword: code("subj")
+        ))
+        #expect(subject.descriptorType == code("obj "))
+        #expect(subject.forKeyword(code("want"))?.typeCodeValue == code("prcs"))
+        #expect(subject.forKeyword(code("form"))?.enumCodeValue == code("name"))
+        #expect(subject.forKeyword(code("seld"))?.stringValue == "Terminal")
+        #expect(subject.forKeyword(code("from"))?.descriptorType == code("null"))
+    }
+
+    @Test
     func terminalFrontWindowQueryUsesExactWindowSpecifier() throws {
         let query = try NativeAppleEvent.frontWindowQuery(
             bundleIdentifier: "com.apple.Terminal"

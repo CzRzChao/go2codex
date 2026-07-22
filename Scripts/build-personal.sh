@@ -133,7 +133,7 @@ smoke_debug_tree="$(manifest_value "$smoke_manifest" DEBUG_TREE_SHA256)" || safe
 "$script_dir/verify-app.sh" "$debug_app" Debug --signing stable-local
 debug_team="$(team_identifier "$debug_app")" || safety_die "installed Debug signing team is unavailable"
 debug_outer_requirement="$(designated_requirement_hash "$debug_app")" || safety_die "installed Debug outer signing requirement is unavailable"
-debug_inner_requirement="$(designated_requirement_hash "$debug_app/Contents/Applications/Go2CodexLauncher.app")" || safety_die "installed Debug Launcher signing requirement is unavailable"
+debug_inner_requirement="$(designated_requirement_hash "$debug_app/Contents/Helpers/Go2CodexLauncher.app")" || safety_die "installed Debug Launcher signing requirement is unavailable"
 debug_tree="$(tree_fingerprint "$debug_app")" || safety_die "installed Debug fingerprint failed"
 [[ -n "$debug_team" && "$debug_team" == "$GO2CODEX_SIGNING_TEAM_ID" ]] \
     || safety_die "installed Debug and Release candidate must use the same signing team"
@@ -199,7 +199,7 @@ unregister_exact_app_paths "$candidate_app" \
     || safety_die "Release candidate remained registered with Launch Services"
 
 candidate_outer_requirement="$(designated_requirement_hash "$candidate_app")" || safety_die "candidate outer signing requirement could not be recorded"
-candidate_inner_requirement="$(designated_requirement_hash "$candidate_app/Contents/Applications/Go2CodexLauncher.app")" || safety_die "candidate Launcher signing requirement could not be recorded"
+candidate_inner_requirement="$(designated_requirement_hash "$candidate_app/Contents/Helpers/Go2CodexLauncher.app")" || safety_die "candidate Launcher signing requirement could not be recorded"
 smoke_receipt_sha="$(/usr/bin/shasum -a 256 "$smoke_manifest" | /usr/bin/awk '{ print $1 }')" || safety_die "Debug smoke receipt checksum could not be recorded"
 created_at="$(/bin/date -u '+%Y-%m-%dT%H:%M:%SZ')" || safety_die "candidate creation time could not be recorded"
 prepare_regular_output_path "$candidate_manifest_next" "Release candidate manifest staging file"

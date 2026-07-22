@@ -720,26 +720,26 @@ transaction_recovery_leading_failure() {
 
 make_transaction_fixture() {
     local root="$1"
-    /bin/mkdir -p "$root/source/Contents/Applications/Go2CodexLauncher.app/Contents"
-    /bin/mkdir -p "$root/target/Contents/Applications/Go2CodexLauncher.app/Contents"
+    /bin/mkdir -p "$root/source/Contents/Helpers/Go2CodexLauncher.app/Contents"
+    /bin/mkdir -p "$root/target/Contents/Helpers/Go2CodexLauncher.app/Contents"
     fixture_write "$root/source/new" "new"
-    fixture_write "$root/source/Contents/Applications/Go2CodexLauncher.app/Contents/new" "new"
+    fixture_write "$root/source/Contents/Helpers/Go2CodexLauncher.app/Contents/new" "new"
     fixture_write "$root/target/old" "old"
-    fixture_write "$root/target/Contents/Applications/Go2CodexLauncher.app/Contents/old" "old"
+    fixture_write "$root/target/Contents/Helpers/Go2CodexLauncher.app/Contents/old" "old"
     fixture_write "$root/source/same-metadata" "new"
     fixture_write "$root/target/same-metadata" "old"
     /usr/bin/touch -r "$root/source/same-metadata" "$root/target/same-metadata"
-    fixture_write "$root/source/Contents/Applications/Go2CodexLauncher.app/Contents/same-metadata" "new"
-    fixture_write "$root/target/Contents/Applications/Go2CodexLauncher.app/Contents/same-metadata" "old"
+    fixture_write "$root/source/Contents/Helpers/Go2CodexLauncher.app/Contents/same-metadata" "new"
+    fixture_write "$root/target/Contents/Helpers/Go2CodexLauncher.app/Contents/same-metadata" "old"
     /usr/bin/touch \
-        -r "$root/source/Contents/Applications/Go2CodexLauncher.app/Contents/same-metadata" \
-        "$root/target/Contents/Applications/Go2CodexLauncher.app/Contents/same-metadata"
+        -r "$root/source/Contents/Helpers/Go2CodexLauncher.app/Contents/same-metadata" \
+        "$root/target/Contents/Helpers/Go2CodexLauncher.app/Contents/same-metadata"
 }
 
 success_root="$temporary_root/transaction-success"
 make_transaction_fixture "$success_root"
 target_inode_before="$(/usr/bin/stat -f '%i' "$success_root/target")"
-launcher_inode_before="$(/usr/bin/stat -f '%i' "$success_root/target/Contents/Applications/Go2CodexLauncher.app")"
+launcher_inode_before="$(/usr/bin/stat -f '%i' "$success_root/target/Contents/Helpers/Go2CodexLauncher.app")"
 prepare_overlay_transaction "$success_root/source" "$success_root/target" "$success_root/transaction" sop-test
 commit_overlay_transaction \
     "$success_root/target" \
@@ -750,7 +750,7 @@ commit_overlay_transaction \
     transaction_recovery
 assert_equal_value "$(tree_fingerprint "$success_root/target")" "$(tree_fingerprint "$success_root/source")" "successful overlay tree"
 assert_equal_value "$(/usr/bin/stat -f '%i' "$success_root/target")" "$target_inode_before" "outer directory identity"
-assert_equal_value "$(/usr/bin/stat -f '%i' "$success_root/target/Contents/Applications/Go2CodexLauncher.app")" "$launcher_inode_before" "nested Launcher directory identity"
+assert_equal_value "$(/usr/bin/stat -f '%i' "$success_root/target/Contents/Helpers/Go2CodexLauncher.app")" "$launcher_inode_before" "nested Launcher directory identity"
 [[ ! -e "$success_root/transaction" ]] || safety_die "successful transaction was not cleaned"
 pass
 
@@ -1130,8 +1130,36 @@ assert_equal_value \
     "preserved" \
     "existing extracted app destination was preserved"
 
+launcher_path_root="$temporary_root/launcher-paths"
+current_launcher_app="$launcher_path_root/Current.app"
+legacy_launcher_app="$launcher_path_root/Legacy.app"
+ambiguous_launcher_app="$launcher_path_root/Ambiguous.app"
+missing_launcher_app="$launcher_path_root/Missing.app"
+/bin/mkdir -p \
+    "$current_launcher_app/Contents/Helpers/Go2CodexLauncher.app" \
+    "$legacy_launcher_app/Contents/Applications/Go2CodexLauncher.app" \
+    "$ambiguous_launcher_app/Contents/Helpers/Go2CodexLauncher.app" \
+    "$ambiguous_launcher_app/Contents/Applications/Go2CodexLauncher.app" \
+    "$missing_launcher_app/Contents"
+assert_equal_value \
+    "$(compatible_launcher_path "$current_launcher_app")" \
+    "$current_launcher_app/Contents/Helpers/Go2CodexLauncher.app" \
+    "current Launcher location"
+assert_equal_value \
+    "$(compatible_launcher_path "$legacy_launcher_app")" \
+    "$legacy_launcher_app/Contents/Applications/Go2CodexLauncher.app" \
+    "legacy Launcher location"
+expect_failure \
+    "ambiguous Launcher locations" \
+    compatible_launcher_path \
+    "$ambiguous_launcher_app"
+expect_failure \
+    "missing Launcher location" \
+    compatible_launcher_path \
+    "$missing_launcher_app"
+
 fake_app="$temporary_root/Fake.app"
-/bin/mkdir -p "$fake_app/Contents/Applications/Go2CodexLauncher.app"
+/bin/mkdir -p "$fake_app/Contents/Helpers/Go2CodexLauncher.app"
 fake_lsregister="$temporary_root/fake-lsregister"
 /usr/bin/printf '%s\n' \
     '#!/usr/bin/env bash' \

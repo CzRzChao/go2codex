@@ -41,6 +41,7 @@ debug_expected_tree=""
 debug_previous_expected_tree=""
 backup_verification_root=""
 debug_transaction_owned=0
+installed_launcher_path="$target_app/Contents/Helpers/Go2CodexLauncher.app"
 
 [[ -d "$applications_dir" && ! -L "$applications_dir" ]] || safety_die "the user Applications directory is missing or unsafe"
 assert_exact_path "$target_app" "$user_home/Applications/Go2CodexDebug.app" "Debug installation path"
@@ -252,13 +253,15 @@ if [[ -e "$target_app" ]]; then
         --content compatible \
         --marketing-version "$installed_marketing" \
         --build-version "$installed_build"
+    installed_launcher_path="$(compatible_launcher_path "$target_app")" \
+        || safety_die "installed Debug Launcher location is missing, ambiguous, or unsafe"
     if [[ "$debug_signing_mode" == "stable-local" && "$installed_signing_mode" == "stable-local" ]]; then
         installed_outer_requirement="$(designated_requirement_hash "$target_app")" || safety_die "installed Debug outer signing requirement is unavailable"
         product_outer_requirement="$(designated_requirement_hash "$product_app")" || safety_die "Debug product outer signing requirement is unavailable"
         [[ "$installed_outer_requirement" == "$product_outer_requirement" ]] \
             || safety_die "Debug outer signing identity changed"
-        installed_inner="$target_app/Contents/Applications/Go2CodexLauncher.app"
-        product_inner="$product_app/Contents/Applications/Go2CodexLauncher.app"
+        installed_inner="$installed_launcher_path"
+        product_inner="$product_app/Contents/Helpers/Go2CodexLauncher.app"
         installed_inner_requirement="$(designated_requirement_hash "$installed_inner")" || safety_die "installed Debug Launcher signing requirement is unavailable"
         product_inner_requirement="$(designated_requirement_hash "$product_inner")" || safety_die "Debug product Launcher signing requirement is unavailable"
         [[ "$installed_inner_requirement" == "$product_inner_requirement" ]] \
@@ -269,7 +272,7 @@ fi
 
 terminate_exact_app_processes \
     "$target_app/Contents/MacOS/Go2CodexDebug" \
-    "$target_app/Contents/Applications/Go2CodexLauncher.app/Contents/MacOS/Go2CodexLauncher"
+    "$installed_launcher_path/Contents/MacOS/Go2CodexLauncher"
 
 if [[ ! -e "$local_state_root" ]]; then
     /bin/mkdir "$local_state_root"
@@ -340,7 +343,7 @@ else
 fi
 if [[ "$debug_signing_mode" == "stable-local" ]]; then
     debug_outer_requirement="$(designated_requirement_hash "$target_app")" || safety_die "Debug outer signing requirement could not be recorded"
-    debug_inner_requirement="$(designated_requirement_hash "$target_app/Contents/Applications/Go2CodexLauncher.app")" || safety_die "Debug Launcher signing requirement could not be recorded"
+    debug_inner_requirement="$(designated_requirement_hash "$target_app/Contents/Helpers/Go2CodexLauncher.app")" || safety_die "Debug Launcher signing requirement could not be recorded"
 else
     debug_outer_requirement="NONE"
     debug_inner_requirement="NONE"
