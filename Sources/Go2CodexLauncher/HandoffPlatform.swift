@@ -3,6 +3,25 @@ import ApplicationServices
 import Foundation
 import Go2CodexCore
 
+typealias WorkspaceOpenCompletion = @Sendable (
+    NSRunningApplication?,
+    (any Error)?
+) -> Void
+
+@MainActor
+func awaitWorkspaceOpen<Result: Sendable>(
+    mapError: @escaping @Sendable ((any Error)?) -> Result,
+    starting operation: (_ completion: @escaping WorkspaceOpenCompletion) -> Void
+) async -> Result {
+    await withCheckedContinuation { continuation in
+        // LaunchServices invokes this completion on its own queue.
+        let completion: WorkspaceOpenCompletion = { _, error in
+            continuation.resume(returning: mapError(error))
+        }
+        operation(completion)
+    }
+}
+
 struct DesktopHandlerRegistration: Equatable {
     let applicationURL: URL
     let bundleIdentifier: String?
@@ -38,16 +57,17 @@ struct WorkspaceDesktopHandoffPlatform: DesktopHandoffPlatform {
         let configuration = NSWorkspace.OpenConfiguration()
         configuration.activates = true
         configuration.addsToRecentItems = false
-        return await withCheckedContinuation { continuation in
+        return await awaitWorkspaceOpen(
+            mapError: { error in
+                error.map { ($0 as NSError).code }
+            }
+        ) { completion in
             NSWorkspace.shared.open(
                 [url],
                 withApplicationAt: applicationURL,
-                configuration: configuration
-            ) { _, error in
-                continuation.resume(returning: error.map {
-                    ($0 as NSError).code
-                })
-            }
+                configuration: configuration,
+                completionHandler: completion
+            )
         }
     }
 }
@@ -173,15 +193,16 @@ struct WorkspaceTerminalApplicationOpener: TerminalApplicationOpening {
         configuration.addsToRecentItems = false
         configuration.appleEvent = initialAppleEvent
 
-        return await withCheckedContinuation { continuation in
+        return await awaitWorkspaceOpen(
+            mapError: { error in
+                error.map(TerminalApplicationOpenFailure.init(error:))
+            }
+        ) { completion in
             NSWorkspace.shared.openApplication(
                 at: applicationURL,
-                configuration: configuration
-            ) { _, error in
-                continuation.resume(returning: error.map {
-                    TerminalApplicationOpenFailure(error: $0)
-                })
-            }
+                configuration: configuration,
+                completionHandler: completion
+            )
         }
     }
 }

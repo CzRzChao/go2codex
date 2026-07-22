@@ -23,17 +23,26 @@ public struct FinderToolbarSigningRelationshipEvidence: Equatable, Sendable {
 
 public enum FinderToolbarPlatformPolicy {
     public static func applicationVariant(
+        outerBundleIdentifier: String
+    ) -> FinderToolbarApplicationVariant? {
+        switch outerBundleIdentifier {
+        case "io.github.czrzchao.go2codex":
+            .release
+        case "io.github.czrzchao.go2codex.debug":
+            .debug
+        default:
+            nil
+        }
+    }
+
+    public static func applicationVariant(
         outerBundleIdentifier: String,
         launcherBundleIdentifier: String
     ) -> FinderToolbarApplicationVariant? {
-        switch (outerBundleIdentifier, launcherBundleIdentifier) {
-        case ("io.github.czrzchao.go2codex", "io.github.czrzchao.go2codex.launcher"):
-            return .release
-        case ("io.github.czrzchao.go2codex.debug", "io.github.czrzchao.go2codex.debug.launcher"):
-            return .debug
-        default:
+        guard launcherBundleIdentifier == "\(outerBundleIdentifier).launcher" else {
             return nil
         }
+        return applicationVariant(outerBundleIdentifier: outerBundleIdentifier)
     }
 
     public static func isStableLocationEligible(

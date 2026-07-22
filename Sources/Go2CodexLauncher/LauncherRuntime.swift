@@ -157,13 +157,16 @@ private struct SettingsOpener: LauncherSettingsOpening {
         configuration.activates = true
         configuration.addsToRecentItems = false
 
-        let errorCode: Int? = await withCheckedContinuation { continuation in
+        let errorCode: Int? = await awaitWorkspaceOpen(
+            mapError: { error in
+                error.map { ($0 as NSError).code }
+            }
+        ) { completion in
             NSWorkspace.shared.openApplication(
                 at: settingsURL,
-                configuration: configuration
-            ) { _, error in
-                continuation.resume(returning: error.map { ($0 as NSError).code })
-            }
+                configuration: configuration,
+                completionHandler: completion
+            )
         }
         if let errorCode {
             throw SettingsOpenError.openFailed(code: errorCode)

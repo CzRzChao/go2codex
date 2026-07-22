@@ -93,6 +93,25 @@ private final class FinderToolbarIdentityFixture {
         }
     }
 
+    func useReleaseBundleIdentifiers() throws {
+        let releaseOuterIdentifier = "io.github.czrzchao.go2codex"
+        let releaseLauncherIdentifier = "io.github.czrzchao.go2codex.launcher"
+        try mutatePropertyList(at: applicationURL.appendingPathComponent(outerInfoPath)) {
+            $0["CFBundleIdentifier"] = releaseOuterIdentifier
+        }
+        try mutatePropertyList(at: applicationURL.appendingPathComponent(launcherInfoPath)) {
+            $0["CFBundleIdentifier"] = releaseLauncherIdentifier
+        }
+        try Self.signApplication(
+            at: launcherURL(),
+            identifier: releaseLauncherIdentifier
+        )
+        try Self.signApplication(
+            at: applicationURL,
+            identifier: releaseOuterIdentifier
+        )
+    }
+
     func damageExecutableHeader(in part: IdentityBundlePart) throws {
         try flipExecutableByte(in: part, offset: 0)
     }
@@ -562,6 +581,19 @@ func signedDebugApplicationReturnsItsExactNestedLauncherURL() throws {
 
 @MainActor
 @Test
+func releaseApplicationOutsideApplicationsRequiresStableLocationBeforeReveal() throws {
+    let fixture = try FinderToolbarIdentityFixture()
+    try fixture.useReleaseBundleIdentifiers()
+
+    let result = FinderToolbarPlatformInspector(
+        outerBundle: try fixture.bundle()
+    ).embeddedLauncherURL()
+
+    #expect(result == .failure(.unstableReleaseLocation))
+}
+
+@MainActor
+@Test
 func missingNestedLauncherFailsBeforeIdentityInspection() throws {
     let fixture = try FinderToolbarIdentityFixture()
     try fixture.removeLauncher()
@@ -817,11 +849,41 @@ func settingsServiceConfirmsAndExecutesSupportedAutomaticInstall() async {
         }
     )
 
+    _ = await service.currentStatus()
     #expect(service.supportsAutomaticMutation)
     #expect(await service.perform(.install) == .status(.notInstalled))
     #expect(confirmations == [.install])
     #expect(executor.executionPlans.count == 1)
     #expect(executor.executionPlans.first?.operation == .install)
+}
+
+@MainActor
+@Test
+func settingsServiceDisablesAutomaticMutationForUnstableLocation() async {
+    let profile = FinderToolbarProfile.finder146Build23G80
+    let identity = launcherIdentity(
+        at: URL(
+            fileURLWithPath: "/Users/example/Downloads/Go2Codex.app/Contents/Helpers/Go2CodexLauncher.app"
+        )
+    )
+    let context = FinderToolbarDetectionContext(
+        snapshot: FinderToolbarSnapshot(
+            configurationWasPresent: true,
+            fields: profile.scalarFields
+        ),
+        environment: profile.environment,
+        launcherIdentity: .verified(identity)
+    )
+    let inspector = StubFinderToolbarPlatformInspector(
+        inspection: .verified(context, automaticActionsLocationEligible: false)
+    )
+    let service = FinderToolbarSettingsService(
+        inspector: inspector,
+        mutationExecutor: StubFinderToolbarMutationExecutor()
+    )
+
+    _ = await service.currentStatus()
+    #expect(!service.supportsAutomaticMutation)
 }
 
 @MainActor

@@ -7,6 +7,8 @@ project_dir="$(cd "$script_dir/.." && /bin/pwd -P)"
 package_script="$script_dir/package-github-release.sh"
 workflow="$project_dir/.github/workflows/release.yml"
 ci_workflow="$project_dir/.github/workflows/ci.yml"
+handoff_platform="$project_dir/Sources/Go2CodexLauncher/HandoffPlatform.swift"
+launcher_runtime="$project_dir/Sources/Go2CodexLauncher/LauncherRuntime.swift"
 test_count=0
 
 pass() {
@@ -33,6 +35,18 @@ assert_contains() {
     local label="$3"
     /usr/bin/grep -F -- "$expected" "$file" >/dev/null \
         || fail "$label: missing '$expected'"
+    pass
+}
+
+assert_count() {
+    local file="$1"
+    local expected="$2"
+    local expected_count="$3"
+    local label="$4"
+    local actual_count
+    actual_count="$(/usr/bin/grep -F -c -- "$expected" "$file" || true)"
+    [[ "$actual_count" == "$expected_count" ]] \
+        || fail "$label: expected $expected_count occurrences of '$expected', found $actual_count"
     pass
 }
 
@@ -105,5 +119,17 @@ assert_contains "$ci_workflow" "./Scripts/package-github-release.sh --verify-bui
 assert_contains "$ci_workflow" '.build/github-release-derived' "CI Release cleanup assertion"
 assert_contains "$ci_workflow" '[[ ! -s "$GITHUB_OUTPUT" ]]' "CI no-output assertion"
 assert_contains "$package_script" '"SWIFT_TREAT_WARNINGS_AS_ERRORS=YES"' "Release warning gate"
+assert_count "$handoff_platform" "await withCheckedContinuation" 1 \
+    "workspace-open continuation bridge ownership"
+assert_count "$handoff_platform" "await awaitWorkspaceOpen(" 2 \
+    "handoff workspace-open bridge adoption"
+assert_count "$handoff_platform" "completionHandler: completion" 2 \
+    "handoff sendable completion adoption"
+assert_count "$launcher_runtime" "withCheckedContinuation" 0 \
+    "launcher runtime direct continuation ban"
+assert_count "$launcher_runtime" "await awaitWorkspaceOpen(" 1 \
+    "settings workspace-open bridge adoption"
+assert_count "$launcher_runtime" "completionHandler: completion" 1 \
+    "settings sendable completion adoption"
 
 echo "test-github-release: $test_count contract checks passed"

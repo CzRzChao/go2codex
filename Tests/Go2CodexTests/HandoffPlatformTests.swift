@@ -6,6 +6,28 @@ import Testing
 @Suite("Production handoff platform adapters")
 @MainActor
 struct HandoffPlatformTests {
+    @Test
+    func workspaceOpenCompletionCanResumeFromLaunchServicesQueue() async {
+        let expectedCode = -10810
+        let result: Int? = await awaitWorkspaceOpen(
+            mapError: { error in
+                error.map { ($0 as NSError).code }
+            }
+        ) { completion in
+            DispatchQueue(label: "io.github.czrzchao.go2codex.tests.launch-services").async {
+                completion(
+                    nil,
+                    NSError(
+                        domain: NSCocoaErrorDomain,
+                        code: expectedCode
+                    )
+                )
+            }
+        }
+
+        #expect(result == expectedCode)
+    }
+
     @Test(arguments: desktopSuccessCases)
     func desktopSubmitsThroughExactVerifiedHandlerURL(
         testCase: DesktopSuccessCase
