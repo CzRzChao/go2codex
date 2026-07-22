@@ -795,8 +795,22 @@ struct LauncherFailureCopyResolver {
         case "terminal-tab-count-malformed",
              "terminal-tab-creation-timeout",
              "terminal-tab-shortcut-failed",
-             "terminal-activation-failed":
+             "terminal-activation-failed",
+             "terminal-activation-timeout",
+             "terminal-focus-lost-before-shortcut",
+             "terminal-tab-tty-list-malformed":
             "Go2Codex could not create a Terminal tab"
+        case "terminal-tab-tty-timeout",
+             "terminal-tab-identity-timeout",
+             "terminal-selected-tab-tty-malformed":
+            "Go2Codex could not start the CLI in the Terminal tab"
+        case "iterm-login-shell-unavailable",
+             "iterm-login-shell-path-not-absolute",
+             "iterm-login-shell-path-invalid",
+             "iterm-login-shell-unsupported":
+            "Go2Codex could not start the iTerm session"
+        case "iterm-handoff-outcome-unknown":
+            "Go2Codex could not confirm the iTerm session"
         case "iterm-window-query-malformed":
             "Go2Codex could not determine whether iTerm has a window"
         case "target-picker-mouse-release-timeout",
@@ -819,11 +833,26 @@ struct LauncherFailureCopyResolver {
         case "terminal-system-events-automation-denied",
              "terminal-system-events-consent-required":
             return "Allow Go2Codex to control System Events in System Settings > Privacy & Security > Automation, then try again."
+        case "terminal-tab-tty-timeout":
+            return "The Terminal tab was created, but its TTY did not become ready, so no command was submitted. Close the empty tab and try again, or choose New Window in Go2Codex Settings."
+        case "terminal-tab-identity-timeout",
+             "terminal-selected-tab-tty-malformed":
+            return "A Terminal tab was created, but Go2Codex could not safely identify it, so no command was submitted. Close the empty tab and try again, or choose New Window in Go2Codex Settings."
         case "terminal-tab-count-malformed",
              "terminal-tab-creation-timeout",
              "terminal-tab-shortcut-failed",
-             "terminal-activation-failed":
-            return "No command was submitted. Bring Terminal to the front and try again, or choose New Window in Go2Codex Settings."
+             "terminal-activation-failed",
+             "terminal-activation-timeout",
+             "terminal-focus-lost-before-shortcut",
+             "terminal-tab-tty-list-malformed":
+            return "No command was submitted. Try again, or choose New Window in Go2Codex Settings."
+        case "iterm-login-shell-unavailable",
+             "iterm-login-shell-path-not-absolute",
+             "iterm-login-shell-path-invalid",
+             "iterm-login-shell-unsupported":
+            return "No iTerm session was opened because the account login shell is unavailable or unsupported. Check the login shell in System Settings, then try again."
+        case "iterm-handoff-outcome-unknown":
+            return "iTerm may already have created the requested session. Check iTerm before trying again to avoid opening a duplicate session."
         case "iterm-window-query-malformed":
             return "No terminal session was opened. Try again, or choose New Window in Go2Codex Settings."
         case "target-picker-mouse-release-timeout",

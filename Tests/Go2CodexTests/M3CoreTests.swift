@@ -613,6 +613,103 @@ struct M3HandoffEncodingTests {
     }
 
     @Test
+    func iTermCustomCommandsUseLoginInteractiveShellsAndAlwaysReturnToLoginShell() throws {
+        let command = TerminalCommand(
+            executable: .codex,
+            line: "cd '/tmp/project' && codex"
+        )
+
+        for shellPath in ["/bin/zsh", "/bin/bash", "/opt/homebrew/bin/fish"] {
+            let quotedShellPath = POSIXShellQuoting.singleQuote(shellPath)
+            let innerCommand = "\(command.line); exec \(quotedShellPath) -l"
+            let customCommand = try ITermCustomCommandBuilder.command(
+                for: command,
+                loginShellPath: shellPath
+            )
+            #expect(parsedITerm3611CommandArguments(customCommand) == [
+                shellPath,
+                "-l",
+                "-i",
+                "-c",
+                innerCommand,
+            ])
+        }
+
+        let failedCommand = TerminalCommand(executable: .codex, line: "false")
+        let failedCommandArguments = parsedITerm3611CommandArguments(
+            try ITermCustomCommandBuilder.command(
+                for: failedCommand,
+                loginShellPath: "/bin/zsh"
+            )
+        )
+        #expect(failedCommandArguments.last == "false; exec '/bin/zsh' -l")
+    }
+
+    @Test
+    func iTermCustomCommandQuotesShellPathAndExistingWorkspaceCommandAtBothLayers() throws {
+        let workspace = try Workspace(
+            absolutePath: "/tmp/O'Brien\\new\\tab\\return\\alarm \"quoted\" 中文\nline"
+        )
+        let terminalCommand = try TerminalCommandBuilder.command(
+            for: .codexCLI,
+            workspace: workspace
+        )
+        let shellPath = "/Applications/O'Brien\\new \"Shells\"/bin/fish"
+        let customCommand = try ITermCustomCommandBuilder.command(
+            for: terminalCommand,
+            loginShellPath: shellPath
+        )
+        let expectedInnerCommand = "\(terminalCommand.line); exec "
+            + "\(POSIXShellQuoting.singleQuote(shellPath)) -l"
+
+        #expect(parsedITerm3611CommandArguments(customCommand) == [
+            shellPath,
+            "-l",
+            "-i",
+            "-c",
+            expectedInnerCommand,
+        ])
+    }
+
+    @Test
+    func iTermCustomCommandRejectsUnsafeLoginShellPathsWithStableDiagnostics() {
+        let command = TerminalCommand(executable: .codex, line: "codex")
+
+        for path in ["", "bin/zsh", "./bin/zsh"] {
+            let error: ITermCustomCommandBuildError? = capturedError {
+                try ITermCustomCommandBuilder.command(
+                    for: command,
+                    loginShellPath: path
+                )
+            }
+            #expect(error == .loginShellPathNotAbsolute)
+            #expect(error?.diagnosticCode.rawValue == "iterm-login-shell-path-not-absolute")
+        }
+
+        for path in ["/bin/zsh\0suffix", "/bin/zsh\n", "/bin/zsh\r", "/bin/zsh\u{2028}"] {
+            let error: ITermCustomCommandBuildError? = capturedError {
+                try ITermCustomCommandBuilder.command(
+                    for: command,
+                    loginShellPath: path
+                )
+            }
+            #expect(error == .loginShellPathContainsUnsupportedCharacter)
+            #expect(error?.diagnosticCode.rawValue == "iterm-login-shell-path-invalid")
+        }
+
+        for path in ["/bin/csh", "/bin/tcsh", "/bin/sh", "/usr/bin/nu"] {
+            let error: ITermCustomCommandBuildError? = capturedError {
+                try ITermCustomCommandBuilder.command(
+                    for: command,
+                    loginShellPath: path
+                )
+            }
+            #expect(error == .loginShellUnsupported)
+            #expect(error?.diagnosticCode.rawValue == "iterm-login-shell-unsupported")
+        }
+    }
+
+    @Test
     func verifiedAppleEventConstantsStayExact() {
         #expect(FinderAppleEventContract.targetBundleIdentifier == "com.apple.finder")
         #expect(FinderAppleEventContract.eventClass.ascii == "core")
@@ -933,4 +1030,79 @@ private func capturedError<T, E: Error & Equatable>(
     } catch {
         return nil
     }
+}
+
+// Mirrors NSStringITerm's command-field parser in iTerm2 3.6.11.
+private func parsedITerm3611CommandArguments(_ command: String) -> [String] {
+    var arguments: [String] = []
+    var current = ""
+    var inSingleQuotes = false
+    var inDoubleQuotes = false
+    var isEscaped = false
+    var isFirstCharacterOfWord = true
+    let characters = Array(command)
+
+    for offset in 0 ... characters.count {
+        let character: Character? = offset < characters.count
+            ? characters[offset]
+            : nil
+
+        if character == "\\", !isEscaped {
+            isEscaped = true
+            continue
+        }
+        if isEscaped, let character {
+            isEscaped = false
+            isFirstCharacterOfWord = false
+            switch character {
+            case "n":
+                current.append("\n")
+            case "a":
+                current.append("\u{7}")
+            case "t":
+                current.append("\t")
+            case "r":
+                current.append("\r")
+            case "\"" where inDoubleQuotes:
+                current.append("\"")
+            case "\\" where inDoubleQuotes:
+                current.append("\\")
+            case "'" where inSingleQuotes:
+                current.append("\\")
+            default:
+                if inSingleQuotes || inDoubleQuotes {
+                    current.append("\\")
+                }
+                current.append(character)
+            }
+            continue
+        }
+
+        if character == "\"", !inSingleQuotes {
+            inDoubleQuotes.toggle()
+            isFirstCharacterOfWord = false
+            continue
+        }
+        if character == "'", !inDoubleQuotes {
+            inSingleQuotes.toggle()
+            isFirstCharacterOfWord = false
+            continue
+        }
+
+        let isWhitespace = character == nil || character?.isWhitespace == true
+        if !inSingleQuotes, !inDoubleQuotes, isWhitespace {
+            if !isFirstCharacterOfWord {
+                arguments.append(current)
+                current = ""
+                isFirstCharacterOfWord = true
+            }
+            continue
+        }
+
+        if let character {
+            isFirstCharacterOfWord = false
+            current.append(character)
+        }
+    }
+    return arguments
 }

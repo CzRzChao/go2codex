@@ -20,6 +20,12 @@ enum ITermCurrentWindowReply: Equatable {
     case invalid(UInt32?)
 }
 
+enum TerminalSelectedTabTTYReply: Equatable {
+    case ready(String)
+    case notReady
+    case invalid(UInt32?)
+}
+
 @MainActor
 enum NativeAppleEvent {
     private enum Code {
@@ -27,6 +33,7 @@ enum NativeAppleEvent {
         static let openDocuments: UInt32 = 0x6f646f63
         static let core: UInt32 = 0x636f7265
         static let getData: UInt32 = 0x67657464
+        static let count: UInt32 = 0x636e7465
         static let doScript: UInt32 = 0x646f7363
         static let directObject: UInt32 = 0x2d2d2d2d
         static let errorNumber: UInt32 = 0x6572726e
@@ -56,6 +63,10 @@ enum NativeAppleEvent {
         static let comparisonDescriptor: UInt32 = 0x636d7064
         static let objectBeingExamined: UInt32 = 0x65786d6e
         static let list: UInt32 = 0x6c697374
+        static let signedInteger: UInt32 = 0x6c6f6e67
+        static let unicodeText: UInt32 = 0x75747874
+        static let utf8Text: UInt32 = 0x75746638
+        static let plainText: UInt32 = 0x54455854
 
         static let finderWindow: UInt32 = 0x62726f77
         static let finderTarget: UInt32 = 0x66767467
@@ -63,6 +74,7 @@ enum NativeAppleEvent {
         static let window: UInt32 = 0x6377696e
         static let terminalTab: UInt32 = 0x74746162
         static let terminalWindowID: UInt32 = 0x49442020
+        static let terminalSelectedTab: UInt32 = 0x74636e74
         static let terminalTTY: UInt32 = 0x74747479
         static let iTermCurrentWindow: UInt32 = 0x4372776e
 
@@ -252,13 +264,89 @@ enum NativeAppleEvent {
             return result
         }
         for index in 1...values.numberOfItems {
-            guard let value = values.atIndex(index)?.stringValue,
-                  !value.isEmpty else {
+            guard let descriptor = values.atIndex(index),
+                  [Code.unicodeText, Code.utf8Text, Code.plainText].contains(
+                      descriptor.descriptorType
+                  ),
+                  let value = descriptor.stringValue, !value.isEmpty else {
                 return nil
             }
             result.append(value)
         }
         return result
+    }
+
+    static func terminalTabCountQuery(
+        windowID: Int32
+    ) throws -> NSAppleEventDescriptor {
+        let event = event(
+            eventClass: Code.core,
+            eventID: Code.count,
+            bundleIdentifier: TerminalHost.terminal.bundleIdentifier
+        )
+        event.setParam(
+            try terminalTabsSpecifier(windowID: windowID),
+            forKeyword: Code.directObject
+        )
+        return event
+    }
+
+    static func terminalTabCount(
+        from reply: NSAppleEventDescriptor
+    ) -> Int? {
+        guard let value = reply.paramDescriptor(
+            forKeyword: Code.directObject
+        ), value.descriptorType == Code.signedInteger,
+           value.data.count == MemoryLayout<Int32>.size,
+           value.int32Value > 0 else {
+            return nil
+        }
+        return Int(value.int32Value)
+    }
+
+    static func terminalSelectedTabTTYQuery(
+        windowID: Int32
+    ) throws -> NSAppleEventDescriptor {
+        let selectedTab = try propertySpecifier(
+            Code.terminalSelectedTab,
+            container: try terminalWindowSpecifier(id: windowID)
+        )
+        let event = event(
+            eventClass: Code.core,
+            eventID: Code.getData,
+            bundleIdentifier: TerminalHost.terminal.bundleIdentifier
+        )
+        event.setParam(
+            try propertySpecifier(Code.terminalTTY, container: selectedTab),
+            forKeyword: Code.directObject
+        )
+        return event
+    }
+
+    static func classifyTerminalSelectedTabTTYReply(
+        _ reply: NSAppleEventDescriptor
+    ) -> TerminalSelectedTabTTYReply {
+        guard let directObject = reply.paramDescriptor(
+            forKeyword: Code.directObject
+        ) else {
+            return .invalid(nil)
+        }
+        if directObject.descriptorType == missingValueDescriptorType {
+            return .notReady
+        }
+        if directObject.descriptorType == Code.typeCode,
+           directObject.typeCodeValue == missingValueDescriptorType {
+            return .notReady
+        }
+        guard [Code.unicodeText, Code.utf8Text, Code.plainText].contains(
+            directObject.descriptorType
+        ) else {
+            return .invalid(directObject.descriptorType)
+        }
+        guard let tty = directObject.stringValue, !tty.isEmpty else {
+            return .notReady
+        }
+        return .ready(tty)
     }
 
     static func systemEventsTerminalNewTabShortcut() throws

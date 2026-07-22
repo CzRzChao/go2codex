@@ -457,8 +457,8 @@ fi
 assert_equal "$(localization_list "$app_path/Contents/Resources")" "en,zh-Hans" "outer packaged localizations"
 assert_equal "$(localization_list "$inner_path/Contents/Resources")" "en,zh-Hans" "Launcher packaged localizations"
 if [[ "$content_contract" == "current" ]]; then
-    assert_equal "$(plist_key_count "$app_path/Contents/Resources/zh-Hans.lproj/Localizable.strings")" "102" "outer Simplified Chinese string count"
-    assert_equal "$(plist_key_count "$inner_path/Contents/Resources/zh-Hans.lproj/Localizable.strings")" "102" "Launcher Simplified Chinese string count"
+    assert_equal "$(plist_key_count "$app_path/Contents/Resources/zh-Hans.lproj/Localizable.strings")" "109" "outer Simplified Chinese string count"
+    assert_equal "$(plist_key_count "$inner_path/Contents/Resources/zh-Hans.lproj/Localizable.strings")" "109" "Launcher Simplified Chinese string count"
 fi
 for strings_file in \
     "$app_path/Contents/Resources/zh-Hans.lproj/Localizable.strings" \
@@ -478,6 +478,14 @@ for strings_file in \
         assert_equal "$(plist_value "$strings_file" "Install and Restart Finder")" "安装并重启 Finder" "automatic Finder install localization"
         assert_equal "$(plist_value "$strings_file" "Open Accessibility Settings")" "打开“辅助功能”设置" "Accessibility settings localization"
         assert_equal "$(plist_value "$strings_file" "Automation permission is required for Terminal tabs")" "Terminal 标签页需要“自动化”权限" "Terminal tab Automation localization"
+        assert_equal "$(plist_value "$strings_file" "Go2Codex could not start the CLI in the Terminal tab")" "Go2Codex 无法在 Terminal 标签页中启动 CLI" "Terminal CLI start localization"
+        assert_equal "$(plist_value "$strings_file" "The Terminal tab was created, but its TTY did not become ready, so no command was submitted. Close the empty tab and try again, or choose New Window in Go2Codex Settings.")" "Terminal 标签页已创建，但其 TTY 未就绪，因此未提交任何命令。请关闭空标签页后重试，或在 Go2Codex 设置中选择“新窗口”。" "Terminal TTY readiness localization"
+        assert_equal "$(plist_value "$strings_file" "A Terminal tab was created, but Go2Codex could not safely identify it, so no command was submitted. Close the empty tab and try again, or choose New Window in Go2Codex Settings.")" "Terminal 标签页已创建，但 Go2Codex 无法安全识别它，因此未提交任何命令。请关闭空标签页后重试，或在 Go2Codex 设置中选择“新窗口”。" "Terminal identity ambiguity localization"
+        assert_equal "$(plist_value "$strings_file" "No command was submitted. Try again, or choose New Window in Go2Codex Settings.")" "未提交任何命令。请重试，或在 Go2Codex 设置中选择“新窗口”。" "Terminal no-submission localization"
+        assert_equal "$(plist_value "$strings_file" "Go2Codex could not start the iTerm session")" "Go2Codex 无法启动 iTerm 会话" "iTerm session start localization"
+        assert_equal "$(plist_value "$strings_file" "No iTerm session was opened because the account login shell is unavailable or unsupported. Check the login shell in System Settings, then try again.")" "由于账户登录 shell 不可用或不受支持，未打开 iTerm 会话。请在“系统设置”中检查登录 shell，然后重试。" "iTerm login shell localization"
+        assert_equal "$(plist_value "$strings_file" "Go2Codex could not confirm the iTerm session")" "Go2Codex 无法确认 iTerm 会话" "iTerm unknown outcome localization"
+        assert_equal "$(plist_value "$strings_file" "iTerm may already have created the requested session. Check iTerm before trying again to avoid opening a duplicate session.")" "iTerm 可能已经创建了请求的会话。请先检查 iTerm 再重试，以免打开重复会话。" "iTerm duplicate prevention localization"
         assert_equal "$(plist_value "$strings_file" "Locate Current Launcher")" "定位当前 Launcher" "current Launcher reveal localization"
         assert_equal "$(plist_value "$strings_file" "Current Launcher could not be located")" "无法定位当前 Launcher" "current Launcher fallback title localization"
     fi

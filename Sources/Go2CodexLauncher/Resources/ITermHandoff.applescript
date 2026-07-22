@@ -1,11 +1,8 @@
 on go2codexNewWindow(commandText)
-    set quietLaunchPath to (POSIX path of (path to application support from user domain)) & "iTerm2/version.txt"
     using terms from application "iTerm"
         tell application id "com.googlecode.iterm2"
             with timeout of 60 seconds
-                open file quietLaunchPath
-                set createdWindow to create window with default profile
-                tell current session of createdWindow to write text commandText newline true
+                create window with default profile command commandText
             end timeout
         end tell
     end using terms from
@@ -13,14 +10,10 @@ on go2codexNewWindow(commandText)
 end go2codexNewWindow
 
 on go2codexNewTab(commandText)
-    set quietLaunchPath to (POSIX path of (path to application support from user domain)) & "iTerm2/version.txt"
     using terms from application "iTerm"
         tell application id "com.googlecode.iterm2"
             with timeout of 60 seconds
-                open file quietLaunchPath
-                set targetWindow to current window
-                tell targetWindow to set createdTab to create tab with default profile
-                tell current session of createdTab to write text commandText newline true
+                tell current window to create tab with default profile command commandText
             end timeout
         end tell
     end using terms from

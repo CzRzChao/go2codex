@@ -11,7 +11,7 @@ Go2Codex adds a single button to the Finder toolbar. Click it and Go2Codex takes
 - At least one supported agent installed:
   - Codex App or Claude Desktop (for the desktop targets), and/or
   - the `codex` / `claude` CLI available on your shell `PATH` (for the CLI targets).
-- A supported terminal for CLI targets: **Terminal.app** or **iTerm2**.
+- A supported terminal for CLI targets: **Terminal.app** or **iTerm2**. iTerm2 handoff requires the account login shell to be **zsh**, **bash**, or **fish**.
 
 Go2Codex does not install or bundle any agent. It only launches agents you already have.
 
@@ -44,8 +44,8 @@ Four **Agent Targets** (fixed order) × two **Terminal Hosts**:
 | Claude Code CLI     | `cd <folder> && claude` in the terminal                     | Terminal.app / iTerm2 |
 
 - **Desktop targets** open through the target's application URL scheme. Go2Codex resolves the handler by exact bundle identifier, so another app cannot hijack the scheme. Any trust or confirmation prompt after handoff belongs to the target app.
-- **CLI targets** open a new terminal session, `cd` into the Workspace, and submit only the fixed `codex` or `claude` command (no extra arguments). What happens after that belongs to the terminal and the CLI.
-- **New Window and New Tab** are supported for both CLI targets in Terminal.app and iTerm2. Terminal New Tab uses System Events to send Command-T, so it explicitly requests System Events Automation and Accessibility before submitting a command. Denied permission, a failed shortcut, or an unconfirmed new tab stops cleanly without submitting the CLI command. New Window does not require Accessibility.
+- **CLI targets** open a new terminal session, `cd` into the Workspace, and submit only the fixed `codex` or `claude` command (no extra arguments). iTerm2 receives a `zsh`, `bash`, or `fish` account login shell and the CLI command as the session's initial command, rather than opening a prompt and injecting text afterward; unsupported login shells fail before a session is created. When the CLI exits, the session returns to the login shell. What happens after that belongs to the terminal, shell, and CLI.
+- **New Window and New Tab** are supported for both CLI targets in Terminal.app and iTerm2. Terminal New Tab uses System Events to send Command-T, so it explicitly requests System Events Automation and Accessibility before submitting a command. Go2Codex waits until Terminal is actually frontmost, records the target window's existing TTYs, and submits exactly once only when the tab count increases by one, the selected tab has a ready TTY that did not exist before Command-T, and a final TTY-set check still contains exactly the original tabs plus that target. Denied permission, lost focus, a failed shortcut, an ambiguous result, or a TTY that never becomes ready stops cleanly without submitting the CLI command; an empty tab can remain when creation succeeded but could not be safely targeted. New Window does not require Accessibility.
 
 The **Workspace** is always the exact folder of the frontmost Finder window. Selected items, Git roots, the Desktop, and your home folder are never substituted. If Finder has no open window (or shows a non-file/virtual location), the launch fails cleanly instead of guessing.
 
@@ -89,6 +89,8 @@ To remove it, the Settings app shows you how to hold Command and drag the button
 - **Option-click is not supported** as a trigger. Finder reserves Option-click on toolbar items and may close the source window before the Workspace can be resolved. Only Shift-click (or disabled) is offered as the Alternate Trigger.
 - **Automatic Finder setup is private and build-specific.** It is enabled only for exact profiled Finder builds; every other build uses the manual Command-drag path. Finder has no public atomic transaction for this preference, so a very small concurrent-update race remains even on a recognized build.
 - **Local only.** Go2Codex makes no network requests and performs no telemetry, crash reporting, background monitoring, or auto-update. GitHub preview updates are downloaded manually.
+- **Terminal-controlled titles.** Go2Codex does not replace Terminal or iTerm2 title settings. A tab title can still change while the login shell initializes and the foreground process changes to the selected CLI.
+- **Uncertain iTerm replies.** If iTerm accepts a create request but its reply is lost or times out, Go2Codex cannot safely determine whether the session exists. It does not retry automatically and asks you to check iTerm first to avoid creating a duplicate session.
 - **Apple Silicon only.**
 
 Not in scope: VS Code / Cursor / other editors, a menu-bar resident, session restore or prompt injection, and Mac App Store distribution.

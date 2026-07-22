@@ -136,9 +136,72 @@ expect_failure \
     "$project_dir/Sources/Go2CodexLauncher/Resources/ITermHandoff.applescript" \
     "$iterm_gate_source"
 
+/usr/bin/awk '
+    { print }
+    !inserted && /^on go2codexNewWindow\(commandText\)$/ {
+        print "    do shell script \"/usr/bin/true\""
+        inserted = 1
+    }
+    END { if (!inserted) exit 1 }
+' "$iterm_gate_source" >"$iterm_gate_source.next-test"
+/bin/mv "$iterm_gate_source.next-test" "$iterm_gate_source"
+write_iterm_provenance \
+    "$iterm_gate_source" \
+    "$iterm_gate_compiled" \
+    "$iterm_gate_provenance"
+expect_failure_containing \
+    "matching-provenance non-allowlisted iTerm handoff source" \
+    "source iTerm handoff handler must match the exact allowlisted structure" \
+    "$script_dir/verify-iterm-handoff.sh" \
+    --files \
+    "$iterm_gate_source" \
+    "$iterm_gate_compiled" \
+    "$iterm_gate_provenance"
+/bin/cp \
+    "$project_dir/Sources/Go2CodexLauncher/Resources/ITermHandoff.applescript" \
+    "$iterm_gate_source"
+write_iterm_provenance \
+    "$iterm_gate_source" \
+    "$iterm_gate_compiled" \
+    "$iterm_gate_provenance"
+
 /usr/bin/printf 'changed' >>"$iterm_gate_compiled"
 expect_failure \
     "changed iTerm handoff compiled resource" \
+    "$script_dir/verify-iterm-handoff.sh" \
+    --files \
+    "$iterm_gate_source" \
+    "$iterm_gate_compiled" \
+    "$iterm_gate_provenance"
+/bin/cp \
+    "$project_dir/Sources/Go2CodexLauncher/Resources/ITermHandoff.scpt" \
+    "$iterm_gate_compiled"
+
+iterm_gate_unsafe_source="$iterm_gate_root/Unsafe.applescript"
+iterm_gate_unsafe_compiled="$iterm_gate_root/Unsafe.scpt"
+{
+    /usr/bin/printf '%s\n' \
+        'on go2codexNewWindow(commandText)' \
+        '    do shell script "/usr/bin/true"' \
+        '    return true' \
+        'end go2codexNewWindow' \
+        '' \
+        'on go2codexNewTab(commandText)' \
+        '    do shell script "/usr/bin/true"' \
+        '    return true' \
+        'end go2codexNewTab'
+} >"$iterm_gate_unsafe_source"
+/usr/bin/osacompile \
+    -o "$iterm_gate_unsafe_compiled" \
+    "$iterm_gate_unsafe_source"
+/bin/cp "$iterm_gate_unsafe_compiled" "$iterm_gate_compiled"
+write_iterm_provenance \
+    "$iterm_gate_source" \
+    "$iterm_gate_compiled" \
+    "$iterm_gate_provenance"
+expect_failure_containing \
+    "matching-provenance non-allowlisted iTerm handoff compiled resource" \
+    "compiled iTerm handoff handler must contain one exact single-stage target operation" \
     "$script_dir/verify-iterm-handoff.sh" \
     --files \
     "$iterm_gate_source" \
@@ -220,6 +283,20 @@ insert_before_first_iterm_timeout() {
     /bin/mv "$next_source" "$iterm_rebuild_source"
 }
 
+insert_after_first_iterm_handler() {
+    local command="$1"
+    local next_source="$iterm_rebuild_source.next-test"
+    /usr/bin/awk -v command="$command" '
+        { print }
+        !inserted && /^on go2codexNewWindow\(commandText\)$/ {
+            print "    " command
+            inserted = 1
+        }
+        END { if (!inserted) exit 1 }
+    ' "$iterm_rebuild_source" >"$next_source"
+    /bin/mv "$next_source" "$iterm_rebuild_source"
+}
+
 reset_iterm_rebuild_fixture
 assert_iterm_handoff_source_contract "$iterm_rebuild_source"
 pass
@@ -243,37 +320,63 @@ expect_failure_containing \
     "$iterm_rebuild_source"
 
 reset_iterm_rebuild_fixture
-/usr/bin/sed \
-    's#iTerm2/version\.txt#iTerm2/not-version.txt#g' \
-    "$iterm_rebuild_source" \
-    >"$iterm_rebuild_source.next-test"
-/bin/mv "$iterm_rebuild_source.next-test" "$iterm_rebuild_source"
+insert_after_first_iterm_handler 'do shell script "open -na iTerm"'
 expect_failure_containing \
-    "iTerm handoff rebuild rejects wrong quiet sentinel" \
-    "must derive one exact quiet path" \
+    "iTerm handoff rebuild rejects executable statements outside the allowlist" \
+    "must match the exact allowlisted structure" \
     assert_iterm_handoff_source_contract \
     "$iterm_rebuild_source"
 
 reset_iterm_rebuild_fixture
-/usr/bin/awk '
-    !moved && /^[[:space:]]*open file quietLaunchPath[[:space:]]*$/ {
-        pending = $0
-        next
-    }
-    pending != "" && /^[[:space:]]*set createdWindow to create window with default profile[[:space:]]*$/ {
-        print
-        print pending
-        pending = ""
-        moved = 1
-        next
-    }
-    { print }
-    END { if (!moved || pending != "") exit 1 }
-' "$iterm_rebuild_source" >"$iterm_rebuild_source.next-test"
+insert_after_first_iterm_handler \
+    'set fakeOperation to "create window with default profile command commandText"'
+expect_failure_containing \
+    "iTerm handoff rebuild rejects operation text inside a string" \
+    "must contain one exact single-stage target operation" \
+    assert_iterm_handoff_source_contract \
+    "$iterm_rebuild_source"
+
+reset_iterm_rebuild_fixture
+insert_before_first_iterm_timeout 'open file "/private/tmp/iTerm2/version.txt"'
+expect_failure_containing \
+    "iTerm handoff rebuild rejects handler open" \
+    "must not open files or inject text after session creation" \
+    assert_iterm_handoff_source_contract \
+    "$iterm_rebuild_source"
+
+reset_iterm_rebuild_fixture
+insert_before_first_iterm_timeout 'write text commandText'
+expect_failure_containing \
+    "iTerm handoff rebuild rejects handler text injection" \
+    "must not open files or inject text after session creation" \
+    assert_iterm_handoff_source_contract \
+    "$iterm_rebuild_source"
+
+reset_iterm_rebuild_fixture
+insert_before_first_iterm_timeout 'set leakedQuietLaunchPath to "iTerm2/version.txt"'
+expect_failure_containing \
+    "iTerm handoff rebuild rejects handler-owned quiet bootstrap" \
+    "must leave quiet bootstrap to the outer adapter" \
+    assert_iterm_handoff_source_contract \
+    "$iterm_rebuild_source"
+
+reset_iterm_rebuild_fixture
+/usr/bin/sed \
+    's/create window with default profile command commandText/create window with default profile/' \
+    "$iterm_rebuild_source" \
+    >"$iterm_rebuild_source.next-test"
 /bin/mv "$iterm_rebuild_source.next-test" "$iterm_rebuild_source"
 expect_failure_containing \
-    "iTerm handoff rebuild rejects quiet open after create" \
-    "must open its exact quiet path before its first target operation" \
+    "iTerm handoff rebuild rejects create without initial command" \
+    "must contain one exact single-stage target operation" \
+    assert_iterm_handoff_source_contract \
+    "$iterm_rebuild_source"
+
+reset_iterm_rebuild_fixture
+insert_before_first_iterm_timeout 'create window with default profile command "echo duplicate"'
+expect_failure_containing \
+    "iTerm handoff rebuild rejects a second session creation" \
+    "must create exactly one session" \
     assert_iterm_handoff_source_contract \
     "$iterm_rebuild_source"
 
@@ -282,13 +385,10 @@ iterm_raw_decompiled="$temporary_root/ITermHandoff.raw-decompiled.applescript"
 write_raw_iterm_decompiled_fixture() {
     /usr/bin/printf '%s\n' \
         'on go2codexNewWindow(commandText)' \
-        '    set quietLaunchPath to (POSIX path of («event earsffdr» «constant afdrasup» given «class from»:«constant fldmfldu»)) & "iTerm2/version.txt"' \
         '    using terms from application "iTerm.app"' \
         '        tell application id "com.googlecode.iterm2"' \
         '            with timeout of 60 seconds' \
-        '                open file quietLaunchPath' \
-        '                set createdWindow to «event Itrmnwwn»' \
-        '                tell «class Wcsn» of createdWindow to «event Itrmsntx» with «class Wtnl» given «class Text»:commandText' \
+        '                «event Itrmnwwn» given «class Nwcm»:commandText' \
         '            end timeout' \
         '        end tell' \
         '    end using terms from' \
@@ -296,14 +396,10 @@ write_raw_iterm_decompiled_fixture() {
         'end go2codexNewWindow' \
         '' \
         'on go2codexNewTab(commandText)' \
-        '    set quietLaunchPath to (POSIX path of («event earsffdr» «constant afdrasup» given «class from»:«constant fldmfldu»)) & "iTerm2/version.txt"' \
         '    using terms from application "iTerm.app"' \
         '        tell application id "com.googlecode.iterm2"' \
         '            with timeout of 60 seconds' \
-        '                open file quietLaunchPath' \
-        '                set targetWindow to «class Crwn»' \
-        '                tell targetWindow to set createdTab to «event Itrmntwn»' \
-        '                tell «class Wcsn» of createdTab to «event Itrmsntx» with «class Wtnl» given «class Text»:commandText' \
+        '                tell «class Crwn» to «event Itrmntwn» given «class Nwcm»:commandText' \
         '            end timeout' \
         '        end tell' \
         '    end using terms from' \
@@ -317,37 +413,66 @@ assert_iterm_handoff_decompiled_contract "$iterm_raw_decompiled"
 pass
 
 write_raw_iterm_decompiled_fixture
-/usr/bin/sed \
-    's#iTerm2/version\.txt#iTerm2/not-version.txt#g' \
-    "$iterm_raw_decompiled" \
-    >"$iterm_raw_decompiled.next-test"
+/usr/bin/awk '
+    { print }
+    !inserted && /^on go2codexNewWindow\(commandText\)$/ {
+        print "    set unexpectedStatement to true"
+        inserted = 1
+    }
+    END { if (!inserted) exit 1 }
+' "$iterm_raw_decompiled" >"$iterm_raw_decompiled.next-test"
 /bin/mv "$iterm_raw_decompiled.next-test" "$iterm_raw_decompiled"
 expect_failure_containing \
-    "raw iTerm handoff rejects wrong quiet sentinel" \
-    "must derive one exact quiet path" \
+    "raw iTerm handoff rejects statements outside the allowlist" \
+    "must match the exact allowlisted structure" \
     assert_iterm_handoff_decompiled_contract \
     "$iterm_raw_decompiled"
 
 write_raw_iterm_decompiled_fixture
 /usr/bin/awk '
-    !moved && /^[[:space:]]*open file quietLaunchPath[[:space:]]*$/ {
-        pending = $0
-        next
-    }
-    pending != "" && /^[[:space:]]*set createdWindow to «event Itrmnwwn»[[:space:]]*$/ {
-        print
-        print pending
-        pending = ""
-        moved = 1
-        next
+    !inserted && /«event Itrmnwwn»/ {
+        print "                «event aevtodoc» \"/private/tmp/iTerm2/version.txt\""
+        inserted = 1
     }
     { print }
-    END { if (!moved || pending != "") exit 1 }
+    END { if (!inserted) exit 1 }
 ' "$iterm_raw_decompiled" >"$iterm_raw_decompiled.next-test"
 /bin/mv "$iterm_raw_decompiled.next-test" "$iterm_raw_decompiled"
 expect_failure_containing \
-    "raw iTerm handoff rejects quiet open after create" \
-    "must open its exact quiet path before its first target operation" \
+    "raw iTerm handoff rejects handler open" \
+    "must not open files or inject text after session creation" \
+    assert_iterm_handoff_decompiled_contract \
+    "$iterm_raw_decompiled"
+
+write_raw_iterm_decompiled_fixture
+/usr/bin/awk '
+    !changed && /«event Itrmnwwn»/ {
+        sub(/ given «class Nwcm»:commandText/, "")
+        changed = 1
+    }
+    { print }
+    END { if (!changed) exit 1 }
+' "$iterm_raw_decompiled" >"$iterm_raw_decompiled.next-test"
+/bin/mv "$iterm_raw_decompiled.next-test" "$iterm_raw_decompiled"
+expect_failure_containing \
+    "raw iTerm handoff rejects create without initial command" \
+    "must contain one exact single-stage target operation" \
+    assert_iterm_handoff_decompiled_contract \
+    "$iterm_raw_decompiled"
+
+write_raw_iterm_decompiled_fixture
+/usr/bin/awk '
+    !inserted && /«event Itrmnwwn»/ {
+        print "                «event Itrmsntx» commandText"
+        inserted = 1
+    }
+    { print }
+    END { if (!inserted) exit 1 }
+' "$iterm_raw_decompiled" >"$iterm_raw_decompiled.next-test"
+/bin/mv "$iterm_raw_decompiled.next-test" "$iterm_raw_decompiled"
+expect_failure_containing \
+    "raw iTerm handoff rejects handler text injection" \
+    "must not open files or inject text after session creation" \
     assert_iterm_handoff_decompiled_contract \
     "$iterm_raw_decompiled"
 
