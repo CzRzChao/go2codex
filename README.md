@@ -19,16 +19,16 @@ Go2Codex does not install or bundle any agent. It only launches agents you alrea
 
 Download the latest build from [GitHub Releases](https://github.com/CzRzChao/go2codex/releases). Until a Developer ID is available, published builds are explicitly marked as **unsigned previews** and use names such as:
 
-- `Go2Codex-0.1.0-preview.3-macos-arm64.zip`
-- `Go2Codex-0.1.0-preview.3-macos-arm64.zip.sha256`
+- `Go2Codex-0.1.0-preview.4-macos-arm64.zip`
+- `Go2Codex-0.1.0-preview.4-macos-arm64.zip.sha256`
 
 Download both files into the same directory and verify the archive before extracting it:
 
 ```sh
-shasum -a 256 -c Go2Codex-0.1.0-preview.3-macos-arm64.zip.sha256
+shasum -a 256 -c Go2Codex-0.1.0-preview.4-macos-arm64.zip.sha256
 ```
 
-Then extract the ZIP and move `Go2Codex.app` into `/Applications` or `~/Applications`. Preview updates are manual: download and verify the newer archive, quit Go2Codex, and replace the existing app. Because each preview is ad-hoc signed, macOS may ask you to grant Finder, Terminal, iTerm2, or System Events Automation access again after an update; review the prompts and the Go2Codex entry under **System Settings** → **Privacy & Security** → **Automation**. Terminal New Tab additionally needs Go2Codex enabled under **Accessibility**.
+Then extract the ZIP and, before launching it, move `Go2Codex.app` into `/Applications` or `~/Applications`. Do not run the release directly from Downloads: macOS can launch a quarantined app through App Translocation, and Go2Codex intentionally refuses to install a Finder toolbar item from that temporary location. Preview updates are manual: download and verify the newer archive, quit Go2Codex, and replace the existing app. If an earlier preview was run from Downloads and its Launcher was added manually, first hold Command (⌘) and drag that old button out of the Finder toolbar; after opening the replacement from Applications, install or add the current Launcher again. Because each preview is ad-hoc signed, macOS may ask you to grant Finder, Terminal, iTerm2, or System Events Automation access again after an update; review the prompts and the Go2Codex entry under **System Settings** → **Privacy & Security** → **Automation**. Terminal New Tab additionally needs Go2Codex enabled under **Accessibility**.
 
 ## Supported matrix
 
@@ -71,7 +71,7 @@ Automatic setup is experimental. It updates the current user's private Finder to
 
 This preview recognizes macOS build `23G80` with Finder `14.6 (1632.6.3)`, and macOS build `25F84` with Finder `26.4 (1828.5.2)`. Even a patch-level mismatch uses manual setup until it is separately profiled.
 
-For manual setup, choose **Show Manual Setup**, then use **Show in Finder**. Once Finder reveals the internal Launcher, hold Command and drag it into the Finder toolbar. The instructions no longer take focus back from Finder after the reveal.
+For manual setup, choose **Show Manual Setup**, then use **Show in Finder**. If the toolbar already contains a button from an earlier copy of Go2Codex, first hold Command and drag that old button out. Once Finder reveals the current internal Launcher, hold Command and drag it into the Finder toolbar. The instructions no longer take focus back from Finder after the reveal.
 
 Because Finder offers no public compare-and-swap API for this private preference, user confirmation and the recovery journal reduce risk but cannot make the read-modify-write operation atomic against another process changing the toolbar at exactly the same time. If you do not accept that limitation, cancel and use the manual Command-drag path.
 
@@ -112,9 +112,9 @@ Merge the reviewed release commit into `main` and wait for CI to pass. From a cl
 git switch main
 git pull --ff-only origin main
 Scripts/test-github-release.sh
-Scripts/package-github-release.sh --validate-only v0.1.0-preview.3
-git tag -a v0.1.0-preview.3 -m "Go2Codex 0.1.0 preview 3"
-git push origin v0.1.0-preview.3
+Scripts/package-github-release.sh --validate-only v0.1.0-preview.4
+git tag -a v0.1.0-preview.4 -m "Go2Codex 0.1.0 preview 4"
+git push origin v0.1.0-preview.4
 ```
 
 Pushing the tag is the publication action; never push a release tag merely to test the workflow. Keep the `v*-preview.*` tag-protection ruleset active, and never move or delete a published release tag. The workflow builds and verifies an ad-hoc-signed arm64 app, checks the ZIP round trip and SHA-256, and publishes a GitHub pre-release that is not marked as the latest stable release. After publication, download both assets, verify the checksum, confirm the documented Gatekeeper override, and manually test the supported Finder and target matrix.

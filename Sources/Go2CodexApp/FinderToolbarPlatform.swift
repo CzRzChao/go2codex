@@ -34,7 +34,7 @@ enum FinderToolbarMutationRecoveryResult: Equatable, Sendable {
 
 @MainActor
 final class FinderToolbarSettingsService: ToolbarSettingsServing, ToolbarAutomaticMutationCapability {
-    let supportsAutomaticMutation = true
+    private(set) var supportsAutomaticMutation = false
 
     private let inspector: FinderToolbarPlatformInspecting
     private let mutationExecutor: any FinderToolbarMutationExecuting
@@ -73,6 +73,7 @@ final class FinderToolbarSettingsService: ToolbarSettingsServing, ToolbarAutomat
 
     func currentStatus() async -> ToolbarSettingsStatus {
         var inspection = inspector.inspect()
+        updateAutomaticMutationCapability(from: inspection)
         if case let .verified(context, _) = inspection,
            let profile = FinderToolbarProfileRegistry.profile(for: context.environment),
            case let .verified(identity) = context.launcherIdentity {
@@ -84,6 +85,7 @@ final class FinderToolbarSettingsService: ToolbarSettingsServing, ToolbarAutomat
                 break
             case .recovered:
                 inspection = inspector.inspect()
+                updateAutomaticMutationCapability(from: inspection)
             case .manualInterventionRequired:
                 logger.error("Interrupted Finder toolbar transaction requires manual recovery")
                 return .manualSetupRequired
@@ -109,6 +111,16 @@ final class FinderToolbarSettingsService: ToolbarSettingsServing, ToolbarAutomat
             logger.notice("Read-only Finder toolbar inspection unavailable reason=\(String(describing: reason), privacy: .public)")
             return .manualSetupRequired
         }
+    }
+
+    private func updateAutomaticMutationCapability(
+        from inspection: FinderToolbarPlatformInspection
+    ) {
+        guard case let .verified(_, automaticActionsLocationEligible) = inspection else {
+            supportsAutomaticMutation = false
+            return
+        }
+        supportsAutomaticMutation = automaticActionsLocationEligible
     }
 
     func perform(_ action: ToolbarSettingsAction) async -> ToolbarSettingsActionResult {
@@ -242,8 +254,8 @@ final class FinderToolbarSettingsService: ToolbarSettingsServing, ToolbarAutomat
         alert.alertStyle = .informational
         alert.messageText = NSLocalizedString("Manual Finder Setup", comment: "Finder toolbar manual setup title")
         alert.informativeText = NSLocalizedString(
-            "In the Finder window, hold Command (⌘) and drag Go2Codex into the toolbar.",
-            comment: "Command-drag the nested Launcher into Finder's toolbar"
+            "If an older Go2Codex button is already present, first hold Command (⌘) and drag it out of the toolbar. Then hold Command and drag the revealed Go2Codex into the toolbar.",
+            comment: "Replace an old toolbar item and Command-drag the nested Launcher into Finder's toolbar"
         )
         alert.addButton(withTitle: NSLocalizedString("Show in Finder", comment: "Reveal the toolbar Launcher in Finder"))
         alert.addButton(withTitle: NSLocalizedString("Cancel", comment: "Cancel manual Finder setup"))
@@ -705,7 +717,17 @@ final class FinderToolbarPlatformInspector: FinderToolbarPlatformInspecting {
     }
 
     func embeddedLauncherURL() -> Result<URL, FinderToolbarPlatformFailure> {
-        launcherIdentity().flatMap { inspection in
+        if let outerIdentifier = outerBundle.bundleIdentifier,
+           let variant = FinderToolbarPlatformPolicy.applicationVariant(
+               outerBundleIdentifier: outerIdentifier
+           ),
+           !automaticActionsLocationEligible(
+               outerURL: outerBundle.bundleURL.standardizedFileURL,
+               variant: variant
+           ) {
+            return .failure(.unstableReleaseLocation)
+        }
+        return launcherIdentity().flatMap { inspection in
             guard inspection.automaticActionsLocationEligible else {
                 return .failure(.unstableReleaseLocation)
             }

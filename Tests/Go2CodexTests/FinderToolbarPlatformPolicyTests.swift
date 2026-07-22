@@ -8,6 +8,21 @@ struct FinderToolbarPlatformPolicyTests {
     func bundleIdentifierPairsAreClosedAndVariantSpecific() {
         #expect(
             FinderToolbarPlatformPolicy.applicationVariant(
+                outerBundleIdentifier: "io.github.czrzchao.go2codex"
+            ) == .release
+        )
+        #expect(
+            FinderToolbarPlatformPolicy.applicationVariant(
+                outerBundleIdentifier: "io.github.czrzchao.go2codex.debug"
+            ) == .debug
+        )
+        #expect(
+            FinderToolbarPlatformPolicy.applicationVariant(
+                outerBundleIdentifier: "example.invalid"
+            ) == nil
+        )
+        #expect(
+            FinderToolbarPlatformPolicy.applicationVariant(
                 outerBundleIdentifier: "io.github.czrzchao.go2codex",
                 launcherBundleIdentifier: "io.github.czrzchao.go2codex.launcher"
             ) == .release
