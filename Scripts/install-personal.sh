@@ -57,6 +57,7 @@ expected_outer_inode=""
 expected_inner_inode=""
 candidate_expected_tree=""
 expected_previous_release_tree=""
+previous_inner_path="$target_app/Contents/Helpers/Go2CodexLauncher.app"
 
 [[ -d "$applications_dir" && ! -L "$applications_dir" ]] || safety_die "the user Applications directory is missing or unsafe"
 assert_exact_path "$target_app" "$user_home/Applications/Go2Codex.app" "Personal Release path"
@@ -117,7 +118,9 @@ release_verify_callback() {
     [[ -n "$candidate_expected_tree" && "$installed_tree" == "$candidate_expected_tree" ]] || return 1
     if [[ -n "$expected_outer_inode" ]]; then
         [[ "$(/usr/bin/stat -f '%i' "$installed")" == "$expected_outer_inode" ]] || return 1
-        [[ "$(/usr/bin/stat -f '%i' "$installed/Contents/Applications/Go2CodexLauncher.app")" == "$expected_inner_inode" ]] || return 1
+    fi
+    if [[ -n "$expected_inner_inode" ]]; then
+        [[ "$(/usr/bin/stat -f '%i' "$installed/Contents/Helpers/Go2CodexLauncher.app")" == "$expected_inner_inode" ]] || return 1
     fi
     return 0
 }
@@ -485,7 +488,7 @@ candidate_actual_outer_requirement="$(designated_requirement_hash "$candidate_ap
     || safety_die "candidate signing team does not match its manifest"
 [[ "$candidate_actual_outer_requirement" == "$candidate_expected_outer_requirement" ]] \
     || safety_die "candidate outer signing requirement does not match its manifest"
-candidate_inner="$candidate_app/Contents/Applications/Go2CodexLauncher.app"
+candidate_inner="$candidate_app/Contents/Helpers/Go2CodexLauncher.app"
 candidate_actual_inner_requirement="$(designated_requirement_hash "$candidate_inner")" || safety_die "candidate Launcher signing requirement could not be inspected"
 [[ "$candidate_actual_inner_requirement" == "$candidate_expected_inner_requirement" ]] \
     || safety_die "candidate Launcher signing requirement does not match its manifest"
@@ -520,7 +523,7 @@ smoke_actual_sha="$(/usr/bin/shasum -a 256 "$smoke_manifest" | /usr/bin/awk '{ p
 debug_actual_tree="$(tree_fingerprint "$debug_app")" || safety_die "installed Debug fingerprint failed"
 debug_actual_team="$(team_identifier "$debug_app")" || safety_die "installed Debug signing team could not be inspected"
 debug_actual_outer_requirement="$(designated_requirement_hash "$debug_app")" || safety_die "installed Debug outer signing requirement could not be inspected"
-debug_actual_inner_requirement="$(designated_requirement_hash "$debug_app/Contents/Applications/Go2CodexLauncher.app")" || safety_die "installed Debug Launcher signing requirement could not be inspected"
+debug_actual_inner_requirement="$(designated_requirement_hash "$debug_app/Contents/Helpers/Go2CodexLauncher.app")" || safety_die "installed Debug Launcher signing requirement could not be inspected"
 [[ "$debug_actual_tree" == "$smoke_expected_tree" ]] \
     || safety_die "installed Debug changed after the passing smoke check"
 [[ -n "$debug_actual_team" && "$debug_actual_team" == "$candidate_expected_team" ]] \
@@ -553,10 +556,14 @@ if [[ -e "$target_app" ]]; then
     previous_tree="$(tree_fingerprint "$target_app")"
     expected_previous_release_tree="$previous_tree"
     previous_outer_requirement="$(designated_requirement_hash "$target_app")"
-    previous_inner_requirement="$(designated_requirement_hash "$target_app/Contents/Applications/Go2CodexLauncher.app")"
+    previous_inner_path="$(compatible_launcher_path "$target_app")" \
+        || safety_die "installed Personal Release Launcher location is missing, ambiguous, or unsafe"
+    previous_inner_requirement="$(designated_requirement_hash "$previous_inner_path")"
     assert_newer_build_number "$candidate_build_version" "$previous_build"
     expected_outer_inode="$(/usr/bin/stat -f '%i' "$target_app")"
-    expected_inner_inode="$(/usr/bin/stat -f '%i' "$target_app/Contents/Applications/Go2CodexLauncher.app")"
+    if [[ "$previous_inner_path" == "$target_app/Contents/Helpers/Go2CodexLauncher.app" ]]; then
+        expected_inner_inode="$(/usr/bin/stat -f '%i' "$previous_inner_path")"
+    fi
 fi
 
 if [[ "$install_mode" == "normal" ]]; then
@@ -571,7 +578,7 @@ fi
 
 terminate_exact_app_processes \
     "$target_app/Contents/MacOS/Go2Codex" \
-    "$target_app/Contents/Applications/Go2CodexLauncher.app/Contents/MacOS/Go2CodexLauncher"
+    "$previous_inner_path/Contents/MacOS/Go2CodexLauncher"
 
 if [[ ! -e "$backup_root" ]]; then
     /bin/mkdir "$backup_root"

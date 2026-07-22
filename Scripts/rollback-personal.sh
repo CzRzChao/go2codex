@@ -41,6 +41,8 @@ current_build=""
 current_tree=""
 expected_outer_inode=""
 expected_inner_inode=""
+current_inner_path=""
+restore_inner_path=""
 rollback_complete=0
 release_state_owned=0
 
@@ -122,6 +124,7 @@ rollback_verify_callback() {
     local staged="$2"
     local installed_tree
     local staged_tree
+    local installed_inner_path
     "$script_dir/verify-app.sh" \
         "$installed" \
         Release \
@@ -135,7 +138,10 @@ rollback_verify_callback() {
     [[ "$installed_tree" == "$staged_tree" ]] || return 1
     [[ -n "$restore_tree" && "$installed_tree" == "$restore_tree" ]] || return 1
     [[ "$(/usr/bin/stat -f '%i' "$installed")" == "$expected_outer_inode" ]] || return 1
-    [[ "$(/usr/bin/stat -f '%i' "$installed/Contents/Applications/Go2CodexLauncher.app")" == "$expected_inner_inode" ]] || return 1
+    if [[ -n "$expected_inner_inode" ]]; then
+        installed_inner_path="$(compatible_launcher_path "$installed")" || return 1
+        [[ "$(/usr/bin/stat -f '%i' "$installed_inner_path")" == "$expected_inner_inode" ]] || return 1
+    fi
     return 0
 }
 
@@ -503,6 +509,8 @@ current_build="$(manifest_value "$last_install_manifest" NEW_BUILD_VERSION)"
     --content compatible \
     --marketing-version "$current_marketing" \
     --build-version "$current_build"
+current_inner_path="$(compatible_launcher_path "$target_app")" \
+    || safety_die "installed Release Launcher location is missing, ambiguous, or unsafe"
 
 backup_file="$(manifest_value "$last_install_manifest" BACKUP_FILE)"
 backup_sha="$(manifest_value "$last_install_manifest" BACKUP_SHA256)"
@@ -541,12 +549,16 @@ extracted_restore_tree="$(tree_fingerprint "$restore_source")" || safety_die "ex
     --content compatible \
     --marketing-version "$restore_marketing" \
     --build-version "$restore_build"
+restore_inner_path="$(compatible_launcher_path "$restore_source")" \
+    || safety_die "rollback Launcher location is missing, ambiguous, or unsafe"
 
 terminate_exact_app_processes \
     "$target_app/Contents/MacOS/Go2Codex" \
-    "$target_app/Contents/Applications/Go2CodexLauncher.app/Contents/MacOS/Go2CodexLauncher"
+    "$current_inner_path/Contents/MacOS/Go2CodexLauncher"
 expected_outer_inode="$(/usr/bin/stat -f '%i' "$target_app")"
-expected_inner_inode="$(/usr/bin/stat -f '%i' "$target_app/Contents/Applications/Go2CodexLauncher.app")"
+if [[ "${current_inner_path#"$target_app"/}" == "${restore_inner_path#"$restore_source"/}" ]]; then
+    expected_inner_inode="$(/usr/bin/stat -f '%i' "$current_inner_path")"
+fi
 
 last_install_sha="$(/usr/bin/shasum -a 256 "$last_install_manifest" | /usr/bin/awk '{ print $1 }')"
 [[ -n "$last_install_sha" ]] || safety_die "last installation record checksum is empty"

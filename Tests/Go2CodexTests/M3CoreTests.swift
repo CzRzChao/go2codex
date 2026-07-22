@@ -84,12 +84,16 @@ struct M3DomainTests {
         let invalid: WorkspaceValidationError? = capturedError {
             try Workspace(absolutePath: "/bad\0path")
         }
+        let encodedInvalid: WorkspaceValidationError? = capturedError {
+            try Workspace(fileURL: URL(string: "file:///bad%00path")!)
+        }
         let nonFile: WorkspaceValidationError? = capturedError {
             try Workspace(fileURL: URL(string: "https://example.com")!)
         }
         #expect(empty == .emptyPath)
         #expect(relative == .nonAbsolutePath)
         #expect(invalid == .invalidPath)
+        #expect(encodedInvalid == .invalidPath)
         #expect(nonFile == .nonFileURL)
     }
 
@@ -845,8 +849,8 @@ struct M3DiagnosticsTests {
 
     @Test
     func aliasAgreementAllowsStaleMatchingAndRejectsAmbiguity() throws {
-        let expected = URL(fileURLWithPath: "/Applications/Go2Codex.app/Contents/Applications/Go2CodexLauncher.app")
-        let equivalent = URL(fileURLWithPath: "/Applications/Go2Codex.app/Contents/Applications/./Go2CodexLauncher.app")
+        let expected = URL(fileURLWithPath: "/Applications/Go2Codex.app/Contents/Helpers/Go2CodexLauncher.app")
+        let equivalent = URL(fileURLWithPath: "/Applications/Go2Codex.app/Contents/Helpers/./Go2CodexLauncher.app")
         let resolution = AliasResolution(fileURL: equivalent, bookmarkDataWasStale: true)
         #expect(try FinderAliasAgreement.validate(
             resolution: resolution,

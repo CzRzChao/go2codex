@@ -12,14 +12,14 @@ fi
 
 sdk_path="${GO2CODEX_SDK_PATH:-$(xcrun --sdk macosx --show-sdk-path)}"
 swiftc_path="$(xcrun --find swiftc)"
-swift_flags=()
+swiftc_command=("$swiftc_path")
 
 if [[ -n "${GO2CODEX_SWIFTC_VFS_OVERLAY:-}" ]]; then
-    swift_flags+=("-vfsoverlay" "$GO2CODEX_SWIFTC_VFS_OVERLAY")
+    swiftc_command+=("-vfsoverlay" "$GO2CODEX_SWIFTC_VFS_OVERLAY")
 fi
 
 outer_app="$output_root/Go2Codex Debug.app"
-launcher_app="$outer_app/Contents/Applications/Go2CodexToolbarLauncherDebug.app"
+launcher_app="$outer_app/Contents/Helpers/Go2CodexToolbarLauncherDebug.app"
 tool_dir="$output_root/.tools"
 iconset_dir="$tool_dir/Go2Codex.iconset"
 
@@ -33,19 +33,19 @@ mkdir -p \
 cp "$script_dir/Resources/Settings-Info.plist" "$outer_app/Contents/Info.plist"
 cp "$script_dir/Resources/Launcher-Info.plist" "$launcher_app/Contents/Info.plist"
 
-"$swiftc_path" "${swift_flags[@]}" \
+"${swiftc_command[@]}" \
     -sdk "$sdk_path" \
     -target arm64-apple-macosx14.0 \
     "$script_dir/Sources/SettingsProbe.swift" \
     -o "$outer_app/Contents/MacOS/Go2CodexSettingsDebug"
 
-"$swiftc_path" "${swift_flags[@]}" \
+"${swiftc_command[@]}" \
     -sdk "$sdk_path" \
     -target arm64-apple-macosx14.0 \
     "$script_dir/Sources/LauncherProbe.swift" \
     -o "$launcher_app/Contents/MacOS/Go2CodexToolbarLauncherDebug"
 
-"$swiftc_path" "${swift_flags[@]}" \
+"${swiftc_command[@]}" \
     -sdk "$sdk_path" \
     -target arm64-apple-macosx14.0 \
     "$script_dir/Sources/IconGenerator.swift" \

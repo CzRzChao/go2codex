@@ -85,9 +85,7 @@ while [[ $# -gt 0 ]]; do
             ;;
     esac
 done
-inner_path="$app_path/Contents/Applications/Go2CodexLauncher.app"
 outer_plist="$app_path/Contents/Info.plist"
-inner_plist="$inner_path/Contents/Info.plist"
 expected_marketing_version="${marketing_version_override:-$(/usr/bin/awk -F= '$1 ~ /^[[:space:]]*MARKETING_VERSION[[:space:]]*$/ { value=$2; gsub(/^[[:space:]]+|[[:space:]]+$/, "", value); print value; exit }' "$project_dir/Config/Base.xcconfig")}"
 expected_build_version="${build_version_override:-$(/usr/bin/awk -F= '$1 ~ /^[[:space:]]*CURRENT_PROJECT_VERSION[[:space:]]*$/ { value=$2; gsub(/^[[:space:]]+|[[:space:]]+$/, "", value); print value; exit }' "$project_dir/Config/Base.xcconfig")}"
 
@@ -277,6 +275,38 @@ localization_list() {
 [[ ! -L "$app_path" ]] || fail "outer app must not be a symbolic link"
 unexpected_symlink="$(/usr/bin/find "$app_path" -type l -print -quit)" || fail "application symbolic links could not be inspected"
 [[ -z "$unexpected_symlink" ]] || fail "application contains a symbolic link: ${unexpected_symlink#"$app_path"/}"
+current_inner_path="$app_path/Contents/Helpers/Go2CodexLauncher.app"
+legacy_inner_path="$app_path/Contents/Applications/Go2CodexLauncher.app"
+case "$content_contract" in
+    current)
+        [[ ! -e "$legacy_inner_path" && ! -L "$legacy_inner_path" ]] \
+            || fail "legacy embedded Launcher location is not allowed in current products"
+        inner_path="$current_inner_path"
+        ;;
+    compatible)
+        current_inner_present=0
+        legacy_inner_present=0
+        if [[ -e "$current_inner_path" || -L "$current_inner_path" ]]; then
+            [[ -d "$current_inner_path" && ! -L "$current_inner_path" ]] \
+                || fail "current embedded Launcher location is unsafe"
+            current_inner_present=1
+        fi
+        if [[ -e "$legacy_inner_path" || -L "$legacy_inner_path" ]]; then
+            [[ -d "$legacy_inner_path" && ! -L "$legacy_inner_path" ]] \
+                || fail "legacy embedded Launcher location is unsafe"
+            legacy_inner_present=1
+        fi
+        [[ $((current_inner_present + legacy_inner_present)) == 1 ]] \
+            || fail "compatible product must contain exactly one embedded Launcher"
+        if [[ "$current_inner_present" == "1" ]]; then
+            inner_path="$current_inner_path"
+        else
+            inner_path="$legacy_inner_path"
+        fi
+        ;;
+    *) fail "content contract must be current or compatible" ;;
+esac
+inner_plist="$inner_path/Contents/Info.plist"
 [[ -d "$inner_path" ]] || fail "embedded Launcher is missing"
 [[ -f "$outer_plist" ]] || fail "outer Info.plist is missing"
 [[ -f "$inner_plist" ]] || fail "Launcher Info.plist is missing"
@@ -321,11 +351,6 @@ case "$signing_mode" in
     adhoc|stable-local|developer-id) ;;
     *) fail "signing mode must be adhoc, stable-local, or developer-id" ;;
 esac
-case "$content_contract" in
-    current|compatible) ;;
-    *) fail "content contract must be current or compatible" ;;
-esac
-
 assert_equal "${app_path##*/}" "$expected_wrapper_name" "outer wrapper name"
 assert_equal "$outer_identifier" "$expected_outer_identifier" "outer bundle identifier"
 assert_equal "$(plist_value "$inner_plist" CFBundleIdentifier)" "$expected_inner_identifier" "Launcher bundle identifier"
@@ -432,8 +457,8 @@ fi
 assert_equal "$(localization_list "$app_path/Contents/Resources")" "en,zh-Hans" "outer packaged localizations"
 assert_equal "$(localization_list "$inner_path/Contents/Resources")" "en,zh-Hans" "Launcher packaged localizations"
 if [[ "$content_contract" == "current" ]]; then
-    assert_equal "$(plist_key_count "$app_path/Contents/Resources/zh-Hans.lproj/Localizable.strings")" "80" "outer Simplified Chinese string count"
-    assert_equal "$(plist_key_count "$inner_path/Contents/Resources/zh-Hans.lproj/Localizable.strings")" "80" "Launcher Simplified Chinese string count"
+    assert_equal "$(plist_key_count "$app_path/Contents/Resources/zh-Hans.lproj/Localizable.strings")" "97" "outer Simplified Chinese string count"
+    assert_equal "$(plist_key_count "$inner_path/Contents/Resources/zh-Hans.lproj/Localizable.strings")" "97" "Launcher Simplified Chinese string count"
 fi
 for strings_file in \
     "$app_path/Contents/Resources/zh-Hans.lproj/Localizable.strings" \
@@ -449,6 +474,10 @@ for strings_file in \
         assert_equal "$(plist_value "$strings_file" "Open a regular folder in Finder, then try again. Smart folders such as Recents cannot be used as a workspace.")" "请先在 Finder 中打开一个普通文件夹再重试。“最近使用”等智能文件夹不能作为工作目录。" "Finder virtual-view guidance localization"
         assert_equal "$(plist_value "$strings_file" "Go2Codex could not determine whether iTerm has a window")" "Go2Codex 无法判断 iTerm 是否有窗口" "iTerm window-state title localization"
         assert_equal "$(plist_value "$strings_file" "No terminal session was opened. Try again, or choose New Window in Go2Codex Settings.")" "未打开任何终端会话。请重试，或在 Go2Codex 设置中选择“新窗口”。" "iTerm window-state guidance localization"
+        assert_equal "$(plist_value "$strings_file" "Show in Finder")" "在 Finder 中显示" "manual Finder reveal localization"
+        assert_equal "$(plist_value "$strings_file" "Install and Restart Finder")" "安装并重启 Finder" "automatic Finder install localization"
+        assert_equal "$(plist_value "$strings_file" "Open Accessibility Settings")" "打开“辅助功能”设置" "Accessibility settings localization"
+        assert_equal "$(plist_value "$strings_file" "Automation permission is required for Terminal tabs")" "Terminal 标签页需要“自动化”权限" "Terminal tab Automation localization"
     fi
 done
 assert_equal "$(plist_key_count "$app_path/Contents/Resources/en.lproj/InfoPlist.strings")" "1" "outer English Info.plist string count"

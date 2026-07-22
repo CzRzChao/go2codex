@@ -325,6 +325,47 @@ public struct FinderToolbarProfile: Codable, Equatable, Sendable {
         trailingReservedItemCount: 2,
         semanticVerifierIdentifier: "finder-14.6-alias-enrichment-v1"
     )
+
+    public static let finder264Build25F84 = FinderToolbarProfile(
+        identifier: "finder-26.4-25F84-explicit-v1",
+        environment: FinderToolbarEnvironment(
+            macOSBuild: "25F84",
+            finderVersion: "26.4",
+            finderBundleVersion: "1828.5.2"
+        ),
+        scalarFields: [
+            "TB Display Mode": .integer(2),
+            "TB Icon Size Mode": .integer(1),
+            "TB Is Shown": .boolean(true),
+            "TB Size Mode": .integer(1),
+        ],
+        activeBaseline: [
+            "com.apple.finder.BACK",
+            "com.apple.finder.SWCH",
+            "NSToolbarSpaceItem",
+            "com.apple.finder.ARNG",
+            "NSToolbarSpaceItem",
+            "com.apple.finder.SHAR",
+            "com.apple.finder.LABL",
+            "com.apple.finder.ACTN",
+            "NSToolbarSpaceItem",
+            "com.apple.finder.SRCH",
+        ],
+        defaultIdentifiers: [
+            "com.apple.finder.BACK",
+            "com.apple.finder.SWCH",
+            "NSToolbarSpaceItem",
+            "com.apple.finder.ARNG",
+            "NSToolbarSpaceItem",
+            "com.apple.finder.SHAR",
+            "com.apple.finder.LABL",
+            "com.apple.finder.ACTN",
+            "NSToolbarSpaceItem",
+            "com.apple.finder.SRCH",
+        ],
+        trailingReservedItemCount: 1,
+        semanticVerifierIdentifier: "finder-26.4-alias-url-normalization-v1"
+    )
 }
 
 public enum FinderToolbarProfileMismatch: Codable, Equatable, Sendable {
@@ -342,6 +383,17 @@ public enum FinderToolbarProfileClassification: Equatable, Sendable {
 }
 
 public enum FinderToolbarProfileRegistry {
+    public static let supportedProfiles: [FinderToolbarProfile] = [
+        .finder146Build23G80,
+        .finder264Build25F84,
+    ]
+
+    public static func profile(
+        for environment: FinderToolbarEnvironment
+    ) -> FinderToolbarProfile? {
+        supportedProfiles.first { $0.environment == environment }
+    }
+
     public static func classify(
         environment: FinderToolbarEnvironment,
         snapshot: FinderToolbarSnapshot,
@@ -458,6 +510,7 @@ public struct FinderToolbarDetectionContext: Equatable, Sendable {
     public let receipt: FinderToolbarReceiptEvidence
     public let aliasResolutions: [Int: FinderToolbarAliasResolution]
     public let storedPathStates: [String: FinderToolbarStoredPathState]
+    public let legacyLauncherURLs: [URL]
 
     public init(
         snapshot: FinderToolbarSnapshot,
@@ -465,7 +518,8 @@ public struct FinderToolbarDetectionContext: Equatable, Sendable {
         launcherIdentity: FinderToolbarLauncherIdentityEvidence,
         receipt: FinderToolbarReceiptEvidence = .missing,
         aliasResolutions: [Int: FinderToolbarAliasResolution] = [:],
-        storedPathStates: [String: FinderToolbarStoredPathState] = [:]
+        storedPathStates: [String: FinderToolbarStoredPathState] = [:],
+        legacyLauncherURLs: [URL] = []
     ) {
         self.snapshot = snapshot
         self.environment = environment
@@ -473,6 +527,7 @@ public struct FinderToolbarDetectionContext: Equatable, Sendable {
         self.receipt = receipt
         self.aliasResolutions = aliasResolutions
         self.storedPathStates = storedPathStates
+        self.legacyLauncherURLs = legacyLauncherURLs
     }
 }
 
@@ -501,8 +556,17 @@ public enum FinderToolbarDetectionStatus: Equatable, Sendable {
 
 public enum FinderToolbarDetector {
     public static func detect(
+        _ context: FinderToolbarDetectionContext
+    ) -> FinderToolbarDetectionStatus {
+        guard let profile = FinderToolbarProfileRegistry.profile(for: context.environment) else {
+            return .manualSetupRequired(.unsupportedProfile(.environment))
+        }
+        return detect(context, profile: profile)
+    }
+
+    public static func detect(
         _ context: FinderToolbarDetectionContext,
-        profile: FinderToolbarProfile = .finder146Build23G80
+        profile: FinderToolbarProfile
     ) -> FinderToolbarDetectionStatus {
         guard case let .verified(identity) = context.launcherIdentity,
               canonicalFileURL(identity.url) != nil,
@@ -547,30 +611,56 @@ public enum FinderToolbarDetector {
         case .exactBeforeShape:
             return receiptIsInvalid ? .manualSetupRequired(.invalidReceipt) : .notInstalled
         case let .managedExplicitShape(_, layout):
-            var customEntries: [(index: Int, url: URL, payload: FinderToolbarItemPayload)] = []
+            var customEntries: [FinderToolbarDetectedCustomEntry] = []
             for index in layout.identifiers.indices
             where layout.identifiers[index] == FinderToolbarPreferenceKey.customItemIdentifier {
                 guard let payload = layout.itemPlists[index] else {
                     return .manualSetupRequired(.orphanCustomIdentifier(index))
                 }
-                guard let url = payloadFileURL(payload) else {
+                guard let storedURL = payloadStoredURL(payload) else {
                     return .manualSetupRequired(.invalidURL(index))
                 }
                 guard payload[FinderToolbarPreferenceKey.urlStringType] == .integer(15) else {
                     return .manualSetupRequired(.wrongURLType(index))
                 }
-                customEntries.append((index, url, payload))
+                customEntries.append(
+                    FinderToolbarDetectedCustomEntry(
+                        index: index,
+                        payload: payload,
+                        storedURL: storedURL
+                    )
+                )
             }
 
-            let currentMatches = customEntries.filter { fileURLsEqual($0.url, identity.url) }
+            let currentMatches = customEntries.filter {
+                $0.matches(
+                    identity.url,
+                    aliasResolution: context.aliasResolutions[$0.index] ?? .absent
+                )
+            }
             guard currentMatches.count <= 1 else {
                 return .manualSetupRequired(.duplicateOwnership)
             }
             if let current = currentMatches.first {
+                let otherLegacyMatches = customEntries.filter { entry in
+                    entry.index != current.index
+                        && context.legacyLauncherURLs.contains(where: { legacyURL in
+                            entry.matches(
+                                legacyURL,
+                                aliasResolution: context.aliasResolutions[entry.index] ?? .absent
+                            )
+                        })
+                }
+                guard otherLegacyMatches.isEmpty else {
+                    return .manualSetupRequired(.duplicateOwnership)
+                }
                 if let receipt = validReceipt,
                    !fileURLsEqual(receipt.lastVerifiedLauncherURL, identity.url) {
                     let receiptMatches = customEntries.filter {
-                        fileURLsEqual($0.url, receipt.lastVerifiedLauncherURL)
+                        $0.matches(
+                            receipt.lastVerifiedLauncherURL,
+                            aliasResolution: context.aliasResolutions[$0.index] ?? .absent
+                        )
                     }
                     guard receiptMatches.isEmpty else {
                         return .manualSetupRequired(.duplicateOwnership)
@@ -590,6 +680,27 @@ public enum FinderToolbarDetector {
             if customEntries.isEmpty {
                 return .notInstalled
             }
+
+            let legacyMatches = customEntries.compactMap { entry -> (Int, URL)? in
+                guard let legacyURL = context.legacyLauncherURLs.first(where: {
+                    entry.matches(
+                        $0,
+                        aliasResolution: context.aliasResolutions[entry.index] ?? .absent
+                    )
+                }) else {
+                    return nil
+                }
+                return (entry.index, legacyURL)
+            }
+            guard legacyMatches.count <= 1 else {
+                return .manualSetupRequired(.duplicateOwnership)
+            }
+            if let legacy = legacyMatches.first {
+                guard context.storedPathStates[canonicalFileURL(legacy.1) ?? ""] == .missing else {
+                    return .manualSetupRequired(.stalePathNotMissing)
+                }
+                return .needsRepair(index: legacy.0, staleURL: legacy.1)
+            }
             guard !receiptIsInvalid else {
                 return .manualSetupRequired(.invalidReceipt)
             }
@@ -597,7 +708,10 @@ public enum FinderToolbarDetector {
                 return .manualSetupRequired(.unmanagedExplicitShape)
             }
             let receiptMatches = customEntries.filter {
-                fileURLsEqual($0.url, receipt.lastVerifiedLauncherURL)
+                $0.matches(
+                    receipt.lastVerifiedLauncherURL,
+                    aliasResolution: context.aliasResolutions[$0.index] ?? .absent
+                )
             }
             guard receiptMatches.count <= 1 else {
                 return .manualSetupRequired(.duplicateOwnership)
@@ -605,10 +719,10 @@ public enum FinderToolbarDetector {
             guard let stale = receiptMatches.first else {
                 return .notInstalled
             }
-            guard !fileURLsEqual(stale.url, identity.url) else {
+            guard !fileURLsEqual(receipt.lastVerifiedLauncherURL, identity.url) else {
                 return .manualSetupRequired(.invalidReceipt)
             }
-            guard context.storedPathStates[canonicalFileURL(stale.url) ?? ""] == .missing else {
+            guard context.storedPathStates[canonicalFileURL(receipt.lastVerifiedLauncherURL) ?? ""] == .missing else {
                 return .manualSetupRequired(.stalePathNotMissing)
             }
             if let reason = aliasFailure(
@@ -619,7 +733,7 @@ public enum FinderToolbarDetector {
             ) {
                 return .manualSetupRequired(reason)
             }
-            return .needsRepair(index: stale.index, staleURL: stale.url)
+            return .needsRepair(index: stale.index, staleURL: receipt.lastVerifiedLauncherURL)
         }
     }
 
@@ -741,6 +855,7 @@ public enum FinderToolbarOwnership: Codable, Equatable, Sendable {
     case newEntry
     case currentLauncherURL
     case receipt(URL)
+    case legacy(URL)
 }
 
 public struct FinderToolbarMutationPlan: Codable, Equatable, Sendable {
@@ -791,8 +906,17 @@ public enum FinderToolbarMutationResult: Equatable, Sendable {
 
 public enum FinderToolbarMutationPlanner {
     public static func install(
+        _ context: FinderToolbarDetectionContext
+    ) -> FinderToolbarMutationResult {
+        guard let profile = FinderToolbarProfileRegistry.profile(for: context.environment) else {
+            return .blocked(.unsafe(.unsupportedProfile(.environment)))
+        }
+        return install(context, profile: profile)
+    }
+
+    public static func install(
         _ context: FinderToolbarDetectionContext,
-        profile: FinderToolbarProfile = .finder146Build23G80
+        profile: FinderToolbarProfile
     ) -> FinderToolbarMutationResult {
         switch FinderToolbarDetector.detect(context, profile: profile) {
         case .installed:
@@ -814,8 +938,8 @@ public enum FinderToolbarMutationPlanner {
                     defaultIdentifiers: profile.defaultIdentifiers,
                     itemPlists: [:]
                 )
-            case .managedExplicitShape:
-                return .blocked(.unsafe(.unsupportedProfile(.explicitShape)))
+            case let .managedExplicitShape(_, currentLayout):
+                layout = currentLayout
             case let .unsupported(reason):
                 return .blocked(.unsafe(.unsupportedProfile(reason)))
             }
@@ -851,8 +975,17 @@ public enum FinderToolbarMutationPlanner {
     }
 
     public static func repair(
+        _ context: FinderToolbarDetectionContext
+    ) -> FinderToolbarMutationResult {
+        guard let profile = FinderToolbarProfileRegistry.profile(for: context.environment) else {
+            return .blocked(.unsafe(.unsupportedProfile(.environment)))
+        }
+        return repair(context, profile: profile)
+    }
+
+    public static func repair(
         _ context: FinderToolbarDetectionContext,
-        profile: FinderToolbarProfile = .finder146Build23G80
+        profile: FinderToolbarProfile
     ) -> FinderToolbarMutationResult {
         let status = FinderToolbarDetector.detect(context, profile: profile)
         switch status {
@@ -886,15 +1019,26 @@ public enum FinderToolbarMutationPlanner {
                     before: context.snapshot,
                     expected: context.snapshot.replacingLayout(updated),
                     affectedIndex: index,
-                    ownership: .receipt(staleURL)
+                    ownership: context.legacyLauncherURLs.contains(where: {
+                        fileURLsEqual($0, staleURL)
+                    }) ? .legacy(staleURL) : .receipt(staleURL)
                 )
             )
         }
     }
 
     public static func uninstall(
+        _ context: FinderToolbarDetectionContext
+    ) -> FinderToolbarMutationResult {
+        guard let profile = FinderToolbarProfileRegistry.profile(for: context.environment) else {
+            return .blocked(.unsafe(.unsupportedProfile(.environment)))
+        }
+        return uninstall(context, profile: profile)
+    }
+
+    public static func uninstall(
         _ context: FinderToolbarDetectionContext,
-        profile: FinderToolbarProfile = .finder146Build23G80
+        profile: FinderToolbarProfile
     ) -> FinderToolbarMutationResult {
         let status = FinderToolbarDetector.detect(context, profile: profile)
         let index: Int
@@ -905,7 +1049,9 @@ public enum FinderToolbarMutationPlanner {
             ownership = .currentLauncherURL
         case let .needsRepair(staleIndex, staleURL):
             index = staleIndex
-            ownership = .receipt(staleURL)
+            ownership = context.legacyLauncherURLs.contains(where: {
+                fileURLsEqual($0, staleURL)
+            }) ? .legacy(staleURL) : .receipt(staleURL)
         case .notInstalled:
             return .noChange(.alreadyNotInstalled)
         case let .manualSetupRequired(reason):
@@ -975,8 +1121,20 @@ public enum FinderToolbarSemanticVerifier {
         }
         var normalizedPayload = observedPayload
         normalizedPayload.removeValue(forKey: FinderToolbarPreferenceKey.aliasData)
-        guard normalizedPayload == expectedPayload else {
+        guard case let .absoluteFileURL(expectedURL)? = payloadStoredURL(expectedPayload) else {
             return .rejected(.unexpectedDifference)
+        }
+
+        if normalizedPayload != expectedPayload {
+            guard case .finderFileReference? = payloadStoredURL(normalizedPayload) else {
+                return .rejected(.unexpectedDifference)
+            }
+            normalizedPayload[FinderToolbarPreferenceKey.urlString] = expectedPayload[
+                FinderToolbarPreferenceKey.urlString
+            ]
+            guard normalizedPayload == expectedPayload else {
+                return .rejected(.unexpectedDifference)
+            }
         }
         var normalizedItemPlists = observedLayout.itemPlists
         normalizedItemPlists[plan.affectedIndex] = normalizedPayload
@@ -985,8 +1143,7 @@ public enum FinderToolbarSemanticVerifier {
             defaultIdentifiers: observedLayout.defaultIdentifiers,
             itemPlists: normalizedItemPlists
         )
-        guard observed.replacingLayout(normalizedLayout) == plan.expected,
-              let expectedURL = payloadFileURL(expectedPayload) else {
+        guard observed.replacingLayout(normalizedLayout) == plan.expected else {
             return .rejected(.unexpectedDifference)
         }
         switch aliasResolution {
@@ -1114,6 +1271,7 @@ public enum FinderToolbarJournalValidator {
 
 public enum FinderToolbarSerializationBoundary: Equatable, Sendable {
     case established(String)
+    case experimentalBestEffort(String)
     case unavailable
 }
 
@@ -1136,7 +1294,14 @@ public enum FinderToolbarPreMutationGate {
         guard case let .valid(validJournal) = journal, validJournal.plan == plan else {
             return .rejectJournal
         }
-        guard case let .established(identifier) = serializationBoundary, !identifier.isEmpty else {
+        let boundaryIdentifier: String?
+        switch serializationBoundary {
+        case let .established(identifier), let .experimentalBestEffort(identifier):
+            boundaryIdentifier = identifier
+        case .unavailable:
+            boundaryIdentifier = nil
+        }
+        guard let boundaryIdentifier, !boundaryIdentifier.isEmpty else {
             return .rejectSerializationBoundary
         }
         guard disk == live else {
@@ -1320,13 +1485,69 @@ public enum FinderToolbarFaultPlanner {
     }
 }
 
-private func payloadFileURL(_ payload: FinderToolbarItemPayload) -> URL? {
-    guard case let .string(string)? = payload[FinderToolbarPreferenceKey.urlString],
+private struct FinderToolbarDetectedCustomEntry {
+    let index: Int
+    let payload: FinderToolbarItemPayload
+    let storedURL: FinderToolbarStoredURL
+
+    func matches(
+        _ expectedURL: URL,
+        aliasResolution: FinderToolbarAliasResolution
+    ) -> Bool {
+        switch storedURL {
+        case let .absoluteFileURL(url):
+            fileURLsEqual(url, expectedURL)
+        case .finderFileReference:
+            aliasURLsEqual(aliasResolution, expectedURL)
+        }
+    }
+}
+
+private enum FinderToolbarStoredURL {
+    case absoluteFileURL(URL)
+    case finderFileReference(String)
+}
+
+private let finderFileReferencePrefix = "file:///.file/id="
+
+private func payloadStoredURL(
+    _ payload: FinderToolbarItemPayload
+) -> FinderToolbarStoredURL? {
+    guard case let .string(string)? = payload[FinderToolbarPreferenceKey.urlString] else {
+        return nil
+    }
+    if isValidFinderFileReference(string) {
+        return .finderFileReference(string)
+    }
+    guard !string.hasPrefix(finderFileReferencePrefix),
           let url = URL(string: string),
           canonicalFileURL(url) != nil else {
         return nil
     }
-    return url
+    return .absoluteFileURL(url)
+}
+
+private func isValidFinderFileReference(
+    _ string: String
+) -> Bool {
+    guard string.hasPrefix(finderFileReferencePrefix),
+          string.hasSuffix("/") else {
+        return false
+    }
+    let identifier = string
+        .dropFirst(finderFileReferencePrefix.count)
+        .dropLast()
+    let components = identifier.split(
+        separator: ".",
+        omittingEmptySubsequences: false
+    )
+    return components.count == 2
+        && components.allSatisfy { component in
+            !component.isEmpty
+                && component.utf8.allSatisfy { byte in
+                    byte >= 48 && byte <= 57
+                }
+        }
 }
 
 private func canonicalFileURL(_ url: URL) -> String? {
@@ -1341,4 +1562,14 @@ private func fileURLsEqual(_ lhs: URL, _ rhs: URL) -> Bool {
         return false
     }
     return left == right
+}
+
+private func aliasURLsEqual(
+    _ resolution: FinderToolbarAliasResolution,
+    _ expectedURL: URL
+) -> Bool {
+    guard case let .resolved(url) = resolution else {
+        return false
+    }
+    return fileURLsEqual(url, expectedURL)
 }

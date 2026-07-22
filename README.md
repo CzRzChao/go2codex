@@ -28,7 +28,7 @@ Download both files into the same directory and verify the archive before extrac
 shasum -a 256 -c Go2Codex-0.1.0-preview.1-macos-arm64.zip.sha256
 ```
 
-Then extract the ZIP and move `Go2Codex.app` into `/Applications` or `~/Applications`. Preview updates are manual: download and verify the newer archive, quit Go2Codex, and replace the existing app. Because each preview is ad-hoc signed, macOS may ask you to grant Finder, Terminal, or iTerm Automation access again after an update; review the prompts and the Go2Codex entry under **System Settings** → **Privacy & Security** → **Automation**.
+Then extract the ZIP and move `Go2Codex.app` into `/Applications` or `~/Applications`. Preview updates are manual: download and verify the newer archive, quit Go2Codex, and replace the existing app. Because each preview is ad-hoc signed, macOS may ask you to grant Finder, Terminal, iTerm2, or System Events Automation access again after an update; review the prompts and the Go2Codex entry under **System Settings** → **Privacy & Security** → **Automation**. Terminal New Tab additionally needs Go2Codex enabled under **Accessibility**.
 
 ## Supported matrix
 
@@ -43,6 +43,7 @@ Four **Agent Targets** (fixed order) × two **Terminal Hosts**:
 
 - **Desktop targets** open through the target's application URL scheme. Go2Codex resolves the handler by exact bundle identifier, so another app cannot hijack the scheme. Any trust or confirmation prompt after handoff belongs to the target app.
 - **CLI targets** open a new terminal session, `cd` into the Workspace, and submit only the fixed `codex` or `claude` command (no extra arguments). What happens after that belongs to the terminal and the CLI.
+- **New Window and New Tab** are supported for both CLI targets in Terminal.app and iTerm2. Terminal New Tab uses System Events to send Command-T, so it explicitly requests System Events Automation and Accessibility before submitting a command. Denied permission, a failed shortcut, or an unconfirmed new tab stops cleanly without submitting the CLI command. New Window does not require Accessibility.
 
 The **Workspace** is always the exact folder of the frontmost Finder window. Selected items, Git roots, the Desktop, and your home folder are never substituted. If Finder has no open window (or shows a non-file/virtual location), the launch fails cleanly instead of guessing.
 
@@ -60,11 +61,19 @@ The override might be unavailable on an organization-managed Mac. A future stabl
 
 ## Installing the toolbar button
 
-Go2Codex uses a **dual-entry architecture**: one `Go2Codex.app` contains both the Settings app and an embedded toolbar launcher. Installation into the Finder toolbar is a guided **manual** step (Go2Codex never edits Finder's toolbar for you).
+Go2Codex uses a **dual-entry architecture**: one searchable `Go2Codex.app` contains the Settings app and an internal toolbar Launcher under `Contents/Helpers`.
 
 1. Move `Go2Codex.app` into `/Applications` or `~/Applications`.
-2. Launch Go2Codex to open **Settings** and complete first-run setup (choose your Default Target and Default Terminal Host).
-3. In the **Finder Toolbar** section, follow the guided reveal, then **hold Command and drag** the Go2Codex button into the Finder toolbar.
+2. Launch Go2Codex and choose your Default Target and Default Terminal Host.
+3. Choose **Install in Finder**, review the warning, then confirm **Install and Restart Finder**.
+
+Automatic setup is experimental. It updates the current user's private Finder toolbar preference, creates an app-owned recovery journal before writing, verifies the exact pre-write value again, preserves unrelated toolbar items, restarts Finder, and checks Finder's normalized result. It runs only for an exact recognized macOS/Finder build and toolbar shape. Unknown builds, malformed or ambiguous layouts, and failed verification perform no automatic write and fall back to manual setup.
+
+This preview recognizes macOS build `23G80` with Finder `14.6 (1632.6.3)`, and macOS build `25F84` with Finder `26.4 (1828.5.2)`. Even a patch-level mismatch uses manual setup until it is separately profiled.
+
+For manual setup, choose **Show Manual Setup**, then use **Show in Finder**. Once Finder reveals the internal Launcher, hold Command and drag it into the Finder toolbar. The instructions no longer take focus back from Finder after the reveal.
+
+Because Finder offers no public compare-and-swap API for this private preference, user confirmation and the recovery journal reduce risk but cannot make the read-modify-write operation atomic against another process changing the toolbar at exactly the same time. If you do not accept that limitation, cancel and use the manual Command-drag path.
 
 Usage once installed:
 
@@ -75,9 +84,8 @@ To remove it, the Settings app shows you how to hold Command and drag the button
 
 ## Known limitations
 
-- **Terminal.app cannot safely create a new tab when a window already exists.** In that case Go2Codex fails before submitting a command. If Terminal has no window, New Tab creates a new command-bearing window instead. **iTerm2 supports new tabs.**
 - **Option-click is not supported** as a trigger. Finder reserves Option-click on toolbar items and may close the source window before the Workspace can be resolved. Only Shift-click (or disabled) is offered as the Alternate Trigger.
-- **No automatic toolbar install/repair/uninstall.** All toolbar setup and removal is the manual Command-drag path.
+- **Automatic Finder setup is private and build-specific.** It is enabled only for exact profiled Finder builds; every other build uses the manual Command-drag path. Finder has no public atomic transaction for this preference, so a very small concurrent-update race remains even on a recognized build.
 - **Local only.** Go2Codex makes no network requests and performs no telemetry, crash reporting, background monitoring, or auto-update. GitHub preview updates are downloaded manually.
 - **Apple Silicon only.**
 

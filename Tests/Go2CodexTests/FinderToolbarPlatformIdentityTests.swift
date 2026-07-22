@@ -3,10 +3,10 @@ import Go2CodexCore
 import Testing
 
 private let outerInfoPath = "Contents/Info.plist"
-private let launcherRelativePath = "Contents/Applications/Go2CodexLauncher.app"
-private let launcherInfoPath = "Contents/Applications/Go2CodexLauncher.app/Contents/Info.plist"
+private let launcherRelativePath = "Contents/Helpers/Go2CodexLauncher.app"
+private let launcherInfoPath = "Contents/Helpers/Go2CodexLauncher.app/Contents/Info.plist"
 private let outerExecutablePath = "Contents/MacOS/Go2CodexFixture"
-private let launcherExecutablePath = "Contents/Applications/Go2CodexLauncher.app/Contents/MacOS/Go2CodexLauncher"
+private let launcherExecutablePath = "Contents/Helpers/Go2CodexLauncher.app/Contents/MacOS/Go2CodexLauncher"
 private let outerBundleIdentifier = "io.github.czrzchao.go2codex.debug"
 private let launcherBundleIdentifier = "io.github.czrzchao.go2codex.debug.launcher"
 private let preferencesDomain = "io.github.czrzchao.go2codex.debug"
@@ -103,10 +103,10 @@ private final class FinderToolbarIdentityFixture {
 
     func replaceLauncherPathWithSymlink(_ part: IdentitySymlinkPart) throws {
         let fileManager = FileManager.default
-        let applicationsURL = applicationURL.appendingPathComponent("Contents/Applications", isDirectory: true)
+        let applicationsURL = applicationURL.appendingPathComponent("Contents/Helpers", isDirectory: true)
         switch part {
         case .parent:
-            let realApplicationsURL = applicationURL.appendingPathComponent("Contents/RealApplications", isDirectory: true)
+            let realApplicationsURL = applicationURL.appendingPathComponent("Contents/RealHelpers", isDirectory: true)
             try fileManager.moveItem(at: applicationsURL, to: realApplicationsURL)
             try fileManager.createSymbolicLink(at: applicationsURL, withDestinationURL: realApplicationsURL)
         case .leaf:
@@ -172,8 +172,12 @@ private final class FinderToolbarIdentityFixture {
 
     private static func currentTestExecutableURL() throws -> URL {
         let bundle = Bundle(for: FinderToolbarIdentityTestAnchor.self)
-        guard let executableURL = bundle.executableURL,
-              FileManager.default.fileExists(atPath: executableURL.path) else {
+        let executableURL = [bundle.executableURL, Bundle.main.executableURL]
+            .compactMap { $0 }
+            .first {
+                FileManager.default.fileExists(atPath: $0.path)
+            }
+        guard let executableURL else {
             throw IdentityFixtureError.missingTestExecutable
         }
         return executableURL
@@ -324,6 +328,112 @@ private final class StubFinderToolbarPlatformInspector: FinderToolbarPlatformIns
     }
 }
 
+@MainActor
+private final class StubFinderToolbarMutationExecutor: FinderToolbarMutationExecuting {
+    var recoveryResult: FinderToolbarMutationRecoveryResult = .none
+    var executionResult = true
+
+    private(set) var recoveryCalls: [(FinderToolbarProfile, FinderToolbarLauncherIdentity)] = []
+    private(set) var executionPlans: [FinderToolbarMutationPlan] = []
+
+    func recoverIfNeeded(
+        profile: FinderToolbarProfile,
+        launcherIdentity: FinderToolbarLauncherIdentity
+    ) async -> FinderToolbarMutationRecoveryResult {
+        recoveryCalls.append((profile, launcherIdentity))
+        return recoveryResult
+    }
+
+    func execute(
+        plan: FinderToolbarMutationPlan,
+        profile: FinderToolbarProfile,
+        launcherIdentity: FinderToolbarLauncherIdentity
+    ) async -> Bool {
+        executionPlans.append(plan)
+        return executionResult
+    }
+}
+
+@MainActor
+private final class StubFinderToolbarMutationPlatform: FinderToolbarMutationPlatformAccessing {
+    var snapshot: FinderToolbarSnapshot
+    var writeResults: [Bool]
+    var restartResults: [Bool]
+    var receiptWriteResult = true
+    var receiptClearResult = true
+    let resolvedAliasURL: URL?
+
+    private(set) var writtenSnapshots: [FinderToolbarSnapshot] = []
+    private(set) var writtenReceipts: [FinderToolbarInstallationReceipt] = []
+    private(set) var receiptClearCount = 0
+    private(set) var restartCount = 0
+
+    init(
+        snapshot: FinderToolbarSnapshot,
+        writeResults: [Bool] = [true],
+        restartResults: [Bool] = [true],
+        resolvedAliasURL: URL? = nil
+    ) {
+        self.snapshot = snapshot
+        self.writeResults = writeResults
+        self.restartResults = restartResults
+        self.resolvedAliasURL = resolvedAliasURL
+    }
+
+    func readSnapshot() -> Result<FinderToolbarSnapshot, FinderToolbarPlatformFailure> {
+        .success(snapshot)
+    }
+
+    func writeSnapshot(_ snapshot: FinderToolbarSnapshot) -> Bool {
+        writtenSnapshots.append(snapshot)
+        let result = writeResults.isEmpty ? true : writeResults.removeFirst()
+        if result {
+            self.snapshot = snapshot
+        }
+        return result
+    }
+
+    func writeReceipt(_ receipt: FinderToolbarInstallationReceipt) -> Bool {
+        writtenReceipts.append(receipt)
+        return receiptWriteResult
+    }
+
+    func clearReceipt() -> Bool {
+        receiptClearCount += 1
+        return receiptClearResult
+    }
+
+    func restartFinder() async -> Bool {
+        restartCount += 1
+        let result = restartResults.isEmpty ? true : restartResults.removeFirst()
+        if result,
+           resolvedAliasURL != nil,
+           case let .explicit(layout) = snapshot.layoutClassification,
+           let index = layout.identifiers.firstIndex(of: FinderToolbarPreferenceKey.customItemIdentifier),
+           case let .success(enriched) = FinderToolbarLayoutMutation.replacePayload(
+            at: index,
+            in: layout,
+            transform: { payload in
+                var payload = payload
+                payload[FinderToolbarPreferenceKey.aliasData] = .data(Data([0x01]))
+                return payload
+            }
+           ) {
+            snapshot = snapshot.replacingLayout(enriched)
+        }
+        return result
+    }
+
+    func resolveAlias(
+        _ value: FinderToolbarPropertyListValue?
+    ) -> FinderToolbarAliasResolution {
+        guard case .data? = value, let resolvedAliasURL else {
+            return value == nil ? .absent : .invalid
+        }
+        return .resolved(resolvedAliasURL)
+    }
+}
+
 private func explicitSnapshot(
     identifiers: [String],
     itemPlists: [Int: FinderToolbarItemPayload]
@@ -338,6 +448,27 @@ private func explicitSnapshot(
         Dictionary(uniqueKeysWithValues: itemPlists.map { (String($0.key), .dictionary($0.value)) })
     )
     return FinderToolbarSnapshot(configurationWasPresent: true, fields: fields)
+}
+
+private func finderToolbarTestJournal(
+    plan: FinderToolbarMutationPlan,
+    profile: FinderToolbarProfile,
+    identity: FinderToolbarLauncherIdentity,
+    state: FinderToolbarTransactionState
+) -> FinderToolbarTransactionJournal? {
+    guard let beforeFingerprint = finderToolbarSnapshotFingerprint(plan.before),
+          let expectedFingerprint = finderToolbarSnapshotFingerprint(plan.expected) else {
+        return nil
+    }
+    return FinderToolbarTransactionJournal(
+        operationIdentifier: UUID(),
+        plan: plan,
+        launcherIdentity: identity,
+        beforeFingerprint: beforeFingerprint,
+        expectedFingerprint: expectedFingerprint,
+        semanticVerifierIdentifier: profile.semanticVerifierIdentifier,
+        state: state
+    )
 }
 
 private func launcherIdentity(at url: URL) -> FinderToolbarLauncherIdentity {
@@ -498,6 +629,11 @@ func productionInspectorAssemblesInjectedEnvironmentSnapshotReceiptAndPathEviden
     let fixture = try FinderToolbarIdentityFixture()
     let profile = FinderToolbarProfile.finder146Build23G80
     let presentURL = fixture.launcherURL().standardizedFileURL
+    let legacyURL = presentURL
+        .deletingLastPathComponent()
+        .deletingLastPathComponent()
+        .appendingPathComponent("Applications/Go2CodexLauncher.app", isDirectory: true)
+        .standardizedFileURL
     let missingURL = fixture.rootURL
         .appendingPathComponent("MissingLauncher.app", isDirectory: true)
         .standardizedFileURL
@@ -547,7 +683,9 @@ func productionInspectorAssemblesInjectedEnvironmentSnapshotReceiptAndPathEviden
     #expect(context.storedPathStates == [
         presentURL.absoluteString: .present,
         missingURL.absoluteString: .missing,
+        legacyURL.absoluteString: .missing,
     ])
+    #expect(context.legacyLauncherURLs == [legacyURL])
     guard case let .verified(identity) = context.launcherIdentity else {
         Issue.record("Expected the signed nested launcher identity")
         return
@@ -598,10 +736,10 @@ func productionInspectorFailsClosedAtInjectedContextBoundaries() throws {
 
 @MainActor
 @Test
-func readOnlySettingsServiceMapsStatusesAndRecordsOnlyInstalledContext() async {
+func settingsServiceMapsStatusesAndRecordsOnlyInstalledContext() async {
     let profile = FinderToolbarProfile.finder146Build23G80
     let identity = launcherIdentity(
-        at: URL(fileURLWithPath: "/Applications/Go2Codex.app/Contents/Applications/Go2CodexLauncher.app")
+        at: URL(fileURLWithPath: "/Applications/Go2Codex.app/Contents/Helpers/Go2CodexLauncher.app")
     )
     let scalarSnapshot = FinderToolbarSnapshot(
         configurationWasPresent: true,
@@ -615,7 +753,7 @@ func readOnlySettingsServiceMapsStatusesAndRecordsOnlyInstalledContext() async {
     )
     let needsRepair = needsRepairContext(
         identity: identity,
-        staleURL: URL(fileURLWithPath: "/Applications/OldGo2Codex.app/Contents/Applications/Go2CodexLauncher.app")
+        staleURL: URL(fileURLWithPath: "/Applications/OldGo2Codex.app/Contents/Helpers/Go2CodexLauncher.app")
     )
     let manual = FinderToolbarDetectionContext(
         snapshot: scalarSnapshot,
@@ -636,7 +774,10 @@ func readOnlySettingsServiceMapsStatusesAndRecordsOnlyInstalledContext() async {
             inspection: inspection,
             receiptWriteResult: false
         )
-        let service = ReadOnlyFinderToolbarSettingsService(inspector: inspector)
+        let service = FinderToolbarSettingsService(
+            inspector: inspector,
+            mutationExecutor: StubFinderToolbarMutationExecutor()
+        )
         let status = await service.currentStatus()
         #expect(status == expectedStatus)
         if let recordedContext {
@@ -645,6 +786,274 @@ func readOnlySettingsServiceMapsStatusesAndRecordsOnlyInstalledContext() async {
             #expect(inspector.recordedContexts.isEmpty)
         }
     }
+}
+
+@MainActor
+@Test
+func settingsServiceConfirmsAndExecutesSupportedAutomaticInstall() async {
+    let profile = FinderToolbarProfile.finder146Build23G80
+    let identity = launcherIdentity(
+        at: URL(fileURLWithPath: "/Applications/Go2Codex.app/Contents/Helpers/Go2CodexLauncher.app")
+    )
+    let context = FinderToolbarDetectionContext(
+        snapshot: FinderToolbarSnapshot(
+            configurationWasPresent: true,
+            fields: profile.scalarFields
+        ),
+        environment: profile.environment,
+        launcherIdentity: .verified(identity)
+    )
+    let inspector = StubFinderToolbarPlatformInspector(
+        inspection: .verified(context, automaticActionsLocationEligible: true)
+    )
+    let executor = StubFinderToolbarMutationExecutor()
+    var confirmations: [ToolbarSettingsAction] = []
+    let service = FinderToolbarSettingsService(
+        inspector: inspector,
+        mutationExecutor: executor,
+        automaticMutationConfirmation: {
+            confirmations.append($0)
+            return true
+        }
+    )
+
+    #expect(service.supportsAutomaticMutation)
+    #expect(await service.perform(.install) == .status(.notInstalled))
+    #expect(confirmations == [.install])
+    #expect(executor.executionPlans.count == 1)
+    #expect(executor.executionPlans.first?.operation == .install)
+}
+
+@MainActor
+@Test
+func mutationExecutorCompletesJournaledInstallWithoutTouchingRealFinder() async throws {
+    let profile = FinderToolbarProfile.finder146Build23G80
+    let identity = launcherIdentity(
+        at: URL(fileURLWithPath: "/Applications/Go2Codex.app/Contents/Helpers/Go2CodexLauncher.app")
+    )
+    let context = FinderToolbarDetectionContext(
+        snapshot: FinderToolbarSnapshot(
+            configurationWasPresent: true,
+            fields: profile.scalarFields
+        ),
+        environment: profile.environment,
+        launcherIdentity: .verified(identity)
+    )
+    guard case let .mutation(plan) = FinderToolbarMutationPlanner.install(context) else {
+        Issue.record("Expected an install mutation")
+        return
+    }
+    let directory = FileManager.default.temporaryDirectory
+        .appendingPathComponent(UUID().uuidString, isDirectory: true)
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let store = SystemFinderToolbarTransactionJournalStore(directoryURL: directory)
+    let platform = StubFinderToolbarMutationPlatform(
+        snapshot: plan.before,
+        resolvedAliasURL: identity.url
+    )
+    let executor = SystemFinderToolbarMutationExecutor(
+        platform: platform,
+        journalStore: store,
+        subsystem: "io.github.czrzchao.go2codex.tests"
+    )
+
+    #expect(await executor.execute(plan: plan, profile: profile, launcherIdentity: identity))
+    #expect(platform.writtenSnapshots == [plan.expected])
+    #expect(platform.restartCount == 1)
+    #expect(platform.writtenReceipts.count == 1)
+    #expect(try store.loadActive() == nil)
+}
+
+@MainActor
+@Test
+func mutationExecutorRollsBackExpectedSnapshotAfterRestartFailure() async throws {
+    let profile = FinderToolbarProfile.finder146Build23G80
+    let identity = launcherIdentity(
+        at: URL(fileURLWithPath: "/Applications/Go2Codex.app/Contents/Helpers/Go2CodexLauncher.app")
+    )
+    let context = FinderToolbarDetectionContext(
+        snapshot: FinderToolbarSnapshot(
+            configurationWasPresent: true,
+            fields: profile.scalarFields
+        ),
+        environment: profile.environment,
+        launcherIdentity: .verified(identity)
+    )
+    guard case let .mutation(plan) = FinderToolbarMutationPlanner.install(context) else {
+        Issue.record("Expected an install mutation")
+        return
+    }
+    let directory = FileManager.default.temporaryDirectory
+        .appendingPathComponent(UUID().uuidString, isDirectory: true)
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let store = SystemFinderToolbarTransactionJournalStore(directoryURL: directory)
+    let platform = StubFinderToolbarMutationPlatform(
+        snapshot: plan.before,
+        writeResults: [true, true],
+        restartResults: [false, true],
+        resolvedAliasURL: identity.url
+    )
+    let executor = SystemFinderToolbarMutationExecutor(
+        platform: platform,
+        journalStore: store,
+        subsystem: "io.github.czrzchao.go2codex.tests"
+    )
+
+    #expect(!(await executor.execute(plan: plan, profile: profile, launcherIdentity: identity)))
+    #expect(platform.writtenSnapshots == [plan.expected, plan.before])
+    #expect(platform.snapshot == plan.before)
+    #expect(try store.loadActive() == nil)
+}
+
+@MainActor
+@Test
+func mutationRecoveryArchivesUntouchedSnapshotWithoutRestartingFinder() async throws {
+    let profile = FinderToolbarProfile.finder146Build23G80
+    let identity = launcherIdentity(
+        at: URL(fileURLWithPath: "/Applications/Go2Codex.app/Contents/Helpers/Go2CodexLauncher.app")
+    )
+    let context = FinderToolbarDetectionContext(
+        snapshot: FinderToolbarSnapshot(
+            configurationWasPresent: true,
+            fields: profile.scalarFields
+        ),
+        environment: profile.environment,
+        launcherIdentity: .verified(identity)
+    )
+    guard case let .mutation(plan) = FinderToolbarMutationPlanner.install(context) else {
+        Issue.record("Expected an install mutation")
+        return
+    }
+    let journal = try #require(
+        finderToolbarTestJournal(
+            plan: plan,
+            profile: profile,
+            identity: identity,
+            state: .prepared
+        )
+    )
+    let directory = FileManager.default.temporaryDirectory
+        .appendingPathComponent(UUID().uuidString, isDirectory: true)
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let store = SystemFinderToolbarTransactionJournalStore(directoryURL: directory)
+    try store.saveActive(journal)
+    let platform = StubFinderToolbarMutationPlatform(snapshot: plan.before)
+    let executor = SystemFinderToolbarMutationExecutor(
+        platform: platform,
+        journalStore: store,
+        subsystem: "io.github.czrzchao.go2codex.tests"
+    )
+
+    #expect(await executor.recoverIfNeeded(profile: profile, launcherIdentity: identity) == .recovered)
+    #expect(platform.writtenSnapshots.isEmpty)
+    #expect(platform.restartCount == 0)
+    #expect(platform.writtenReceipts.isEmpty)
+    #expect(try store.loadActive() == nil)
+}
+
+@MainActor
+@Test
+func mutationRecoveryRestartsExpectedSnapshotAndCommitsReceipt() async throws {
+    let profile = FinderToolbarProfile.finder146Build23G80
+    let identity = launcherIdentity(
+        at: URL(fileURLWithPath: "/Applications/Go2Codex.app/Contents/Helpers/Go2CodexLauncher.app")
+    )
+    let context = FinderToolbarDetectionContext(
+        snapshot: FinderToolbarSnapshot(
+            configurationWasPresent: true,
+            fields: profile.scalarFields
+        ),
+        environment: profile.environment,
+        launcherIdentity: .verified(identity)
+    )
+    guard case let .mutation(plan) = FinderToolbarMutationPlanner.install(context) else {
+        Issue.record("Expected an install mutation")
+        return
+    }
+    let journal = try #require(
+        finderToolbarTestJournal(
+            plan: plan,
+            profile: profile,
+            identity: identity,
+            state: .preferenceSynchronized
+        )
+    )
+    let directory = FileManager.default.temporaryDirectory
+        .appendingPathComponent(UUID().uuidString, isDirectory: true)
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let store = SystemFinderToolbarTransactionJournalStore(directoryURL: directory)
+    try store.saveActive(journal)
+    let platform = StubFinderToolbarMutationPlatform(
+        snapshot: plan.expected,
+        resolvedAliasURL: identity.url
+    )
+    let executor = SystemFinderToolbarMutationExecutor(
+        platform: platform,
+        journalStore: store,
+        subsystem: "io.github.czrzchao.go2codex.tests"
+    )
+
+    #expect(await executor.recoverIfNeeded(profile: profile, launcherIdentity: identity) == .recovered)
+    #expect(platform.writtenSnapshots.isEmpty)
+    #expect(platform.restartCount == 1)
+    #expect(platform.writtenReceipts.count == 1)
+    #expect(try store.loadActive() == nil)
+}
+
+@MainActor
+@Test
+func mutationRecoveryLeavesUnknownConcurrentSnapshotUntouched() async throws {
+    let profile = FinderToolbarProfile.finder146Build23G80
+    let identity = launcherIdentity(
+        at: URL(fileURLWithPath: "/Applications/Go2Codex.app/Contents/Helpers/Go2CodexLauncher.app")
+    )
+    let context = FinderToolbarDetectionContext(
+        snapshot: FinderToolbarSnapshot(
+            configurationWasPresent: true,
+            fields: profile.scalarFields
+        ),
+        environment: profile.environment,
+        launcherIdentity: .verified(identity)
+    )
+    guard case let .mutation(plan) = FinderToolbarMutationPlanner.install(context) else {
+        Issue.record("Expected an install mutation")
+        return
+    }
+    let journal = try #require(
+        finderToolbarTestJournal(
+            plan: plan,
+            profile: profile,
+            identity: identity,
+            state: .preferenceSynchronized
+        )
+    )
+    var unknownFields = plan.expected.fields
+    unknownFields["TB Display Mode"] = .integer(99)
+    let unknownSnapshot = FinderToolbarSnapshot(
+        configurationWasPresent: true,
+        fields: unknownFields
+    )
+    let directory = FileManager.default.temporaryDirectory
+        .appendingPathComponent(UUID().uuidString, isDirectory: true)
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let store = SystemFinderToolbarTransactionJournalStore(directoryURL: directory)
+    try store.saveActive(journal)
+    let platform = StubFinderToolbarMutationPlatform(snapshot: unknownSnapshot)
+    let executor = SystemFinderToolbarMutationExecutor(
+        platform: platform,
+        journalStore: store,
+        subsystem: "io.github.czrzchao.go2codex.tests"
+    )
+
+    #expect(
+        await executor.recoverIfNeeded(profile: profile, launcherIdentity: identity)
+            == .manualInterventionRequired
+    )
+    #expect(platform.snapshot == unknownSnapshot)
+    #expect(platform.writtenSnapshots.isEmpty)
+    #expect(platform.restartCount == 0)
+    #expect(platform.writtenReceipts.isEmpty)
+    #expect(try store.loadActive() == journal)
 }
 
 @MainActor
@@ -710,5 +1119,13 @@ func systemPlatformContextReadsAndWritesReceiptsThroughTheApplicationDomainResol
     )
     #expect(context.writeReceipt(receipt))
     #expect(context.readReceiptEvidence() == .success(.valid(receipt)))
-    #expect(requestedDomains == [expectedDomain, expectedDomain, expectedDomain])
+    #expect(context.clearReceipt())
+    #expect(context.readReceiptEvidence() == .success(.missing))
+    #expect(requestedDomains == [
+        expectedDomain,
+        expectedDomain,
+        expectedDomain,
+        expectedDomain,
+        expectedDomain,
+    ])
 }

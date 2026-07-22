@@ -19,7 +19,7 @@ private func require<T>(_ value: T?, _ message: String) throws -> T {
 }
 
 private let launcherURL = URL(
-    fileURLWithPath: "/Applications/Go2Codex.app/Contents/Applications/Go2CodexLauncher.app"
+    fileURLWithPath: "/Applications/Go2Codex.app/Contents/Helpers/Go2CodexLauncher.app"
 )
 
 private let tests: [(String, () throws -> Void)] = [

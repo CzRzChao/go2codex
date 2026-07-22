@@ -13,7 +13,7 @@ The build script requires an output directory that does not already exist:
 The resulting Finder target is:
 
 ```text
-/tmp/go2codex-probe/Go2Codex Debug.app/Contents/Applications/Go2CodexToolbarLauncherDebug.app
+/tmp/go2codex-probe/Go2Codex Debug.app/Contents/Helpers/Go2CodexToolbarLauncherDebug.app
 ```
 
 Building the bundle does not read or write Finder preferences and does not restart Finder.

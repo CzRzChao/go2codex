@@ -571,22 +571,62 @@
         }
       }
     },
-    "New Tab is not supported in Terminal": {
+    "Accessibility permission is required for Terminal tabs": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "Terminal 不支持安全的新建标签页"
+            "value": "Terminal 标签页需要“辅助功能”权限"
           }
         }
       }
     },
-    "Choose New Window in Go2Codex Settings, or use iTerm2 for New Tab.": {
+    "Automation permission is required for Terminal tabs": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "请在 Go2Codex 设置中选择“新窗口”，或使用 iTerm2 新建标签页。"
+            "value": "Terminal 标签页需要“自动化”权限"
+          }
+        }
+      }
+    },
+    "Go2Codex could not create a Terminal tab": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Go2Codex 无法创建 Terminal 标签页"
+          }
+        }
+      }
+    },
+    "Allow Go2Codex in System Settings > Privacy & Security > Accessibility, then try again.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请在“系统设置”>“隐私与安全性”>“辅助功能”中允许 Go2Codex，然后重试。"
+          }
+        }
+      }
+    },
+    "Allow Go2Codex to control System Events in System Settings > Privacy & Security > Automation, then try again.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请在“系统设置”>“隐私与安全性”>“自动化”中允许 Go2Codex 控制“系统事件”，然后重试。"
+          }
+        }
+      }
+    },
+    "No command was submitted. Bring Terminal to the front and try again, or choose New Window in Go2Codex Settings.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未提交任何命令。请将 Terminal 置于前台后重试，或在 Go2Codex 设置中选择“新窗口”。"
           }
         }
       }
@@ -641,6 +681,36 @@
         }
       }
     },
+    "Open Accessibility Settings": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开“辅助功能”设置"
+          }
+        }
+      }
+    },
+    "Open Privacy Settings manually": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "手动打开隐私设置"
+          }
+        }
+      }
+    },
+    "Open System Settings, choose Privacy & Security, then enable Go2Codex in the requested Automation or Accessibility section.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开“系统设置”，选择“隐私与安全性”，然后在提示的“自动化”或“辅助功能”中启用 Go2Codex。"
+          }
+        }
+      }
+    },
     "Open System Settings, choose Privacy & Security, then Automation, and enable Go2Codex for Finder or your selected terminal.": {
       "localizations": {
         "zh-Hans": {
@@ -657,6 +727,106 @@
           "stringUnit": {
             "state": "translated",
             "value": "关闭探针"
+          }
+        }
+      }
+    },
+    "Install Go2Codex in Finder?": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "要将 Go2Codex 安装到 Finder 吗？"
+          }
+        }
+      }
+    },
+    "Repair Go2Codex in Finder?": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "要修复 Finder 中的 Go2Codex 吗？"
+          }
+        }
+      }
+    },
+    "Remove Go2Codex from Finder?": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "要从 Finder 中移除 Go2Codex 吗？"
+          }
+        }
+      }
+    },
+    "Experimental setup will update your private Finder toolbar preferences and restart Finder. Go2Codex creates a recovery journal first and preserves unrelated toolbar items.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "实验性安装将修改你的 Finder 私有工具栏设置并重启 Finder。Go2Codex 会先创建恢复日志，并保留无关的工具栏项目。"
+          }
+        }
+      }
+    },
+    "Experimental repair will update the existing Go2Codex toolbar item and restart Finder. Go2Codex creates a recovery journal first and preserves unrelated toolbar items.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "实验性修复将更新现有的 Go2Codex 工具栏项目并重启 Finder。Go2Codex 会先创建恢复日志，并保留无关的工具栏项目。"
+          }
+        }
+      }
+    },
+    "Experimental removal will remove only the verified Go2Codex toolbar item and restart Finder. Go2Codex creates a recovery journal first.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "实验性移除只会删除已验证的 Go2Codex 工具栏项目并重启 Finder。Go2Codex 会先创建恢复日志。"
+          }
+        }
+      }
+    },
+    "Install and Restart Finder": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "安装并重启 Finder"
+          }
+        }
+      }
+    },
+    "Repair and Restart Finder": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "修复并重启 Finder"
+          }
+        }
+      }
+    },
+    "Remove and Restart Finder": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "移除并重启 Finder"
+          }
+        }
+      }
+    },
+    "Show in Finder": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在 Finder 中显示"
           }
         }
       }

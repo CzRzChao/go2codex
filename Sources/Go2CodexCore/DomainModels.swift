@@ -123,7 +123,7 @@ public struct Workspace: Codable, Equatable, Hashable, Sendable {
             throw WorkspaceValidationError.nonFileURL
         }
 
-        let path = fileURL.path
+        let path = fileURL.path(percentEncoded: false)
         guard !path.isEmpty else {
             throw WorkspaceValidationError.emptyPath
         }

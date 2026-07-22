@@ -8,7 +8,7 @@ Two optional profiles are available. `go2shell-v2.5-modern-unverified` preserves
 
 ```sh
 swift run finder-toolbar-dry-run \
-  --launcher /Applications/Go2Codex.app/Contents/Applications/Go2CodexLauncher.app \
+  --launcher /Applications/Go2Codex.app/Contents/Helpers/Go2CodexLauncher.app \
   --output /tmp/go2codex-finder-dry-run \
   --candidate-profile finder-14.6-23G80-verified
 ```
