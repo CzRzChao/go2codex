@@ -19,13 +19,13 @@ Go2Codex does not install or bundle any agent. It only launches agents you alrea
 
 Download the latest build from [GitHub Releases](https://github.com/CzRzChao/go2codex/releases). Until a Developer ID is available, published builds are explicitly marked as **unsigned previews** and use names such as:
 
-- `Go2Codex-0.1.0-preview.1-macos-arm64.zip`
-- `Go2Codex-0.1.0-preview.1-macos-arm64.zip.sha256`
+- `Go2Codex-0.1.0-preview.3-macos-arm64.zip`
+- `Go2Codex-0.1.0-preview.3-macos-arm64.zip.sha256`
 
 Download both files into the same directory and verify the archive before extracting it:
 
 ```sh
-shasum -a 256 -c Go2Codex-0.1.0-preview.1-macos-arm64.zip.sha256
+shasum -a 256 -c Go2Codex-0.1.0-preview.3-macos-arm64.zip.sha256
 ```
 
 Then extract the ZIP and move `Go2Codex.app` into `/Applications` or `~/Applications`. Preview updates are manual: download and verify the newer archive, quit Go2Codex, and replace the existing app. Because each preview is ad-hoc signed, macOS may ask you to grant Finder, Terminal, iTerm2, or System Events Automation access again after an update; review the prompts and the Go2Codex entry under **System Settings** → **Privacy & Security** → **Automation**. Terminal New Tab additionally needs Go2Codex enabled under **Accessibility**.
@@ -112,9 +112,9 @@ Merge the reviewed release commit into `main` and wait for CI to pass. From a cl
 git switch main
 git pull --ff-only origin main
 Scripts/test-github-release.sh
-Scripts/package-github-release.sh --validate-only v0.1.0-preview.1
-git tag -a v0.1.0-preview.1 -m "Go2Codex 0.1.0 preview 1"
-git push origin v0.1.0-preview.1
+Scripts/package-github-release.sh --validate-only v0.1.0-preview.3
+git tag -a v0.1.0-preview.3 -m "Go2Codex 0.1.0 preview 3"
+git push origin v0.1.0-preview.3
 ```
 
 Pushing the tag is the publication action; never push a release tag merely to test the workflow. Keep the `v*-preview.*` tag-protection ruleset active, and never move or delete a published release tag. The workflow builds and verifies an ad-hoc-signed arm64 app, checks the ZIP round trip and SHA-256, and publishes a GitHub pre-release that is not marked as the latest stable release. After publication, download both assets, verify the checksum, confirm the documented Gatekeeper override, and manually test the supported Finder and target matrix.
