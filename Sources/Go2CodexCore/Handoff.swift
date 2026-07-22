@@ -155,10 +155,16 @@ public enum TerminalCommandBuildError: Error, Equatable, Sendable,
 public struct TerminalCommand: Equatable, Sendable {
     public let executable: CLIExecutable
     public let line: String
+    public let workspace: Workspace
 
-    public init(executable: CLIExecutable, line: String) {
+    public init(
+        executable: CLIExecutable,
+        line: String,
+        workspace: Workspace
+    ) {
         self.executable = executable
         self.line = line
+        self.workspace = workspace
     }
 }
 
@@ -169,7 +175,11 @@ public enum TerminalCommandBuilder {
     ) throws -> TerminalCommand {
         let executable = try CLIExecutable(target: target)
         let line = "cd \(POSIXShellQuoting.singleQuote(workspace.path)) && \(executable.rawValue)"
-        return TerminalCommand(executable: executable, line: line)
+        return TerminalCommand(
+            executable: executable,
+            line: line,
+            workspace: workspace
+        )
     }
 }
 

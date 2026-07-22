@@ -716,83 +716,144 @@ struct LauncherFailureCopyTests {
     }
 
     @Test
-    func terminalTabPermissionFailuresNameTheRequiredPrivacySection() {
-        let accessibilityFailure = LauncherWorkflowFailure(
-            error: TerminalAdapterError.accessibilityPermissionDenied,
+    func terminalAutomationPermissionNamesTerminalAndOffersSettings() {
+        let errors: [TerminalHandoffError] = [
+            .automationPermissionDenied(.terminal),
+            .consentRequired(.terminal),
+        ]
+        let copyResolver = LauncherFailureCopyResolver()
+        let planResolver = LauncherFailurePresentationPlanResolver()
+
+        for error in errors {
+            let failure = LauncherWorkflowFailure(
+                error: error,
+                stage: .terminalHandoff,
+                terminalHost: .terminal
+            )
+
+            #expect(failure.permissionContext == .terminal(.terminal))
+            #expect(copyResolver.messageKey(for: failure) ==
+                "Go2Codex could not complete the handoff")
+            #expect(copyResolver.informativeTextKey(for: failure) ==
+                "Allow Go2Codex to control Terminal in System Settings > Privacy & Security > Automation, then try again.")
+            #expect(planResolver.resolve(failure: failure).actions == [
+                .openAutomationSettings,
+                .copyDiagnostics,
+                .cancel,
+            ])
+        }
+    }
+
+    @Test
+    func terminalTabServiceFailuresUseCreationCopy() {
+        let cases: [(TerminalAdapterError, String)] = [
+            (.terminalTabServiceFailed, "terminal-tab-service-failed"),
+            (
+                .terminalTabServiceLaunchTimedOut,
+                "terminal-tab-service-launch-timeout"
+            ),
+        ]
+        let resolver = LauncherFailureCopyResolver()
+
+        for (error, expectedCode) in cases {
+            let failure = LauncherWorkflowFailure(
+                error: error,
+                stage: .terminalHandoff,
+                terminalHost: .terminal
+            )
+
+            #expect(failure.code.rawValue == expectedCode)
+            #expect(resolver.messageKey(for: failure) ==
+                "Go2Codex could not create a Terminal tab")
+            #expect(resolver.informativeTextKey(for: failure) ==
+                "No command was submitted. Check Terminal for an empty tab before trying again, or choose New Window in Go2Codex Settings.")
+        }
+    }
+
+    @Test
+    func terminalTabLockBusyExplainsHowToRetry() {
+        let failure = LauncherWorkflowFailure(
+            error: TerminalAdapterError.terminalTabOperationBusy,
             stage: .terminalHandoff,
             terminalHost: .terminal
         )
-        let systemEventsFailure = LauncherWorkflowFailure(
-            error: TerminalAdapterError.systemEventsAutomationPermissionDenied,
+        let copyResolver = LauncherFailureCopyResolver()
+        let planResolver = LauncherFailurePresentationPlanResolver()
+
+        #expect(failure.code.rawValue == "terminal-tab-operation-busy")
+        #expect(copyResolver.messageKey(for: failure) ==
+            "Another Terminal tab handoff is already in progress")
+        #expect(copyResolver.informativeTextKey(for: failure) ==
+            "Wait for the current Terminal tab handoff to finish, then try again.")
+        #expect(planResolver.resolve(failure: failure).actions == [
+            .acknowledge,
+            .copyDiagnostics,
+        ])
+    }
+
+    @Test
+    func unstableTerminalSnapshotsUseInspectionCopy() {
+        let cases: [(TerminalAdapterError, String)] = [
+            (
+                .terminalSnapshotStabilityTimedOut,
+                "terminal-snapshot-stability-timeout"
+            ),
+            (
+                .terminalBaselineTTYTimedOut,
+                "terminal-baseline-tty-timeout"
+            ),
+        ]
+        let resolver = LauncherFailureCopyResolver()
+
+        for (error, expectedCode) in cases {
+            let failure = LauncherWorkflowFailure(
+                error: error,
+                stage: .terminalHandoff,
+                terminalHost: .terminal
+            )
+
+            #expect(failure.code.rawValue == expectedCode)
+            #expect(resolver.messageKey(for: failure) ==
+                "Go2Codex could not safely inspect Terminal tabs")
+            #expect(resolver.informativeTextKey(for: failure) ==
+                "No Terminal tab was requested and no command was submitted. Wait for existing Terminal tabs to finish opening, then try again.")
+        }
+    }
+
+    @Test
+    func terminalSnapshotReplyTimeoutStopsWithInspectionCopy() {
+        let failure = LauncherWorkflowFailure(
+            error: TerminalAdapterError.terminalSnapshotReplyTimedOut,
             stage: .terminalHandoff,
             terminalHost: .terminal
         )
         let resolver = LauncherFailureCopyResolver()
 
-        #expect(resolver.messageKey(for: accessibilityFailure) ==
-            "Accessibility permission is required for Terminal tabs")
-        #expect(resolver.informativeTextKey(for: accessibilityFailure) ==
-            "Terminal New Tab needs the current Go2CodexLauncher in Accessibility. If an older Go2CodexLauncher entry exists, remove it. Then choose Locate Current Launcher, add the revealed launcher to Accessibility, turn it on, and try again. Unsigned preview updates can invalidate an earlier entry.")
-        #expect(accessibilityFailure.permissionContext == nil)
-
-        #expect(resolver.messageKey(for: systemEventsFailure) ==
-            "Automation permission is required for Terminal tabs")
-        #expect(resolver.informativeTextKey(for: systemEventsFailure) ==
-            "Allow Go2Codex to control System Events in System Settings > Privacy & Security > Automation, then try again.")
-        #expect(systemEventsFailure.permissionContext == .terminal(.terminal))
+        #expect(failure.code.rawValue == "terminal-snapshot-reply-timeout")
+        #expect(resolver.messageKey(for: failure) ==
+            "Go2Codex could not safely inspect Terminal tabs")
+        #expect(resolver.informativeTextKey(for: failure) ==
+            "No command was submitted. Check Terminal for an empty tab before trying again, or choose New Window in Go2Codex Settings.")
     }
 
     @Test
-    func accessibilityFailureOffersExplicitUnsignedPreviewRecovery() {
+    func terminalTabCreationTimeoutUsesCreationCopyAndOrdinaryActions() {
         let failure = LauncherWorkflowFailure(
-            error: TerminalAdapterError.accessibilityPermissionDenied,
-            stage: .terminalHandoff,
-            terminalHost: .terminal
-        )
-
-        let plan = LauncherFailurePresentationPlanResolver().resolve(
-            failure: failure
-        )
-
-        #expect(plan == LauncherFailurePresentationPlan(actions: [
-            .showCurrentLauncher,
-            .copyDiagnostics,
-            .cancel,
-        ]))
-        #expect(plan.actions.map(\.titleKey) == [
-            "Locate Current Launcher",
-            "Copy Diagnostics",
-            "Cancel",
-        ])
-    }
-
-    @Test
-    func automationAndOrdinaryFailuresKeepTheirExistingActions() {
-        let automationFailure = LauncherWorkflowFailure(
-            error: TerminalAdapterError.systemEventsAutomationPermissionDenied,
-            stage: .terminalHandoff,
-            terminalHost: .terminal
-        )
-        let ordinaryFailure = LauncherWorkflowFailure(
             error: TerminalAdapterError.terminalTabCreationTimedOut(
-                TerminalTabCreationEvidence(
-                    initialTabCount: 1,
-                    latestTabCount: 1,
-                    sawExpectedTabCount: false,
-                    selectedTabTTYBecameReady: false
-                )
+                terminalTabCreationEvidence()
             ),
             stage: .terminalHandoff,
             terminalHost: .terminal
         )
-        let resolver = LauncherFailurePresentationPlanResolver()
+        let copyResolver = LauncherFailureCopyResolver()
+        let planResolver = LauncherFailurePresentationPlanResolver()
 
-        #expect(resolver.resolve(failure: automationFailure).actions == [
-            .openAutomationSettings,
-            .copyDiagnostics,
-            .cancel,
-        ])
-        #expect(resolver.resolve(failure: ordinaryFailure).actions == [
+        #expect(failure.code.rawValue == "terminal-tab-creation-timeout")
+        #expect(copyResolver.messageKey(for: failure) ==
+            "Go2Codex could not create a Terminal tab")
+        #expect(copyResolver.informativeTextKey(for: failure) ==
+            "No command was submitted. Check Terminal for an empty tab before trying again, or choose New Window in Go2Codex Settings.")
+        #expect(planResolver.resolve(failure: failure).actions == [
             .acknowledge,
             .copyDiagnostics,
         ])
@@ -802,11 +863,11 @@ struct LauncherFailureCopyTests {
     func createdTerminalTabWithUnreadyTTYExplainsTheEmptyTab() {
         let failure = LauncherWorkflowFailure(
             error: TerminalAdapterError.terminalTabCreationTimedOut(
-                TerminalTabCreationEvidence(
-                    initialTabCount: 1,
+                terminalTabCreationEvidence(
                     latestTabCount: 2,
-                    sawExpectedTabCount: true,
-                    selectedTabTTYBecameReady: false
+                    latestReadyTTYCount: 1,
+                    sawGlobalTabIncrease: true,
+                    sawPendingTTY: true
                 )
             ),
             stage: .terminalHandoff,
@@ -825,11 +886,11 @@ struct LauncherFailureCopyTests {
     func ambiguousTerminalTabIdentityExplainsTheFailClosedResult() {
         let failure = LauncherWorkflowFailure(
             error: TerminalAdapterError.terminalTabCreationTimedOut(
-                TerminalTabCreationEvidence(
-                    initialTabCount: 1,
+                terminalTabCreationEvidence(
                     latestTabCount: 2,
-                    sawExpectedTabCount: true,
-                    selectedTabTTYBecameReady: true
+                    latestReadyTTYCount: 2,
+                    sawGlobalTabIncrease: true,
+                    sawUniqueNewTTY: true
                 )
             ),
             stage: .terminalHandoff,
@@ -841,14 +902,6 @@ struct LauncherFailureCopyTests {
         #expect(resolver.messageKey(for: failure) ==
             "Go2Codex could not start the CLI in the Terminal tab")
         #expect(resolver.informativeTextKey(for: failure) ==
-            "A Terminal tab was created, but Go2Codex could not safely identify it, so no command was submitted. Close the empty tab and try again, or choose New Window in Go2Codex Settings.")
-
-        let malformedTTYFailure = LauncherWorkflowFailure(
-            error: TerminalAdapterError.terminalSelectedTabTTYReplyInvalid(nil),
-            stage: .terminalHandoff,
-            terminalHost: .terminal
-        )
-        #expect(resolver.informativeTextKey(for: malformedTTYFailure) ==
             "A Terminal tab was created, but Go2Codex could not safely identify it, so no command was submitted. Close the empty tab and try again, or choose New Window in Go2Codex Settings.")
     }
 
@@ -884,33 +937,38 @@ struct LauncherFailureCopyTests {
             "No iTerm session was opened because the account login shell is unavailable or unsupported. Check the login shell in System Settings, then try again.")
     }
 
-    @Test
-    func currentLauncherResolverAcceptsOnlyTheNestedHelperBundle() {
-        let resolver = CurrentLauncherURLResolver()
-        let launcherURL = URL(fileURLWithPath:
-            "/Applications/Go2Codex.app/Contents/Helpers/Go2CodexLauncher.app"
+    private func terminalTabCreationEvidence(
+        latestTabCount: Int = 1,
+        latestReadyTTYCount: Int = 1,
+        sawGlobalTabIncrease: Bool = false,
+        sawPendingTTY: Bool = false,
+        sawUniqueNewTTY: Bool = false,
+        windowSetChanged: Bool = false,
+        oldTTYOwnerChanged: Bool = false,
+        snapshotUnstableAfterService: Bool = false
+    ) -> TerminalTabCreationEvidence {
+        TerminalTabCreationEvidence(
+            initialWindows: [
+                TerminalWindowTabEvidence(
+                    windowID: 42,
+                    tabCount: 1,
+                    readyTTYCount: 1
+                ),
+            ],
+            latestWindows: [
+                TerminalWindowTabEvidence(
+                    windowID: 42,
+                    tabCount: latestTabCount,
+                    readyTTYCount: latestReadyTTYCount
+                ),
+            ],
+            sawGlobalTabIncrease: sawGlobalTabIncrease,
+            sawPendingTTY: sawPendingTTY,
+            sawUniqueNewTTY: sawUniqueNewTTY,
+            windowSetChanged: windowSetChanged,
+            oldTTYOwnerChanged: oldTTYOwnerChanged,
+            snapshotUnstableAfterService: snapshotUnstableAfterService
         )
-
-        #expect(resolver.resolve(
-            bundleURL: launcherURL,
-            bundleIdentifier: "io.github.czrzchao.go2codex.launcher"
-        ) == launcherURL)
-        #expect(resolver.resolve(
-            bundleURL: URL(fileURLWithPath: "/Applications/Go2Codex.app"),
-            bundleIdentifier: "io.github.czrzchao.go2codex"
-        ) == nil)
-        #expect(resolver.resolve(
-            bundleURL: URL(fileURLWithPath: "/tmp/Go2CodexLauncher.app"),
-            bundleIdentifier: "io.github.czrzchao.go2codex.launcher"
-        ) == nil)
-        #expect(resolver.resolve(
-            bundleURL: launcherURL,
-            bundleIdentifier: "io.github.czrzchao.go2codex"
-        ) == nil)
-        #expect(resolver.resolve(
-            bundleURL: URL(string: "https://example.com/Go2CodexLauncher.app")!,
-            bundleIdentifier: "io.github.czrzchao.go2codex.launcher"
-        ) == nil)
     }
 }
 

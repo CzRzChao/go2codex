@@ -74,6 +74,57 @@ assert_equal_value() {
     pass
 }
 
+assert_file_contains() {
+    local path="$1"
+    local expected="$2"
+    local label="$3"
+    if ! /usr/bin/grep -Fq -- "$expected" "$path"; then
+        echo "test-sop: $label: missing expected text: $expected" >&2
+        exit 1
+    fi
+    pass
+}
+
+assert_file_excludes() {
+    local path="$1"
+    local unexpected="$2"
+    local label="$3"
+    if /usr/bin/grep -Fq -- "$unexpected" "$path"; then
+        echo "test-sop: $label: found obsolete text: $unexpected" >&2
+        exit 1
+    fi
+    pass
+}
+
+assert_equal_value \
+    "$(/usr/bin/grep -Fc 'CHECKLIST_VERSION=4' "$script_dir/smoke-debug.sh")" \
+    "2" \
+    "smoke checklist version is written consistently"
+assert_file_contains \
+    "$script_dir/smoke-debug.sh" \
+    '[[ "$(manifest_value "$pending_manifest" CHECKLIST_VERSION)" == "4" ]]' \
+    "pending smoke checklist version"
+assert_file_contains \
+    "$script_dir/build-personal.sh" \
+    '[[ "$smoke_checklist" == "4" ]]' \
+    "Release build smoke checklist version"
+assert_file_contains \
+    "$script_dir/install-personal.sh" \
+    '[[ "$smoke_checklist" == "4" ]]' \
+    "Release install smoke checklist version"
+assert_file_contains \
+    "$script_dir/smoke-debug.sh" \
+    "单窗口和多窗口时，New Window 新建独立窗口，New Tab 只新增一个承载命令的标签" \
+    "Terminal running-state smoke coverage"
+assert_file_contains \
+    "$script_dir/smoke-debug.sh" \
+    "Terminal New Tab 不请求辅助功能或 System Events" \
+    "Terminal New Tab permission smoke coverage"
+assert_file_excludes \
+    "$script_dir/smoke-debug.sh" \
+    "New Tab 在提交前失败" \
+    "obsolete Terminal New Tab smoke exemption"
+
 fixture_write() {
     local path="$1"
     local value="$2"

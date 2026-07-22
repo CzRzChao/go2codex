@@ -598,7 +598,8 @@ struct M3HandoffEncodingTests {
         let claude = try TerminalCommandBuilder.command(for: .claudeCodeCLI, workspace: workspace)
         #expect(codex == TerminalCommand(
             executable: .codex,
-            line: "cd '/tmp/O'\\''Brien; $(touch never)' && codex"
+            line: "cd '/tmp/O'\\''Brien; $(touch never)' && codex",
+            workspace: workspace
         ))
         #expect(claude.line == "cd '/tmp/O'\\''Brien; $(touch never)' && claude")
         #expect(!codex.line.hasSuffix("codex "))
@@ -614,9 +615,11 @@ struct M3HandoffEncodingTests {
 
     @Test
     func iTermCustomCommandsUseLoginInteractiveShellsAndAlwaysReturnToLoginShell() throws {
+        let workspace = try Workspace(absolutePath: "/tmp/project")
         let command = TerminalCommand(
             executable: .codex,
-            line: "cd '/tmp/project' && codex"
+            line: "cd '/tmp/project' && codex",
+            workspace: workspace
         )
 
         for shellPath in ["/bin/zsh", "/bin/bash", "/opt/homebrew/bin/fish"] {
@@ -635,7 +638,11 @@ struct M3HandoffEncodingTests {
             ])
         }
 
-        let failedCommand = TerminalCommand(executable: .codex, line: "false")
+        let failedCommand = TerminalCommand(
+            executable: .codex,
+            line: "false",
+            workspace: workspace
+        )
         let failedCommandArguments = parsedITerm3611CommandArguments(
             try ITermCustomCommandBuilder.command(
                 for: failedCommand,
@@ -672,8 +679,12 @@ struct M3HandoffEncodingTests {
     }
 
     @Test
-    func iTermCustomCommandRejectsUnsafeLoginShellPathsWithStableDiagnostics() {
-        let command = TerminalCommand(executable: .codex, line: "codex")
+    func iTermCustomCommandRejectsUnsafeLoginShellPathsWithStableDiagnostics() throws {
+        let command = TerminalCommand(
+            executable: .codex,
+            line: "codex",
+            workspace: try Workspace(absolutePath: "/tmp/project")
+        )
 
         for path in ["", "bin/zsh", "./bin/zsh"] {
             let error: ITermCustomCommandBuildError? = capturedError {

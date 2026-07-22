@@ -160,6 +160,43 @@ struct SystemLoginShellPathLookup: LoginShellPathLookingUp {
     }
 }
 
+@MainActor
+protocol TerminalTabServicePerforming {
+    func performNewTab(at directoryURL: URL) -> Bool
+}
+
+@MainActor
+struct WorkspaceTerminalTabServicePerformer: TerminalTabServicePerforming {
+    static let serviceName = "New Terminal Tab at Folder"
+
+    private let performService: @MainActor (String, NSPasteboard) -> Bool
+
+    init(
+        performService: @escaping @MainActor (
+            String,
+            NSPasteboard
+        ) -> Bool = { name, pasteboard in
+            NSPerformService(name, pasteboard)
+        }
+    ) {
+        self.performService = performService
+    }
+
+    func performNewTab(at directoryURL: URL) -> Bool {
+        guard directoryURL.isFileURL,
+              directoryURL.path(percentEncoded: false).hasPrefix("/") else {
+            return false
+        }
+        let pasteboard = NSPasteboard.withUniqueName()
+        defer { pasteboard.releaseGlobally() }
+        pasteboard.clearContents()
+        guard pasteboard.writeObjects([directoryURL as NSURL]) else {
+            return false
+        }
+        return performService(Self.serviceName, pasteboard)
+    }
+}
+
 struct TerminalApplicationOpenFailure: Equatable, Sendable {
     let code: Int
     let appleEventStatus: Int32?
@@ -245,11 +282,23 @@ protocol NativeAppleEventSending {
         _ event: NSAppleEventDescriptor
     ) throws -> NSAppleEventDescriptor
 
+    func send(
+        _ event: NSAppleEventDescriptor,
+        timeout: TimeInterval
+    ) throws -> NSAppleEventDescriptor
+
     func requestAutomationPermission(
         _ request: AutomationPermissionRequest
     ) async -> Int32
+}
 
-    func requestAccessibilityPermission() -> Bool
+extension NativeAppleEventSending {
+    func send(
+        _ event: NSAppleEventDescriptor,
+        timeout: TimeInterval
+    ) throws -> NSAppleEventDescriptor {
+        try send(event)
+    }
 }
 
 @MainActor
@@ -258,6 +307,13 @@ struct SystemNativeAppleEventSender: NativeAppleEventSending {
         _ event: NSAppleEventDescriptor
     ) throws -> NSAppleEventDescriptor {
         try NativeAppleEvent.send(event)
+    }
+
+    func send(
+        _ event: NSAppleEventDescriptor,
+        timeout: TimeInterval
+    ) throws -> NSAppleEventDescriptor {
+        try NativeAppleEvent.send(event, timeout: timeout)
     }
 
     func requestAutomationPermission(
@@ -279,12 +335,6 @@ struct SystemNativeAppleEventSender: NativeAppleEventSending {
         }.value
     }
 
-    func requestAccessibilityPermission() -> Bool {
-        let options = [
-            "AXTrustedCheckOptionPrompt": true,
-        ] as CFDictionary
-        return AXIsProcessTrustedWithOptions(options)
-    }
 }
 
 enum TerminalAdapterError: Error, Equatable, DiagnosticCodeProviding {
@@ -295,20 +345,17 @@ enum TerminalAdapterError: Error, Equatable, DiagnosticCodeProviding {
     case iTermWindowQueryReplyInvalid(UInt32?)
     case iTermLoginShellUnavailable
     case applicationOpenFailed(Int)
-    case systemEventsUnavailable
-    case systemEventsOpenFailed(Int)
-    case systemEventsAutomationPermissionDenied
-    case systemEventsConsentRequired
-    case systemEventsPermissionCheckFailed(Int32)
-    case accessibilityPermissionDenied
-    case terminalActivationFailed
-    case terminalActivationTimedOut
-    case terminalFocusLostBeforeShortcut
+    case terminalTabLockFailed(Int32)
+    case terminalTabOperationBusy
+    case terminalTabServiceFailed
+    case terminalTabServiceLaunchTimedOut
+    case terminalWindowListReplyInvalid(UInt32?)
     case terminalTabCountReplyInvalid(UInt32?)
     case terminalTabTTYListReplyInvalid(UInt32?)
-    case terminalSelectedTabTTYReplyInvalid(UInt32?)
+    case terminalSnapshotReplyTimedOut
+    case terminalSnapshotStabilityTimedOut
+    case terminalBaselineTTYTimedOut
     case terminalTabCreationTimedOut(TerminalTabCreationEvidence)
-    case terminalTabShortcutFailed(Int32)
 
     var diagnosticCode: DiagnosticCode {
         switch self {
@@ -326,53 +373,460 @@ enum TerminalAdapterError: Error, Equatable, DiagnosticCodeProviding {
             DiagnosticCode(rawValue: "iterm-login-shell-unavailable")
         case .applicationOpenFailed:
             DiagnosticCode(rawValue: "terminal-open-failed")
-        case .systemEventsUnavailable:
-            DiagnosticCode(rawValue: "terminal-system-events-unavailable")
-        case .systemEventsOpenFailed:
-            DiagnosticCode(rawValue: "terminal-system-events-open-failed")
-        case .systemEventsAutomationPermissionDenied:
-            DiagnosticCode(rawValue: "terminal-system-events-automation-denied")
-        case .systemEventsConsentRequired:
-            DiagnosticCode(rawValue: "terminal-system-events-consent-required")
-        case .systemEventsPermissionCheckFailed:
-            DiagnosticCode(rawValue: "terminal-system-events-permission-check-failed")
-        case .accessibilityPermissionDenied:
-            DiagnosticCode(rawValue: "terminal-accessibility-denied")
-        case .terminalActivationFailed:
-            DiagnosticCode(rawValue: "terminal-activation-failed")
-        case .terminalActivationTimedOut:
-            DiagnosticCode(rawValue: "terminal-activation-timeout")
-        case .terminalFocusLostBeforeShortcut:
-            DiagnosticCode(rawValue: "terminal-focus-lost-before-shortcut")
+        case .terminalTabLockFailed:
+            DiagnosticCode(rawValue: "terminal-tab-lock-failed")
+        case .terminalTabOperationBusy:
+            DiagnosticCode(rawValue: "terminal-tab-operation-busy")
+        case .terminalTabServiceFailed:
+            DiagnosticCode(rawValue: "terminal-tab-service-failed")
+        case .terminalTabServiceLaunchTimedOut:
+            DiagnosticCode(rawValue: "terminal-tab-service-launch-timeout")
+        case .terminalWindowListReplyInvalid:
+            DiagnosticCode(rawValue: "terminal-window-list-malformed")
         case .terminalTabCountReplyInvalid:
             DiagnosticCode(rawValue: "terminal-tab-count-malformed")
         case .terminalTabTTYListReplyInvalid:
             DiagnosticCode(rawValue: "terminal-tab-tty-list-malformed")
-        case .terminalSelectedTabTTYReplyInvalid:
-            DiagnosticCode(rawValue: "terminal-selected-tab-tty-malformed")
+        case .terminalSnapshotReplyTimedOut:
+            DiagnosticCode(rawValue: "terminal-snapshot-reply-timeout")
+        case .terminalSnapshotStabilityTimedOut:
+            DiagnosticCode(rawValue: "terminal-snapshot-stability-timeout")
+        case .terminalBaselineTTYTimedOut:
+            DiagnosticCode(rawValue: "terminal-baseline-tty-timeout")
         case .terminalTabCreationTimedOut(let evidence):
-            if evidence.latestTabCount > evidence.initialTabCount + 1
-                || evidence.sawExpectedTabCount
-                    && evidence.latestTabCount
-                        != evidence.initialTabCount + 1
-                || evidence.selectedTabTTYBecameReady {
+            if evidence.sawUniqueNewTTY
+                || evidence.windowSetChanged
+                || evidence.oldTTYOwnerChanged
+                || evidence.snapshotUnstableAfterService
+                || evidence.latestTotalTabCount
+                    > evidence.initialTotalTabCount + 1 {
                 DiagnosticCode(rawValue: "terminal-tab-identity-timeout")
-            } else if !evidence.sawExpectedTabCount {
-                DiagnosticCode(rawValue: "terminal-tab-creation-timeout")
-            } else {
+            } else if evidence.sawPendingTTY
+                || evidence.latestTotalTabCount
+                    == evidence.initialTotalTabCount + 1 {
                 DiagnosticCode(rawValue: "terminal-tab-tty-timeout")
+            } else {
+                DiagnosticCode(rawValue: "terminal-tab-creation-timeout")
             }
-        case .terminalTabShortcutFailed:
-            DiagnosticCode(rawValue: "terminal-tab-shortcut-failed")
         }
     }
 }
 
+struct TerminalWindowTabEvidence: Equatable, Sendable {
+    let windowID: Int32
+    let tabCount: Int
+    let readyTTYCount: Int
+}
+
 struct TerminalTabCreationEvidence: Equatable, Sendable {
-    let initialTabCount: Int
-    let latestTabCount: Int
-    let sawExpectedTabCount: Bool
-    let selectedTabTTYBecameReady: Bool
+    let initialWindows: [TerminalWindowTabEvidence]
+    let latestWindows: [TerminalWindowTabEvidence]
+    let sawGlobalTabIncrease: Bool
+    let sawPendingTTY: Bool
+    let sawUniqueNewTTY: Bool
+    let windowSetChanged: Bool
+    let oldTTYOwnerChanged: Bool
+    let snapshotUnstableAfterService: Bool
+
+    var initialTotalTabCount: Int {
+        initialWindows.reduce(0) { $0 + $1.tabCount }
+    }
+
+    var latestTotalTabCount: Int {
+        latestWindows.reduce(0) { $0 + $1.tabCount }
+    }
+}
+
+struct TerminalWindowSnapshot: Equatable, Sendable {
+    let windowID: Int32
+    let tabTTYValues: [TerminalTabTTYValue]
+
+    var tabCount: Int {
+        tabTTYValues.count
+    }
+
+    var readyTTYCount: Int {
+        tabTTYValues.reduce(0) { count, value in
+            if case .ready = value {
+                count + 1
+            } else {
+                count
+            }
+        }
+    }
+}
+
+struct TerminalSnapshot: Equatable, Sendable {
+    static let empty = TerminalSnapshot(windows: [])
+
+    let windows: [TerminalWindowSnapshot]
+
+    init(windows: [TerminalWindowSnapshot]) {
+        self.windows = windows.sorted { $0.windowID < $1.windowID }
+    }
+
+    var totalTabCount: Int {
+        windows.reduce(0) { $0 + $1.tabCount }
+    }
+
+    var notReadyTabCount: Int {
+        windows.reduce(0) { count, window in
+            count + window.tabTTYValues.reduce(0) { tabCount, value in
+                if case .notReady = value {
+                    tabCount + 1
+                } else {
+                    tabCount
+                }
+            }
+        }
+    }
+
+    var readyTTYOwners: [String: Int32] {
+        var result: [String: Int32] = [:]
+        for window in windows {
+            for case .ready(let tty) in window.tabTTYValues {
+                result[tty] = window.windowID
+            }
+        }
+        return result
+    }
+
+    var evidence: [TerminalWindowTabEvidence] {
+        windows.map {
+            TerminalWindowTabEvidence(
+                windowID: $0.windowID,
+                tabCount: $0.tabCount,
+                readyTTYCount: $0.readyTTYCount
+            )
+        }
+    }
+}
+
+@MainActor
+protocol TerminalSnapshotReading {
+    func coherentSnapshot() throws -> TerminalSnapshot?
+}
+
+@MainActor
+struct AppleEventTerminalSnapshotReader: TerminalSnapshotReading {
+    static let queryTimeout: TimeInterval = 2
+
+    private let eventSender: any NativeAppleEventSending
+
+    init(eventSender: any NativeAppleEventSending) {
+        self.eventSender = eventSender
+    }
+
+    func coherentSnapshot() throws -> TerminalSnapshot? {
+        do {
+            guard let windowIDsBefore = try terminalWindowIDs() else {
+                return nil
+            }
+            var windows: [TerminalWindowSnapshot] = []
+            windows.reserveCapacity(windowIDsBefore.count)
+            for windowID in windowIDsBefore.sorted() {
+                guard let countBefore = try terminalTabCount(
+                    windowID: windowID
+                ), let ttyValues = try terminalTabTTYValues(
+                    windowID: windowID
+                ), let countAfter = try terminalTabCount(
+                    windowID: windowID
+                ), countBefore == countAfter,
+                   countBefore == ttyValues.count else {
+                    return nil
+                }
+                windows.append(
+                    TerminalWindowSnapshot(
+                        windowID: windowID,
+                        tabTTYValues: ttyValues
+                    )
+                )
+            }
+            guard let windowIDsAfter = try terminalWindowIDs(),
+                  Set(windowIDsBefore) == Set(windowIDsAfter) else {
+                return nil
+            }
+            let snapshot = TerminalSnapshot(windows: windows)
+            let readyTTYCount = windows.reduce(0) {
+                $0 + $1.readyTTYCount
+            }
+            guard snapshot.readyTTYOwners.count == readyTTYCount else {
+                return nil
+            }
+            return snapshot
+        } catch RawAppleEventError.status(-1728),
+                RawAppleEventError.status(-1719) {
+            return nil
+        } catch RawAppleEventError.status(-1712) {
+            throw TerminalAdapterError.terminalSnapshotReplyTimedOut
+        } catch let RawAppleEventError.status(status) {
+            throw TerminalHandoffError.mapAppleEventStatus(
+                status,
+                host: .terminal
+            )
+        }
+    }
+
+    private func terminalWindowIDs() throws -> [Int32]? {
+        let reply = try eventSender.send(
+            try NativeAppleEvent.terminalWindowIDsQuery(),
+            timeout: Self.queryTimeout
+        )
+        if let windowIDs = NativeAppleEvent.terminalWindowIDs(from: reply) {
+            return windowIDs
+        }
+        guard NativeAppleEvent.directObjectContainsMissingValue(reply) else {
+            throw TerminalAdapterError.terminalWindowListReplyInvalid(
+                reply.paramDescriptor(
+                    forKeyword: NativeAppleEvent.directObjectKeyword
+                )?.descriptorType
+            )
+        }
+        return nil
+    }
+
+    private func terminalTabCount(windowID: Int32) throws -> Int? {
+        let reply = try eventSender.send(
+            try NativeAppleEvent.terminalTabCountQuery(windowID: windowID),
+            timeout: Self.queryTimeout
+        )
+        if let count = NativeAppleEvent.terminalTabCount(from: reply) {
+            return count
+        }
+        guard NativeAppleEvent.directObjectContainsMissingValue(reply) else {
+            throw TerminalAdapterError.terminalTabCountReplyInvalid(
+                reply.paramDescriptor(
+                    forKeyword: NativeAppleEvent.directObjectKeyword
+                )?.descriptorType
+            )
+        }
+        return nil
+    }
+
+    private func terminalTabTTYValues(
+        windowID: Int32
+    ) throws -> [TerminalTabTTYValue]? {
+        let reply = try eventSender.send(
+            try NativeAppleEvent.terminalTabTTYsQuery(windowID: windowID),
+            timeout: Self.queryTimeout
+        )
+        if let values = NativeAppleEvent.terminalTabTTYValues(from: reply) {
+            return values
+        }
+        guard NativeAppleEvent.directObjectContainsMissingValue(reply) else {
+            throw TerminalAdapterError.terminalTabTTYListReplyInvalid(
+                reply.paramDescriptor(
+                    forKeyword: NativeAppleEvent.directObjectKeyword
+                )?.descriptorType
+            )
+        }
+        return nil
+    }
+}
+
+struct TerminalTabCandidate: Equatable, Sendable {
+    let windowID: Int32
+    let tty: String
+}
+
+enum TerminalTabObservation: Equatable, Sendable {
+    case unchanged
+    case pending
+    case candidate(TerminalTabCandidate)
+    case ambiguous
+}
+
+struct TerminalTabDelta: Equatable, Sendable {
+    let observation: TerminalTabObservation
+    let sawGlobalTabIncrease: Bool
+    let sawPendingTTY: Bool
+    let sawUniqueNewTTY: Bool
+    let windowSetChanged: Bool
+    let oldTTYOwnerChanged: Bool
+}
+
+func terminalTabDelta(
+    from baseline: TerminalSnapshot,
+    to current: TerminalSnapshot
+) -> TerminalTabDelta {
+    let baselineOwners = baseline.readyTTYOwners
+    let currentOwners = current.readyTTYOwners
+    let baselineWindowIDs = Set(baseline.windows.map(\.windowID))
+    let currentWindowIDs = Set(current.windows.map(\.windowID))
+    let windowSetChanged: Bool
+    if baseline.windows.isEmpty {
+        windowSetChanged = current.windows.count > 1
+    } else {
+        windowSetChanged = baselineWindowIDs != currentWindowIDs
+    }
+    let oldTTYOwnerChanged = baselineOwners.contains { tty, windowID in
+        currentOwners[tty] != windowID
+    }
+    let newTTYs = currentOwners.keys.filter { baselineOwners[$0] == nil }
+    let sawGlobalTabIncrease = current.totalTabCount > baseline.totalTabCount
+    let sawPendingTTY = current.totalTabCount
+        == baseline.totalTabCount + 1 && current.notReadyTabCount == 1
+    let sawUniqueNewTTY = newTTYs.count == 1
+
+    let observation: TerminalTabObservation
+    if current == baseline {
+        observation = .unchanged
+    } else if !windowSetChanged,
+              !oldTTYOwnerChanged,
+              current.totalTabCount == baseline.totalTabCount + 1,
+              let changedWindowID = terminalChangedWindowID(
+                  from: baseline,
+                  to: current
+              ) {
+        if newTTYs.isEmpty, current.notReadyTabCount == 1 {
+            observation = .pending
+        } else if newTTYs.count == 1,
+                  current.notReadyTabCount == 0,
+                  let tty = newTTYs.first,
+                  currentOwners[tty] == changedWindowID {
+            observation = .candidate(
+                TerminalTabCandidate(windowID: changedWindowID, tty: tty)
+            )
+        } else {
+            observation = .ambiguous
+        }
+    } else {
+        observation = .ambiguous
+    }
+
+    return TerminalTabDelta(
+        observation: observation,
+        sawGlobalTabIncrease: sawGlobalTabIncrease,
+        sawPendingTTY: sawPendingTTY,
+        sawUniqueNewTTY: sawUniqueNewTTY,
+        windowSetChanged: windowSetChanged,
+        oldTTYOwnerChanged: oldTTYOwnerChanged
+    )
+}
+
+private func terminalChangedWindowID(
+    from baseline: TerminalSnapshot,
+    to current: TerminalSnapshot
+) -> Int32? {
+    if baseline.windows.isEmpty {
+        guard current.windows.count == 1,
+              current.windows[0].tabCount == 1 else {
+            return nil
+        }
+        return current.windows[0].windowID
+    }
+    let baselineCounts = Dictionary(
+        uniqueKeysWithValues: baseline.windows.map {
+            ($0.windowID, $0.tabCount)
+        }
+    )
+    let changed = current.windows.filter { window in
+        guard let previous = baselineCounts[window.windowID] else {
+            return true
+        }
+        return window.tabCount != previous
+    }
+    guard changed.count == 1,
+          let previous = baselineCounts[changed[0].windowID],
+          changed[0].tabCount == previous + 1 else {
+        return nil
+    }
+    return changed[0].windowID
+}
+
+protocol TerminalTabOperationLock: AnyObject {
+    func release()
+}
+
+@MainActor
+protocol TerminalTabOperationLocking {
+    func tryAcquire() throws -> (any TerminalTabOperationLock)?
+}
+
+final class POSIXTerminalTabOperationLock: TerminalTabOperationLock {
+    private var fileDescriptor: Int32?
+
+    init(fileDescriptor: Int32) {
+        self.fileDescriptor = fileDescriptor
+    }
+
+    func release() {
+        guard let fileDescriptor else {
+            return
+        }
+        self.fileDescriptor = nil
+        close(fileDescriptor)
+    }
+
+    deinit {
+        if let fileDescriptor {
+            close(fileDescriptor)
+        }
+    }
+}
+
+@MainActor
+struct WorkspaceTerminalTabOperationLocker: TerminalTabOperationLocking {
+    private let lockURL: URL
+
+    init(lockURL: URL? = nil) {
+        if let lockURL {
+            self.lockURL = lockURL
+            return
+        }
+        let applicationSupportURL = FileManager.default
+            .urls(for: .applicationSupportDirectory, in: .userDomainMask)
+            .first ?? FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent(
+                "Library/Application Support",
+                isDirectory: true
+            )
+        self.lockURL = applicationSupportURL
+            .appendingPathComponent(
+                "io.github.czrzchao.go2codex",
+                isDirectory: true
+            )
+            .appendingPathComponent(
+                "terminal-tab.lock",
+                isDirectory: false
+            )
+    }
+
+    func tryAcquire() throws -> (any TerminalTabOperationLock)? {
+        do {
+            try FileManager.default.createDirectory(
+                at: lockURL.deletingLastPathComponent(),
+                withIntermediateDirectories: true
+            )
+        } catch {
+            throw TerminalAdapterError.terminalTabLockFailed(
+                Int32(clamping: (error as NSError).code)
+            )
+        }
+        let fileDescriptor = open(
+            lockURL.path,
+            O_CREAT | O_RDWR | O_CLOEXEC | O_NOFOLLOW | O_NONBLOCK | O_EXLOCK,
+            S_IRUSR | S_IWUSR
+        )
+        guard fileDescriptor >= 0 else {
+            if errno == EWOULDBLOCK || errno == EAGAIN {
+                return nil
+            }
+            throw TerminalAdapterError.terminalTabLockFailed(errno)
+        }
+        var fileStatus = stat()
+        guard fstat(fileDescriptor, &fileStatus) == 0,
+              fileStatus.st_mode & S_IFMT == S_IFREG,
+              fileStatus.st_uid == geteuid(),
+              fileStatus.st_nlink == 1,
+              fchmod(fileDescriptor, S_IRUSR | S_IWUSR) == 0 else {
+            close(fileDescriptor)
+            throw TerminalAdapterError.terminalTabLockFailed(EPERM)
+        }
+        return POSIXTerminalTabOperationLock(
+            fileDescriptor: fileDescriptor
+        )
+    }
 }
 
 typealias TerminalTabPollDelay = @MainActor () async -> Void
@@ -390,7 +844,9 @@ struct TerminalOpenAdapter: TerminalHandoffPerforming {
     private let eventSender: any NativeAppleEventSending
     private let iTermScriptExecutor: any ITermHandoffScriptExecuting
     private let loginShellPathLookup: any LoginShellPathLookingUp
-    private let terminalActivationPollAttempts: Int
+    private let terminalTabService: any TerminalTabServicePerforming
+    private let terminalSnapshotReader: any TerminalSnapshotReading
+    private let terminalTabOperationLocker: any TerminalTabOperationLocking
     private let terminalTabPollAttempts: Int
     private let terminalTabPollDelay: TerminalTabPollDelay
 
@@ -404,7 +860,11 @@ struct TerminalOpenAdapter: TerminalHandoffPerforming {
             BundledITermHandoffScriptExecutor(),
         loginShellPathLookup: any LoginShellPathLookingUp =
             SystemLoginShellPathLookup(),
-        terminalActivationPollAttempts: Int = 50,
+        terminalTabService: any TerminalTabServicePerforming =
+            WorkspaceTerminalTabServicePerformer(),
+        terminalSnapshotReader: (any TerminalSnapshotReading)? = nil,
+        terminalTabOperationLocker: any TerminalTabOperationLocking =
+            WorkspaceTerminalTabOperationLocker(),
         terminalTabPollAttempts: Int = 50,
         terminalTabPollDelay: @escaping TerminalTabPollDelay = {
             try? await Task.sleep(for: .milliseconds(50))
@@ -415,10 +875,10 @@ struct TerminalOpenAdapter: TerminalHandoffPerforming {
         self.eventSender = eventSender
         self.iTermScriptExecutor = iTermScriptExecutor
         self.loginShellPathLookup = loginShellPathLookup
-        self.terminalActivationPollAttempts = max(
-            1,
-            terminalActivationPollAttempts
-        )
+        self.terminalTabService = terminalTabService
+        self.terminalSnapshotReader = terminalSnapshotReader
+            ?? AppleEventTerminalSnapshotReader(eventSender: eventSender)
+        self.terminalTabOperationLocker = terminalTabOperationLocker
         self.terminalTabPollAttempts = max(1, terminalTabPollAttempts)
         self.terminalTabPollDelay = terminalTabPollDelay
     }
@@ -437,7 +897,7 @@ struct TerminalOpenAdapter: TerminalHandoffPerforming {
         switch host {
         case .terminal:
             try await openTerminal(
-                command: command.line,
+                command: command,
                 placement: placement,
                 applicationURL: applicationURL
             )
@@ -453,49 +913,33 @@ struct TerminalOpenAdapter: TerminalHandoffPerforming {
     }
 
     private func openTerminal(
-        command: String,
+        command: TerminalCommand,
         placement: SessionPlacement,
         applicationURL: URL
     ) async throws {
         let host = TerminalHost.terminal
-        let wasRunning = applicationState.isRunning(
-            bundleIdentifier: host.bundleIdentifier
-        )
-        if !wasRunning {
-            try await openHost(
-                applicationURL: applicationURL,
-                event: nil,
-                host: host,
-                activates: true
+        switch placement {
+        case .newTab:
+            try await sendTerminalNewTab(command: command)
+        case .newWindow:
+            let wasRunning = applicationState.isRunning(
+                bundleIdentifier: host.bundleIdentifier
             )
-        }
-        try await requestHostAutomationPermission(host)
-
-        let hasFrontWindow: Bool
-        if placement == .newTab {
-            hasFrontWindow = try terminalFrontWindowID() != nil
-        } else {
-            hasFrontWindow = false
-        }
-        let placementPlan = TerminalPlacementPlanner.plan(
-            for: .terminal,
-            placement: placement,
-            hasWindow: hasFrontWindow
-        )
-        switch placementPlan {
-        case .createTabInFrontWindow:
-            try await sendTerminalNewTab(
-                command: command
-            )
-        case .createWindow:
+            if !wasRunning {
+                try await openHost(
+                    applicationURL: applicationURL,
+                    event: nil,
+                    host: host,
+                    activates: true
+                )
+            }
+            try await requestHostAutomationPermission(host)
             try await sendTerminal(
-                command: command,
+                command: command.line,
                 host: host,
                 applicationURL: applicationURL,
                 isRunning: true
             )
-        case .unsupported:
-            throw TerminalHandoffError.unsupportedPlacement(.terminal, placement)
         }
     }
 
@@ -605,33 +1049,6 @@ struct TerminalOpenAdapter: TerminalHandoffPerforming {
         }
     }
 
-    private func terminalFrontWindowID() throws -> Int32? {
-        do {
-            let reply = try eventSender.send(
-                try NativeAppleEvent.terminalFrontWindowIDQuery()
-            )
-            guard let windowID = NativeAppleEvent.terminalWindowID(
-                from: reply
-            ) else {
-                throw TerminalAdapterError.terminalTabCountReplyInvalid(
-                    reply.paramDescriptor(
-                        forKeyword: NativeAppleEvent.directObjectKeyword
-                    )?.descriptorType
-                )
-            }
-            return windowID
-        } catch RawAppleEventError.status(-1728),
-                RawAppleEventError.status(-1719),
-                RawAppleEventError.status(-600) {
-            return nil
-        } catch let RawAppleEventError.status(status) {
-            throw TerminalHandoffError.mapAppleEventStatus(
-                status,
-                host: .terminal
-            )
-        }
-    }
-
     private func iTermWindowState(
         from reply: NSAppleEventDescriptor
     ) throws -> TerminalFrontWindowState {
@@ -696,190 +1113,195 @@ struct TerminalOpenAdapter: TerminalHandoffPerforming {
         }
     }
 
-    private func sendTerminalNewTab(command: String) async throws {
-        try await ensureSystemEventsRunning()
-        try await requestSystemEventsAutomationPermission()
-        guard eventSender.requestAccessibilityPermission() else {
-            throw TerminalAdapterError.accessibilityPermissionDenied
-        }
-        guard applicationState.activate(
+    private func sendTerminalNewTab(
+        command: TerminalCommand
+    ) async throws {
+        let operationLock = try await acquireTerminalTabOperationLock()
+        defer { operationLock.release() }
+
+        let wasRunning = applicationState.isRunning(
             bundleIdentifier: TerminalHost.terminal.bundleIdentifier
-        ) else {
-            throw TerminalAdapterError.terminalActivationFailed
+        )
+        let baseline: TerminalSnapshot
+        if wasRunning {
+            try await requestHostAutomationPermission(.terminal)
+            baseline = try await readyTerminalBaseline()
+        } else {
+            baseline = .empty
         }
-        try await waitForTerminalToBecomeFrontmost()
 
-        // Activation can change Terminal's current window. Resolve the target
-        // only after Terminal is confirmed frontmost so Command-T and the
-        // subsequent Apple Events share one stable window identity.
-        guard let windowID = try terminalFrontWindowID() else {
-            _ = try sendTerminalEvent(
-                NativeAppleEvent.terminalNewWindow(command: command),
-                host: .terminal
-            )
-            return
+        guard terminalTabService.performNewTab(
+            at: command.workspace.fileURL
+        ) else {
+            throw TerminalAdapterError.terminalTabServiceFailed
         }
-        let initialTabCount = try terminalTabCount(windowID: windowID)
-        let initialTTYs = try terminalTabTTYs(windowID: windowID)
-        let initialTTYSet = Set(initialTTYs)
-        guard initialTTYs.count == initialTabCount,
-              initialTTYSet.count == initialTTYs.count else {
-            throw TerminalAdapterError.terminalTabTTYListReplyInvalid(nil)
+
+        if !wasRunning {
+            try await waitForTerminalServiceLaunch()
+            try await requestHostAutomationPermission(.terminal)
         }
-        guard applicationState.isFrontmost(
+        try await submitTerminalCommand(
+            command.line,
+            intoTabCreatedAfter: baseline
+        )
+        _ = applicationState.activate(
             bundleIdentifier: TerminalHost.terminal.bundleIdentifier
-        ) else {
-            throw TerminalAdapterError.terminalFocusLostBeforeShortcut
-        }
+        )
+    }
 
-        let shortcut = try NativeAppleEvent.systemEventsTerminalNewTabShortcut()
-        do {
-            _ = try eventSender.send(shortcut)
-        } catch let RawAppleEventError.status(status) {
-            throw mapSystemEventsStatus(
-                status,
-                fallback: .terminalTabShortcutFailed(status)
-            )
+    private func acquireTerminalTabOperationLock() async throws
+        -> any TerminalTabOperationLock {
+        for attempt in 0..<terminalTabPollAttempts {
+            if let operationLock = try terminalTabOperationLocker
+                .tryAcquire() {
+                return operationLock
+            }
+            if attempt + 1 < terminalTabPollAttempts {
+                await terminalTabPollDelay()
+            }
         }
+        throw TerminalAdapterError.terminalTabOperationBusy
+    }
 
-        var latestTabCount = initialTabCount
-        var sawExpectedTabCount = false
-        var selectedTabTTYBecameReady = false
+    private func readyTerminalBaseline() async throws -> TerminalSnapshot {
+        var previous: TerminalSnapshot?
+        var sawNotReadyTTY = false
         for attempt in 0..<terminalTabPollAttempts {
             if attempt > 0 {
                 await terminalTabPollDelay()
             }
-            latestTabCount = try terminalTabCount(windowID: windowID)
-            guard latestTabCount == initialTabCount + 1 else {
-                // More than one added tab is ambiguous. Waiting cannot make
-                // it safe to guess which tab belongs to this invocation.
-                if latestTabCount > initialTabCount + 1 {
-                    break
-                }
+            guard let current = try terminalSnapshotReader
+                .coherentSnapshot() else {
+                previous = nil
                 continue
             }
-            sawExpectedTabCount = true
-            if let targetTTY = try terminalSelectedTabTTY(
-                windowID: windowID
-            ) {
-                selectedTabTTYBecameReady = true
-                // Selection can change while the new tab starts. Never submit
-                // into a TTY that existed before this Command-T invocation.
-                guard !initialTTYSet.contains(targetTTY) else {
-                    continue
-                }
-                let verifiedTTYs = try terminalTabTTYs(windowID: windowID)
-                let verifiedTTYSet = Set(verifiedTTYs)
-                latestTabCount = verifiedTTYs.count
-                guard verifiedTTYSet.count == verifiedTTYs.count,
-                      verifiedTTYSet == initialTTYSet.union([targetTTY]) else {
-                    // Another tab changed identity after the count check. The
-                    // shortcut does not expose an atomic tab identifier, so
-                    // this invocation can no longer target safely.
-                    break
-                }
-                _ = try sendTerminalEvent(
-                    try NativeAppleEvent.terminalCommand(
-                        command: command,
-                        targetTabTTY: targetTTY,
-                        inWindowID: windowID
-                    ),
-                    host: .terminal
-                )
-                return
+            sawNotReadyTTY = sawNotReadyTTY
+                || current.notReadyTabCount > 0
+            if current == previous, current.notReadyTabCount == 0 {
+                return current
             }
+            previous = current
         }
-        throw TerminalAdapterError.terminalTabCreationTimedOut(
-            TerminalTabCreationEvidence(
-                initialTabCount: initialTabCount,
-                latestTabCount: latestTabCount,
-                sawExpectedTabCount: sawExpectedTabCount,
-                selectedTabTTYBecameReady: selectedTabTTYBecameReady
-            )
-        )
+        if sawNotReadyTTY {
+            throw TerminalAdapterError.terminalBaselineTTYTimedOut
+        }
+        throw TerminalAdapterError.terminalSnapshotStabilityTimedOut
     }
 
-    private func waitForTerminalToBecomeFrontmost() async throws {
+    private func waitForTerminalServiceLaunch() async throws {
         let bundleIdentifier = TerminalHost.terminal.bundleIdentifier
-        for attempt in 0..<terminalActivationPollAttempts {
-            if applicationState.isFrontmost(
+        for attempt in 0..<terminalTabPollAttempts {
+            if applicationState.isRunning(
                 bundleIdentifier: bundleIdentifier
             ) {
                 return
             }
-            if attempt + 1 < terminalActivationPollAttempts {
+            if attempt + 1 < terminalTabPollAttempts {
                 await terminalTabPollDelay()
             }
         }
-        throw TerminalAdapterError.terminalActivationTimedOut
+        throw TerminalAdapterError.terminalTabServiceLaunchTimedOut
     }
 
-    private func terminalTabTTYs(windowID: Int32) throws -> [String] {
-        do {
-            let reply = try eventSender.send(
-                try NativeAppleEvent.terminalTabTTYsQuery(windowID: windowID)
-            )
-            guard let ttys = NativeAppleEvent.terminalTabTTYs(from: reply) else {
-                throw TerminalAdapterError.terminalTabTTYListReplyInvalid(
-                    reply.paramDescriptor(
-                        forKeyword: NativeAppleEvent.directObjectKeyword
-                    )?.descriptorType
+    private func submitTerminalCommand(
+        _ command: String,
+        intoTabCreatedAfter baseline: TerminalSnapshot
+    ) async throws {
+        var previous: TerminalSnapshot?
+        var latest = baseline
+        var sawGlobalTabIncrease = false
+        var sawPendingTTY = false
+        var sawUniqueNewTTY = false
+        var windowSetChanged = false
+        var oldTTYOwnerChanged = false
+        var snapshotUnstableAfterService = false
+
+        for attempt in 0..<terminalTabPollAttempts {
+            if attempt > 0 {
+                await terminalTabPollDelay()
+            }
+            guard let current = try terminalSnapshotReader
+                .coherentSnapshot() else {
+                previous = nil
+                snapshotUnstableAfterService = true
+                continue
+            }
+            latest = current
+            let delta = terminalTabDelta(from: baseline, to: current)
+            sawGlobalTabIncrease = sawGlobalTabIncrease
+                || delta.sawGlobalTabIncrease
+            sawPendingTTY = sawPendingTTY || delta.sawPendingTTY
+            sawUniqueNewTTY = sawUniqueNewTTY || delta.sawUniqueNewTTY
+            windowSetChanged = windowSetChanged || delta.windowSetChanged
+            oldTTYOwnerChanged = oldTTYOwnerChanged
+                || delta.oldTTYOwnerChanged
+
+            guard current == previous else {
+                previous = current
+                continue
+            }
+            switch delta.observation {
+            case .unchanged, .pending:
+                continue
+            case .candidate(let candidate):
+                _ = try sendTerminalEvent(
+                    try NativeAppleEvent.terminalCommand(
+                        command: command,
+                        targetTabTTY: candidate.tty,
+                        inWindowID: candidate.windowID
+                    ),
+                    host: .terminal
+                )
+                return
+            case .ambiguous:
+                throw terminalTabCreationError(
+                    baseline: baseline,
+                    latest: latest,
+                    sawGlobalTabIncrease: sawGlobalTabIncrease,
+                    sawPendingTTY: sawPendingTTY,
+                    sawUniqueNewTTY: sawUniqueNewTTY,
+                    windowSetChanged: windowSetChanged,
+                    oldTTYOwnerChanged: oldTTYOwnerChanged,
+                    snapshotUnstableAfterService:
+                        snapshotUnstableAfterService
                 )
             }
-            return ttys
-        } catch let RawAppleEventError.status(status) {
-            throw TerminalHandoffError.mapAppleEventStatus(
-                status,
-                host: .terminal
-            )
         }
+        throw terminalTabCreationError(
+            baseline: baseline,
+            latest: latest,
+            sawGlobalTabIncrease: sawGlobalTabIncrease,
+            sawPendingTTY: sawPendingTTY,
+            sawUniqueNewTTY: sawUniqueNewTTY,
+            windowSetChanged: windowSetChanged,
+            oldTTYOwnerChanged: oldTTYOwnerChanged,
+            snapshotUnstableAfterService: snapshotUnstableAfterService
+        )
     }
 
-    private func terminalTabCount(windowID: Int32) throws -> Int {
-        do {
-            let reply = try eventSender.send(
-                try NativeAppleEvent.terminalTabCountQuery(windowID: windowID)
+    private func terminalTabCreationError(
+        baseline: TerminalSnapshot,
+        latest: TerminalSnapshot,
+        sawGlobalTabIncrease: Bool,
+        sawPendingTTY: Bool,
+        sawUniqueNewTTY: Bool,
+        windowSetChanged: Bool,
+        oldTTYOwnerChanged: Bool,
+        snapshotUnstableAfterService: Bool
+    ) -> TerminalAdapterError {
+        .terminalTabCreationTimedOut(
+            TerminalTabCreationEvidence(
+                initialWindows: baseline.evidence,
+                latestWindows: latest.evidence,
+                sawGlobalTabIncrease: sawGlobalTabIncrease,
+                sawPendingTTY: sawPendingTTY,
+                sawUniqueNewTTY: sawUniqueNewTTY,
+                windowSetChanged: windowSetChanged,
+                oldTTYOwnerChanged: oldTTYOwnerChanged,
+                snapshotUnstableAfterService:
+                    snapshotUnstableAfterService
             )
-            guard let count = NativeAppleEvent.terminalTabCount(from: reply) else {
-                throw TerminalAdapterError.terminalTabCountReplyInvalid(
-                    reply.paramDescriptor(
-                        forKeyword: NativeAppleEvent.directObjectKeyword
-                    )?.descriptorType
-                )
-            }
-            return count
-        } catch let RawAppleEventError.status(status) {
-            throw TerminalHandoffError.mapAppleEventStatus(
-                status,
-                host: .terminal
-            )
-        }
-    }
-
-    private func terminalSelectedTabTTY(windowID: Int32) throws -> String? {
-        do {
-            let reply = try eventSender.send(
-                try NativeAppleEvent.terminalSelectedTabTTYQuery(
-                    windowID: windowID
-                )
-            )
-            switch NativeAppleEvent.classifyTerminalSelectedTabTTYReply(
-                reply
-            ) {
-            case .ready(let tty):
-                return tty
-            case .notReady:
-                return nil
-            case .invalid(let descriptorType):
-                throw TerminalAdapterError
-                    .terminalSelectedTabTTYReplyInvalid(descriptorType)
-            }
-        } catch let RawAppleEventError.status(status) {
-            throw TerminalHandoffError.mapAppleEventStatus(
-                status,
-                host: .terminal
-            )
-        }
+        )
     }
 
     private func sendTerminalEvent(
@@ -918,58 +1340,6 @@ struct TerminalOpenAdapter: TerminalHandoffPerforming {
         )
         guard status == noErr else {
             throw TerminalHandoffError.mapAppleEventStatus(status, host: host)
-        }
-    }
-
-    private func ensureSystemEventsRunning() async throws {
-        let bundleIdentifier = NativeAppleEvent.systemEventsBundleIdentifier
-        guard let applicationURL = applicationState.applicationURL(
-            bundleIdentifier: bundleIdentifier
-        ), applicationURL.isFileURL, applicationURL.path.hasPrefix("/") else {
-            throw TerminalAdapterError.systemEventsUnavailable
-        }
-        guard !applicationState.isRunning(bundleIdentifier: bundleIdentifier) else {
-            return
-        }
-        if let failure = await applicationOpener.openApplication(
-            at: applicationURL,
-            initialAppleEvent: nil,
-            activates: false
-        ) {
-            throw TerminalAdapterError.systemEventsOpenFailed(failure.code)
-        }
-    }
-
-    private func requestSystemEventsAutomationPermission() async throws {
-        let shortcut = try NativeAppleEvent.systemEventsTerminalNewTabShortcut()
-        let status = await eventSender.requestAutomationPermission(
-            AutomationPermissionRequest(
-                bundleIdentifier: NativeAppleEvent.systemEventsBundleIdentifier,
-                eventClass: shortcut.eventClass,
-                eventID: shortcut.eventID
-            )
-        )
-        guard status == noErr else {
-            throw mapSystemEventsStatus(
-                status,
-                fallback: .systemEventsPermissionCheckFailed(status)
-            )
-        }
-    }
-
-    private func mapSystemEventsStatus(
-        _ status: Int32,
-        fallback: TerminalAdapterError
-    ) -> TerminalAdapterError {
-        switch status {
-        case -1743:
-            .systemEventsAutomationPermissionDenied
-        case -1744:
-            .systemEventsConsentRequired
-        case -600:
-            .systemEventsUnavailable
-        default:
-            fallback
         }
     }
 

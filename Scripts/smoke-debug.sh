@@ -95,7 +95,7 @@ if [[ "$mode" == "begin" ]]; then
     prepare_regular_output_path "$pending_manifest_next" "Debug smoke pending staging file"
     assert_safe_regular_output_path "$pending_manifest" "Debug smoke pending record"
     /usr/bin/printf \
-        'FORMAT_VERSION=1\nGIT_HEAD=%s\nDEBUG_TREE_SHA256=%s\nTEAM_ID=%s\nOUTER_REQUIREMENT_SHA256=%s\nINNER_REQUIREMENT_SHA256=%s\nCHECKLIST_VERSION=3\nSTARTED_AT=%s\n' \
+        'FORMAT_VERSION=1\nGIT_HEAD=%s\nDEBUG_TREE_SHA256=%s\nTEAM_ID=%s\nOUTER_REQUIREMENT_SHA256=%s\nINNER_REQUIREMENT_SHA256=%s\nCHECKLIST_VERSION=4\nSTARTED_AT=%s\n' \
         "$current_head" \
         "$debug_tree" \
         "$debug_team" \
@@ -116,8 +116,8 @@ if [[ "$mode" == "begin" ]]; then
     echo "7. Codex CLI：iTerm2 无窗口时新建窗口；有窗口时按设置新建标签/窗口且不改原标签；连续执行 5 次。"
     echo "8. Claude Code CLI：重复 iTerm2 新标签、新窗口和无现有窗口路径。"
     echo "9. Terminal.app 冷启动：Codex/Claude × New Window/New Tab 都只出现一个承载命令的窗口，无额外空窗或重复提交；每种成功路径连续 5 次。"
-    echo "10. Terminal.app 运行中：无窗口时 New Window/New Tab 各生成一个命令窗口；有窗口时 New Window 新建独立窗口，New Tab 在提交前失败且不改原标签。"
-    echo "11. command not found、Terminal.app/iTerm2 Automation 拒绝和取消均不回退或重复提交；每次结束后 Launcher 退出、不常驻。"
+    echo "10. Terminal.app 运行中：无窗口时 New Window/New Tab 各生成一个命令窗口；单窗口和多窗口时，New Window 新建独立窗口，New Tab 只新增一个承载命令的标签；Codex/Claude 各连续执行 5 次，无空标签、额外窗口或重复提交。"
+    echo "11. Terminal New Tab 不请求辅助功能或 System Events；command not found、Terminal.app/iTerm2 Automation 拒绝和取消均不回退或重复提交；每次结束后 Launcher 退出、不常驻。"
     echo "12. 正式版文件、偏好、Automation 与 Finder 正式按钮均未被覆盖或重置。"
     echo "全部通过后运行：./Scripts/smoke-debug.sh --record-pass --confirm-smoke-passed"
 else
@@ -136,12 +136,12 @@ else
     [[ "$(manifest_value "$pending_manifest" TEAM_ID)" == "$debug_team" ]] || safety_die "Debug signing team changed during the smoke check"
     [[ "$(manifest_value "$pending_manifest" OUTER_REQUIREMENT_SHA256)" == "$debug_outer_requirement" ]] || safety_die "Debug outer signing identity changed during the smoke check"
     [[ "$(manifest_value "$pending_manifest" INNER_REQUIREMENT_SHA256)" == "$debug_inner_requirement" ]] || safety_die "Debug Launcher signing identity changed during the smoke check"
-    [[ "$(manifest_value "$pending_manifest" CHECKLIST_VERSION)" == "3" ]] || safety_die "the pending smoke checklist is obsolete"
+    [[ "$(manifest_value "$pending_manifest" CHECKLIST_VERSION)" == "4" ]] || safety_die "the pending smoke checklist is obsolete"
     recorded_at="$(/bin/date -u '+%Y-%m-%dT%H:%M:%SZ')" || safety_die "Debug smoke completion time could not be recorded"
     prepare_regular_output_path "$pass_manifest_next" "Debug smoke pass staging file"
     assert_safe_regular_output_path "$pass_manifest" "Debug smoke pass record"
     /usr/bin/printf \
-        'FORMAT_VERSION=1\nGIT_HEAD=%s\nDEBUG_TREE_SHA256=%s\nTEAM_ID=%s\nOUTER_REQUIREMENT_SHA256=%s\nINNER_REQUIREMENT_SHA256=%s\nCHECKLIST_VERSION=3\nRESULT=pass\nRECORDED_AT=%s\n' \
+        'FORMAT_VERSION=1\nGIT_HEAD=%s\nDEBUG_TREE_SHA256=%s\nTEAM_ID=%s\nOUTER_REQUIREMENT_SHA256=%s\nINNER_REQUIREMENT_SHA256=%s\nCHECKLIST_VERSION=4\nRESULT=pass\nRECORDED_AT=%s\n' \
         "$current_head" \
         "$debug_tree" \
         "$debug_team" \

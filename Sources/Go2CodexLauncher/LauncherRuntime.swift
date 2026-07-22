@@ -787,22 +787,22 @@ struct LauncherFailureCopyResolver {
             "This Finder view is not a folder"
         case "workspace-inaccessible", "workspace-invalid":
             "The Finder folder is not accessible"
-        case "terminal-accessibility-denied":
-            "Accessibility permission is required for Terminal tabs"
-        case "terminal-system-events-automation-denied",
-             "terminal-system-events-consent-required":
-            "Automation permission is required for Terminal tabs"
-        case "terminal-tab-count-malformed",
+        case "terminal-tab-service-failed",
+             "terminal-tab-service-launch-timeout",
              "terminal-tab-creation-timeout",
-             "terminal-tab-shortcut-failed",
-             "terminal-activation-failed",
-             "terminal-activation-timeout",
-             "terminal-focus-lost-before-shortcut",
-             "terminal-tab-tty-list-malformed":
+             "terminal-tab-lock-failed":
             "Go2Codex could not create a Terminal tab"
+        case "terminal-tab-operation-busy":
+            "Another Terminal tab handoff is already in progress"
+        case "terminal-window-list-malformed",
+             "terminal-tab-count-malformed",
+             "terminal-tab-tty-list-malformed",
+             "terminal-snapshot-reply-timeout",
+             "terminal-snapshot-stability-timeout",
+             "terminal-baseline-tty-timeout":
+            "Go2Codex could not safely inspect Terminal tabs"
         case "terminal-tab-tty-timeout",
-             "terminal-tab-identity-timeout",
-             "terminal-selected-tab-tty-malformed":
+             "terminal-tab-identity-timeout":
             "Go2Codex could not start the CLI in the Terminal tab"
         case "iterm-login-shell-unavailable",
              "iterm-login-shell-path-not-absolute",
@@ -828,24 +828,24 @@ struct LauncherFailureCopyResolver {
         switch failure.code.rawValue {
         case "finder-malformed-reply", "finder-unsupported-location":
             return "Open a regular folder in Finder, then try again. Smart folders such as Recents cannot be used as a workspace."
-        case "terminal-accessibility-denied":
-            return "Terminal New Tab needs the current Go2CodexLauncher in Accessibility. If an older Go2CodexLauncher entry exists, remove it. Then choose Locate Current Launcher, add the revealed launcher to Accessibility, turn it on, and try again. Unsigned preview updates can invalidate an earlier entry."
-        case "terminal-system-events-automation-denied",
-             "terminal-system-events-consent-required":
-            return "Allow Go2Codex to control System Events in System Settings > Privacy & Security > Automation, then try again."
+        case "terminal-tab-operation-busy":
+            return "Wait for the current Terminal tab handoff to finish, then try again."
+        case "terminal-snapshot-stability-timeout",
+             "terminal-baseline-tty-timeout":
+            return "No Terminal tab was requested and no command was submitted. Wait for existing Terminal tabs to finish opening, then try again."
         case "terminal-tab-tty-timeout":
             return "The Terminal tab was created, but its TTY did not become ready, so no command was submitted. Close the empty tab and try again, or choose New Window in Go2Codex Settings."
-        case "terminal-tab-identity-timeout",
-             "terminal-selected-tab-tty-malformed":
+        case "terminal-tab-identity-timeout":
             return "A Terminal tab was created, but Go2Codex could not safely identify it, so no command was submitted. Close the empty tab and try again, or choose New Window in Go2Codex Settings."
-        case "terminal-tab-count-malformed",
+        case "terminal-tab-service-failed",
+             "terminal-tab-service-launch-timeout",
              "terminal-tab-creation-timeout",
-             "terminal-tab-shortcut-failed",
-             "terminal-activation-failed",
-             "terminal-activation-timeout",
-             "terminal-focus-lost-before-shortcut",
-             "terminal-tab-tty-list-malformed":
-            return "No command was submitted. Try again, or choose New Window in Go2Codex Settings."
+             "terminal-tab-lock-failed",
+             "terminal-window-list-malformed",
+             "terminal-tab-count-malformed",
+             "terminal-tab-tty-list-malformed",
+             "terminal-snapshot-reply-timeout":
+            return "No command was submitted. Check Terminal for an empty tab before trying again, or choose New Window in Go2Codex Settings."
         case "iterm-login-shell-unavailable",
              "iterm-login-shell-path-not-absolute",
              "iterm-login-shell-path-invalid",
@@ -876,7 +876,6 @@ struct LauncherFailureCopyResolver {
 }
 
 enum LauncherFailurePresentationAction: Equatable {
-    case showCurrentLauncher
     case openAutomationSettings
     case copyDiagnostics
     case cancel
@@ -884,8 +883,6 @@ enum LauncherFailurePresentationAction: Equatable {
 
     var titleKey: String {
         switch self {
-        case .showCurrentLauncher:
-            "Locate Current Launcher"
         case .openAutomationSettings:
             "Open Automation Settings"
         case .copyDiagnostics:
@@ -906,13 +903,6 @@ struct LauncherFailurePresentationPlanResolver {
     func resolve(
         failure: LauncherWorkflowFailure
     ) -> LauncherFailurePresentationPlan {
-        if failure.code.rawValue == "terminal-accessibility-denied" {
-            return LauncherFailurePresentationPlan(actions: [
-                .showCurrentLauncher,
-                .copyDiagnostics,
-                .cancel,
-            ])
-        }
         if failure.permissionContext != nil {
             return LauncherFailurePresentationPlan(actions: [
                 .openAutomationSettings,
@@ -927,43 +917,13 @@ struct LauncherFailurePresentationPlanResolver {
     }
 }
 
-struct CurrentLauncherURLResolver {
-    func resolve(
-        bundleURL: URL,
-        bundleIdentifier: String?
-    ) -> URL? {
-        let launcherURL = bundleURL.standardizedFileURL
-        let helpersURL = launcherURL.deletingLastPathComponent()
-        let contentsURL = helpersURL.deletingLastPathComponent()
-        let containingApplicationURL = contentsURL.deletingLastPathComponent()
-        let launcherSuffix = ".launcher"
-
-        guard launcherURL.isFileURL,
-              launcherURL.pathExtension == "app",
-              helpersURL.lastPathComponent == "Helpers",
-              contentsURL.lastPathComponent == "Contents",
-              containingApplicationURL.pathExtension == "app",
-              launcherURL.resolvingSymlinksInPath() == launcherURL,
-              let bundleIdentifier,
-              bundleIdentifier.hasSuffix(launcherSuffix),
-              bundleIdentifier.count > launcherSuffix.count else {
-            return nil
-        }
-        return launcherURL
-    }
-}
-
 @MainActor
 private struct FailurePresenter {
     private let automationSettingsURL = URL(
         string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Automation"
     )!
-    private let accessibilitySettingsURL = URL(
-        string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"
-    )!
     private let copyResolver = LauncherFailureCopyResolver()
     private let planResolver = LauncherFailurePresentationPlanResolver()
-    private let launcherURLResolver = CurrentLauncherURLResolver()
 
     func present(
         failure: LauncherWorkflowFailure,
@@ -1007,43 +967,12 @@ private struct FailurePresenter {
         diagnostics: DiagnosticRecord
     ) {
         switch action {
-        case .showCurrentLauncher:
-            showCurrentLauncherOrShowFallback()
         case .openAutomationSettings:
             openPermissionSettingsOrShowFallback(automationSettingsURL)
         case .copyDiagnostics:
             copy(diagnostics)
         case .cancel, .acknowledge:
             break
-        }
-    }
-
-    private func showCurrentLauncherOrShowFallback() {
-        guard let launcherURL = launcherURLResolver.resolve(
-            bundleURL: Bundle.main.bundleURL,
-            bundleIdentifier: Bundle.main.bundleIdentifier
-        ) else {
-            let fallback = NSAlert()
-            fallback.alertStyle = .informational
-            fallback.messageText = String(localized: "Current Launcher could not be located")
-            fallback.informativeText = String(localized: "Open Go2Codex.app in Finder, choose Show Package Contents, then open Contents > Helpers to find Go2CodexLauncher.app.")
-            fallback.addButton(withTitle: String(localized: "Open Accessibility Settings"))
-            fallback.addButton(withTitle: String(localized: "Cancel"))
-            if fallback.runModal() == .alertFirstButtonReturn {
-                openPermissionSettingsOrShowFallback(accessibilitySettingsURL)
-            }
-            return
-        }
-        NSWorkspace.shared.activateFileViewerSelecting([launcherURL])
-        NSApp.activate()
-        let nextStep = NSAlert()
-        nextStep.alertStyle = .informational
-        nextStep.messageText = String(localized: "Current Launcher is selected in Finder")
-        nextStep.informativeText = String(localized: "Keep the Finder window open. In Accessibility, remove any older Go2CodexLauncher entry, then add the selected launcher and turn it on.")
-        nextStep.addButton(withTitle: String(localized: "Open Accessibility Settings"))
-        nextStep.addButton(withTitle: String(localized: "Cancel"))
-        if nextStep.runModal() == .alertFirstButtonReturn {
-            openPermissionSettingsOrShowFallback(accessibilitySettingsURL)
         }
     }
 
@@ -1055,7 +984,7 @@ private struct FailurePresenter {
             let fallback = NSAlert()
             fallback.alertStyle = .informational
             fallback.messageText = String(localized: "Open Privacy Settings manually")
-            fallback.informativeText = String(localized: "Open System Settings, choose Privacy & Security, then enable Go2Codex in the requested Automation or Accessibility section.")
+            fallback.informativeText = String(localized: "Open System Settings, choose Privacy & Security, then Automation, and enable Go2Codex for Finder or your selected terminal.")
             fallback.addButton(withTitle: String(localized: "OK"))
             fallback.runModal()
             return

@@ -193,7 +193,8 @@ struct LauncherWorkflowTests {
             AgentTargetCatalog.targets + [.claudeCodeCLI])
         #expect(fixture.terminalCalls.first?.command == TerminalCommand(
             executable: .claude,
-            line: "cd '/Users/example/Project With Space' && claude"
+            line: "cd '/Users/example/Project With Space' && claude",
+            workspace: fixture.workspace
         ))
     }
 
