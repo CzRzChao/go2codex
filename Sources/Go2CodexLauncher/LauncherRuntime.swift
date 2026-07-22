@@ -815,7 +815,7 @@ struct LauncherFailureCopyResolver {
         case "finder-malformed-reply", "finder-unsupported-location":
             return "Open a regular folder in Finder, then try again. Smart folders such as Recents cannot be used as a workspace."
         case "terminal-accessibility-denied":
-            return "Allow Go2Codex in System Settings > Privacy & Security > Accessibility, then try again."
+            return "Terminal New Tab needs the current Go2CodexLauncher in Accessibility. If an older Go2CodexLauncher entry exists, remove it. Then choose Locate Current Launcher, add the revealed launcher to Accessibility, turn it on, and try again. Unsigned preview updates can invalidate an earlier entry."
         case "terminal-system-events-automation-denied",
              "terminal-system-events-consent-required":
             return "Allow Go2Codex to control System Events in System Settings > Privacy & Security > Automation, then try again."
@@ -846,6 +846,84 @@ struct LauncherFailureCopyResolver {
     }
 }
 
+enum LauncherFailurePresentationAction: Equatable {
+    case showCurrentLauncher
+    case openAutomationSettings
+    case copyDiagnostics
+    case cancel
+    case acknowledge
+
+    var titleKey: String {
+        switch self {
+        case .showCurrentLauncher:
+            "Locate Current Launcher"
+        case .openAutomationSettings:
+            "Open Automation Settings"
+        case .copyDiagnostics:
+            "Copy Diagnostics"
+        case .cancel:
+            "Cancel"
+        case .acknowledge:
+            "OK"
+        }
+    }
+}
+
+struct LauncherFailurePresentationPlan: Equatable {
+    let actions: [LauncherFailurePresentationAction]
+}
+
+struct LauncherFailurePresentationPlanResolver {
+    func resolve(
+        failure: LauncherWorkflowFailure
+    ) -> LauncherFailurePresentationPlan {
+        if failure.code.rawValue == "terminal-accessibility-denied" {
+            return LauncherFailurePresentationPlan(actions: [
+                .showCurrentLauncher,
+                .copyDiagnostics,
+                .cancel,
+            ])
+        }
+        if failure.permissionContext != nil {
+            return LauncherFailurePresentationPlan(actions: [
+                .openAutomationSettings,
+                .copyDiagnostics,
+                .cancel,
+            ])
+        }
+        return LauncherFailurePresentationPlan(actions: [
+            .acknowledge,
+            .copyDiagnostics,
+        ])
+    }
+}
+
+struct CurrentLauncherURLResolver {
+    func resolve(
+        bundleURL: URL,
+        bundleIdentifier: String?
+    ) -> URL? {
+        let launcherURL = bundleURL.standardizedFileURL
+        let helpersURL = launcherURL.deletingLastPathComponent()
+        let contentsURL = helpersURL.deletingLastPathComponent()
+        let containingApplicationURL = contentsURL.deletingLastPathComponent()
+        let launcherSuffix = ".launcher"
+
+        guard launcherURL.isFileURL,
+              launcherURL.pathExtension == "app",
+              helpersURL.lastPathComponent == "Helpers",
+              contentsURL.lastPathComponent == "Contents",
+              containingApplicationURL.pathExtension == "app",
+              launcherURL.resolvingSymlinksInPath() == launcherURL,
+              let bundleIdentifier,
+              bundleIdentifier.hasSuffix(launcherSuffix),
+              bundleIdentifier.count > launcherSuffix.count else {
+            return nil
+        }
+        return launcherURL
+    }
+}
+
 @MainActor
 private struct FailurePresenter {
     private let automationSettingsURL = URL(
@@ -855,6 +933,8 @@ private struct FailurePresenter {
         string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"
     )!
     private let copyResolver = LauncherFailureCopyResolver()
+    private let planResolver = LauncherFailurePresentationPlanResolver()
+    private let launcherURLResolver = CurrentLauncherURLResolver()
 
     func present(
         failure: LauncherWorkflowFailure,
@@ -866,29 +946,19 @@ private struct FailurePresenter {
         alert.messageText = message(for: failure)
         alert.informativeText = informativeText(for: failure)
 
-        if let permissionSettings = permissionSettings(for: failure) {
+        let plan = planResolver.resolve(failure: failure)
+        for action in plan.actions {
             alert.addButton(withTitle: String(localized:
-                permissionSettings == accessibilitySettingsURL
-                    ? "Open Accessibility Settings"
-                    : "Open Automation Settings"
+                String.LocalizationValue(action.titleKey)
             ))
-            alert.addButton(withTitle: String(localized: "Copy Diagnostics"))
-            alert.addButton(withTitle: String(localized: "Cancel"))
-            switch alert.runModal() {
-            case .alertFirstButtonReturn:
-                openPermissionSettingsOrShowFallback(permissionSettings)
-            case .alertSecondButtonReturn:
-                copy(diagnostics)
-            default:
-                break
-            }
-        } else {
-            alert.addButton(withTitle: String(localized: "OK"))
-            alert.addButton(withTitle: String(localized: "Copy Diagnostics"))
-            if alert.runModal() == .alertSecondButtonReturn {
-                copy(diagnostics)
-            }
         }
+        let response = alert.runModal()
+        let actionIndex = response.rawValue
+            - NSApplication.ModalResponse.alertFirstButtonReturn.rawValue
+        guard plan.actions.indices.contains(actionIndex) else {
+            return
+        }
+        perform(plan.actions[actionIndex], diagnostics: diagnostics)
     }
 
     private func message(for failure: LauncherWorkflowFailure) -> String {
@@ -903,13 +973,49 @@ private struct FailurePresenter {
         ))
     }
 
-    private func permissionSettings(
-        for failure: LauncherWorkflowFailure
-    ) -> URL? {
-        if failure.code.rawValue == "terminal-accessibility-denied" {
-            return accessibilitySettingsURL
+    private func perform(
+        _ action: LauncherFailurePresentationAction,
+        diagnostics: DiagnosticRecord
+    ) {
+        switch action {
+        case .showCurrentLauncher:
+            showCurrentLauncherOrShowFallback()
+        case .openAutomationSettings:
+            openPermissionSettingsOrShowFallback(automationSettingsURL)
+        case .copyDiagnostics:
+            copy(diagnostics)
+        case .cancel, .acknowledge:
+            break
         }
-        return failure.permissionContext == nil ? nil : automationSettingsURL
+    }
+
+    private func showCurrentLauncherOrShowFallback() {
+        guard let launcherURL = launcherURLResolver.resolve(
+            bundleURL: Bundle.main.bundleURL,
+            bundleIdentifier: Bundle.main.bundleIdentifier
+        ) else {
+            let fallback = NSAlert()
+            fallback.alertStyle = .informational
+            fallback.messageText = String(localized: "Current Launcher could not be located")
+            fallback.informativeText = String(localized: "Open Go2Codex.app in Finder, choose Show Package Contents, then open Contents > Helpers to find Go2CodexLauncher.app.")
+            fallback.addButton(withTitle: String(localized: "Open Accessibility Settings"))
+            fallback.addButton(withTitle: String(localized: "Cancel"))
+            if fallback.runModal() == .alertFirstButtonReturn {
+                openPermissionSettingsOrShowFallback(accessibilitySettingsURL)
+            }
+            return
+        }
+        NSWorkspace.shared.activateFileViewerSelecting([launcherURL])
+        NSApp.activate()
+        let nextStep = NSAlert()
+        nextStep.alertStyle = .informational
+        nextStep.messageText = String(localized: "Current Launcher is selected in Finder")
+        nextStep.informativeText = String(localized: "Keep the Finder window open. In Accessibility, remove any older Go2CodexLauncher entry, then add the selected launcher and turn it on.")
+        nextStep.addButton(withTitle: String(localized: "Open Accessibility Settings"))
+        nextStep.addButton(withTitle: String(localized: "Cancel"))
+        if nextStep.runModal() == .alertFirstButtonReturn {
+            openPermissionSettingsOrShowFallback(accessibilitySettingsURL)
+        }
     }
 
     private func openPermissionSettingsOrShowFallback(_ settingsURL: URL) {

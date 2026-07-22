@@ -312,6 +312,45 @@ struct SettingsModelTests {
         #expect(preferences.changes.isEmpty)
     }
 
+    @Test(arguments: [
+        ToolbarSettingsAction.install,
+        ToolbarSettingsAction.repair,
+        ToolbarSettingsAction.uninstall,
+    ])
+    func lateToolbarConvergenceClearsTheReportedFailure(
+        _ action: ToolbarSettingsAction
+    ) async {
+        let envelope = PreferencesEnvelope(
+            defaultTarget: .codexApp,
+            alternateTrigger: .shiftClick,
+            defaultTerminalHost: .terminal,
+            sessionPlacement: .newTab
+        )
+        let initialStatus: ToolbarSettingsStatus = action == .uninstall
+            ? .installed
+            : action == .repair ? .needsRepair : .notInstalled
+        let expectedStatus: ToolbarSettingsStatus = action == .uninstall
+            ? .notInstalled
+            : .installed
+        let toolbar = ToolbarSettingsFake(
+            status: initialStatus,
+            actionResult: .failed
+        )
+        let model = makeModel(
+            preferences: SettingsPreferencesFake(state: .configured(envelope)),
+            toolbar: toolbar
+        )
+
+        await model.loadIfNeeded()
+        toolbar.status = expectedStatus
+        await model.performToolbarAction(action)
+
+        #expect(model.toolbarStatus == expectedStatus)
+        #expect(!model.hasToolbarError)
+        #expect(toolbar.actions == [action])
+        #expect(toolbar.currentStatusCalls == 2)
+    }
+
     @Test
     func activationRecoversOnlyAfterACompleteConfiguredEnvelopeCanBeRead() async {
         let preferences = SettingsPreferencesFake(

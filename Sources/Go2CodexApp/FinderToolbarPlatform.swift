@@ -174,10 +174,29 @@ final class FinderToolbarSettingsService: ToolbarSettingsServing, ToolbarAutomat
                 profile: profile,
                 launcherIdentity: identity
             ) else {
+                let reconciledStatus = await currentStatus()
+                if mutationReachedExpectedStatus(action, status: reconciledStatus) {
+                    logger.notice(
+                        "Finder toolbar mutation converged after executor failure operation=\(action.debugName, privacy: .public)"
+                    )
+                    return .status(reconciledStatus)
+                }
                 logger.error("Experimental Finder toolbar mutation failed operation=\(action.debugName, privacy: .public)")
                 return .failed
             }
             return .status(await currentStatus())
+        }
+    }
+
+    private func mutationReachedExpectedStatus(
+        _ action: ToolbarSettingsAction,
+        status: ToolbarSettingsStatus
+    ) -> Bool {
+        switch (action, status) {
+        case (.install, .installed), (.repair, .installed), (.uninstall, .notInstalled):
+            true
+        case (.install, _), (.repair, _), (.uninstall, _), (.showManualSetup, _):
+            false
         }
     }
 

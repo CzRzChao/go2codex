@@ -281,9 +281,29 @@ final class SettingsModel: ObservableObject {
         case .cancelled:
             break
         case .failed:
-            hasToolbarError = true
-            logger.error("Finder toolbar action failed")
-            toolbarStatus = await toolbar.currentStatus()
+            let reconciledStatus = await toolbar.currentStatus()
+            toolbarStatus = reconciledStatus
+            hasToolbarError = !toolbarActionReachedExpectedStatus(
+                action,
+                status: reconciledStatus
+            )
+            if hasToolbarError {
+                logger.error("Finder toolbar action failed")
+            } else {
+                logger.notice("Finder toolbar action converged after a reported failure")
+            }
+        }
+    }
+
+    private func toolbarActionReachedExpectedStatus(
+        _ action: ToolbarSettingsAction,
+        status: ToolbarSettingsStatus
+    ) -> Bool {
+        switch (action, status) {
+        case (.install, .installed), (.repair, .installed), (.uninstall, .notInstalled):
+            true
+        case (.install, _), (.repair, _), (.uninstall, _), (.showManualSetup, _):
+            false
         }
     }
 
