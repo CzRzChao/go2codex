@@ -20,10 +20,9 @@ enum ITermCurrentWindowReply: Equatable {
     case invalid(UInt32?)
 }
 
-enum TerminalSelectedTabTTYReply: Equatable {
+enum TerminalTabTTYValue: Equatable, Sendable {
     case ready(String)
     case notReady
-    case invalid(UInt32?)
 }
 
 @MainActor
@@ -37,7 +36,6 @@ enum NativeAppleEvent {
         static let doScript: UInt32 = 0x646f7363
         static let directObject: UInt32 = 0x2d2d2d2d
         static let errorNumber: UInt32 = 0x6572726e
-        static let subject: UInt32 = 0x7375626a
         static let terminalTarget: UInt32 = 0x6b66696c
 
         static let objectSpecifier: UInt32 = 0x6f626a20
@@ -55,7 +53,6 @@ enum NativeAppleEvent {
         static let propertyClass: UInt32 = 0x70726f70
         static let propertyForm: UInt32 = 0x70726f70
         static let absolutePositionForm: UInt32 = 0x696e6478
-        static let nameForm: UInt32 = 0x6e616d65
         static let uniqueIDForm: UInt32 = 0x49442020
         static let testForm: UInt32 = 0x74657374
         static let allElements: UInt32 = 0x616c6c20
@@ -74,14 +71,8 @@ enum NativeAppleEvent {
         static let window: UInt32 = 0x6377696e
         static let terminalTab: UInt32 = 0x74746162
         static let terminalWindowID: UInt32 = 0x49442020
-        static let terminalSelectedTab: UInt32 = 0x74636e74
         static let terminalTTY: UInt32 = 0x74747479
         static let iTermCurrentWindow: UInt32 = 0x4372776e
-
-        static let systemEventsProcessSuite: UInt32 = 0x70726373
-        static let systemEventsKeystroke: UInt32 = 0x6b707273
-        static let systemEventsUsing: UInt32 = 0x6661616c
-        static let commandDown: UInt32 = 0x4b636d64
     }
 
     static func finderWorkspace() throws -> NSAppleEventDescriptor {
@@ -205,8 +196,7 @@ enum NativeAppleEvent {
         return event
     }
 
-    static func terminalFrontWindowIDQuery() throws
-        -> NSAppleEventDescriptor {
+    static func terminalWindowIDsQuery() throws -> NSAppleEventDescriptor {
         let event = event(
             eventClass: Code.core,
             eventID: Code.getData,
@@ -215,23 +205,39 @@ enum NativeAppleEvent {
         event.setParam(
             try propertySpecifier(
                 Code.terminalWindowID,
-                container: try frontWindowSpecifier()
+                container: try terminalWindowsSpecifier()
             ),
             forKeyword: Code.directObject
         )
         return event
     }
 
-    static func terminalWindowID(
+    static func terminalWindowIDs(
         from reply: NSAppleEventDescriptor
-    ) -> Int32? {
-        guard let value = reply.paramDescriptor(
+    ) -> [Int32]? {
+        guard let values = reply.paramDescriptor(
             forKeyword: Code.directObject
-        )?.coerce(toDescriptorType: typeSInt32),
-              value.int32Value > 0 else {
+        ), values.descriptorType == Code.list else {
             return nil
         }
-        return value.int32Value
+        var result: [Int32] = []
+        result.reserveCapacity(values.numberOfItems)
+        guard values.numberOfItems > 0 else {
+            return result
+        }
+        for index in 1...values.numberOfItems {
+            guard let descriptor = values.atIndex(index),
+                  descriptor.descriptorType == Code.signedInteger,
+                  descriptor.data.count == MemoryLayout<Int32>.size,
+                  descriptor.int32Value > 0 else {
+                return nil
+            }
+            result.append(descriptor.int32Value)
+        }
+        guard Set(result).count == result.count else {
+            return nil
+        }
+        return result
     }
 
     static func terminalTabTTYsQuery(
@@ -250,28 +256,36 @@ enum NativeAppleEvent {
         return event
     }
 
-    static func terminalTabTTYs(
+    static func terminalTabTTYValues(
         from reply: NSAppleEventDescriptor
-    ) -> [String]? {
+    ) -> [TerminalTabTTYValue]? {
         guard let values = reply.paramDescriptor(
             forKeyword: Code.directObject
         ), values.descriptorType == Code.list else {
             return nil
         }
-        var result: [String] = []
+        var result: [TerminalTabTTYValue] = []
         result.reserveCapacity(values.numberOfItems)
         guard values.numberOfItems > 0 else {
             return result
         }
         for index in 1...values.numberOfItems {
-            guard let descriptor = values.atIndex(index),
-                  [Code.unicodeText, Code.utf8Text, Code.plainText].contains(
-                      descriptor.descriptorType
-                  ),
-                  let value = descriptor.stringValue, !value.isEmpty else {
+            guard let descriptor = values.atIndex(index) else {
                 return nil
             }
-            result.append(value)
+            if descriptor.descriptorType == missingValueDescriptorType
+                || descriptor.descriptorType == Code.typeCode
+                    && descriptor.typeCodeValue
+                        == missingValueDescriptorType {
+                result.append(.notReady)
+                continue
+            }
+            guard [Code.unicodeText, Code.utf8Text, Code.plainText].contains(
+                descriptor.descriptorType
+            ), let value = descriptor.stringValue else {
+                return nil
+            }
+            result.append(value.isEmpty ? .notReady : .ready(value))
         }
         return result
     }
@@ -304,78 +318,14 @@ enum NativeAppleEvent {
         return Int(value.int32Value)
     }
 
-    static func terminalSelectedTabTTYQuery(
-        windowID: Int32
+    static func send(
+        _ event: NSAppleEventDescriptor,
+        timeout: TimeInterval = 60
     ) throws -> NSAppleEventDescriptor {
-        let selectedTab = try propertySpecifier(
-            Code.terminalSelectedTab,
-            container: try terminalWindowSpecifier(id: windowID)
-        )
-        let event = event(
-            eventClass: Code.core,
-            eventID: Code.getData,
-            bundleIdentifier: TerminalHost.terminal.bundleIdentifier
-        )
-        event.setParam(
-            try propertySpecifier(Code.terminalTTY, container: selectedTab),
-            forKeyword: Code.directObject
-        )
-        return event
-    }
-
-    static func classifyTerminalSelectedTabTTYReply(
-        _ reply: NSAppleEventDescriptor
-    ) -> TerminalSelectedTabTTYReply {
-        guard let directObject = reply.paramDescriptor(
-            forKeyword: Code.directObject
-        ) else {
-            return .invalid(nil)
-        }
-        if directObject.descriptorType == missingValueDescriptorType {
-            return .notReady
-        }
-        if directObject.descriptorType == Code.typeCode,
-           directObject.typeCodeValue == missingValueDescriptorType {
-            return .notReady
-        }
-        guard [Code.unicodeText, Code.utf8Text, Code.plainText].contains(
-            directObject.descriptorType
-        ) else {
-            return .invalid(directObject.descriptorType)
-        }
-        guard let tty = directObject.stringValue, !tty.isEmpty else {
-            return .notReady
-        }
-        return .ready(tty)
-    }
-
-    static func systemEventsTerminalNewTabShortcut() throws
-        -> NSAppleEventDescriptor {
-        let terminalProcess = try objectSpecifier(
-            desiredClass: Code.systemEventsProcessSuite,
-            container: .null(),
-            form: Code.nameForm,
-            selector: .init(string: "Terminal")
-        )
-        let event = event(
-            eventClass: Code.systemEventsProcessSuite,
-            eventID: Code.systemEventsKeystroke,
-            bundleIdentifier: systemEventsBundleIdentifier
-        )
-        event.setAttribute(terminalProcess, forKeyword: Code.subject)
-        event.setParam(.init(string: "t"), forKeyword: Code.directObject)
-        event.setParam(
-            .init(enumCode: Code.commandDown),
-            forKeyword: Code.systemEventsUsing
-        )
-        return event
-    }
-
-    static func send(_ event: NSAppleEventDescriptor) throws -> NSAppleEventDescriptor {
         do {
             let reply = try event.sendEvent(
                 options: [.waitForReply, .canInteract],
-                timeout: 60
+                timeout: timeout
             )
             return try validateReply(reply)
         } catch let error as RawAppleEventError {
@@ -409,9 +359,37 @@ enum NativeAppleEvent {
         Code.directObject
     }
 
-    static let systemEventsBundleIdentifier = "com.apple.systemevents"
+    static func directObjectContainsMissingValue(
+        _ reply: NSAppleEventDescriptor
+    ) -> Bool {
+        containsMissingValue(
+            reply.paramDescriptor(forKeyword: Code.directObject)
+        )
+    }
 
     static let missingValueDescriptorType: UInt32 = 0x6d736e67
+
+    private static func containsMissingValue(
+        _ descriptor: NSAppleEventDescriptor?
+    ) -> Bool {
+        guard let descriptor else {
+            return false
+        }
+        if descriptor.descriptorType == missingValueDescriptorType
+            || descriptor.descriptorType == Code.typeCode
+                && descriptor.typeCodeValue == missingValueDescriptorType {
+            return true
+        }
+        guard descriptor.descriptorType == Code.list,
+              descriptor.numberOfItems > 0 else {
+            return false
+        }
+        for index in 1...descriptor.numberOfItems
+            where containsMissingValue(descriptor.atIndex(index)) {
+            return true
+        }
+        return false
+    }
 
     static func classifyITermCurrentWindowReply(
         _ reply: NSAppleEventDescriptor
@@ -465,6 +443,16 @@ enum NativeAppleEvent {
             container: .null(),
             form: Code.uniqueIDForm,
             selector: .init(int32: id)
+        )
+    }
+
+    private static func terminalWindowsSpecifier()
+        throws -> NSAppleEventDescriptor {
+        try objectSpecifier(
+            desiredClass: Code.window,
+            container: .null(),
+            form: Code.absolutePositionForm,
+            selector: try absoluteOrdinal(Code.allElements)
         )
     }
 

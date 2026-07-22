@@ -85,21 +85,88 @@ struct NativeAppleEventTests {
     }
 
     @Test
-    func terminalWindowIdentityAndTTYQueriesStayInTheSameWindow() throws {
-        let identityQuery = try NativeAppleEvent.terminalFrontWindowIDQuery()
-        let identity = try #require(identityQuery.paramDescriptor(
+    func terminalWindowIDsQueryUsesTheExactEveryWindowSpecifier() throws {
+        let query = try NativeAppleEvent.terminalWindowIDsQuery()
+
+        #expect(query.eventClass == code("core"))
+        #expect(query.eventID == code("getd"))
+        try expectTarget(query, bundleIdentifier: "com.apple.Terminal")
+        let identity = try #require(query.paramDescriptor(
             forKeyword: code("----")
         ))
         try expectPropertySpecifier(identity, selector: "ID  ")
-        #expect(identity.forKeyword(code("from"))?.forKeyword(
-            code("seld")
-        )?.int32Value == 1)
+        let windows = try #require(identity.forKeyword(code("from")))
+        #expect(windows.descriptorType == code("obj "))
+        #expect(windows.forKeyword(code("want"))?.typeCodeValue == code("cwin"))
+        #expect(windows.forKeyword(code("form"))?.enumCodeValue == code("indx"))
+        #expect(windows.forKeyword(code("seld"))?.descriptorType == code("abso"))
+        #expect(windows.forKeyword(code("seld"))?.enumCodeValue == code("all "))
+        #expect(windows.forKeyword(code("from"))?.descriptorType == code("null"))
+    }
 
-        let identityReply = reply()
-        identityReply.setParam(.init(int32: 42), forKeyword: code("----"))
-        #expect(NativeAppleEvent.terminalWindowID(from: identityReply) == 42)
+    @Test
+    func terminalWindowIDsAcceptEmptyAndUniquePositiveLists() {
+        let emptyReply = reply()
+        emptyReply.setParam(
+            NSAppleEventDescriptor.list(),
+            forKeyword: code("----")
+        )
+        #expect(NativeAppleEvent.terminalWindowIDs(from: emptyReply) == [])
 
+        let multipleReply = reply()
+        let values = NSAppleEventDescriptor.list()
+        values.insert(.init(int32: 42), at: 1)
+        values.insert(.init(int32: 7), at: 2)
+        multipleReply.setParam(values, forKeyword: code("----"))
+        #expect(NativeAppleEvent.terminalWindowIDs(
+            from: multipleReply
+        ) == [42, 7])
+    }
+
+    @Test
+    func terminalWindowIDsRejectDuplicateAndMalformedReplies() {
+        let duplicateReply = reply()
+        let duplicates = NSAppleEventDescriptor.list()
+        duplicates.insert(.init(int32: 42), at: 1)
+        duplicates.insert(.init(int32: 42), at: 2)
+        duplicateReply.setParam(duplicates, forKeyword: code("----"))
+        #expect(NativeAppleEvent.terminalWindowIDs(
+            from: duplicateReply
+        ) == nil)
+
+        for invalidValue: Int32 in [0, -1] {
+            let invalidReply = reply()
+            let values = NSAppleEventDescriptor.list()
+            values.insert(.init(int32: invalidValue), at: 1)
+            invalidReply.setParam(values, forKeyword: code("----"))
+            #expect(NativeAppleEvent.terminalWindowIDs(
+                from: invalidReply
+            ) == nil)
+        }
+
+        let invalidItemReply = reply()
+        let invalidItems = NSAppleEventDescriptor.list()
+        invalidItems.insert(.null(), at: 1)
+        invalidItemReply.setParam(invalidItems, forKeyword: code("----"))
+        #expect(NativeAppleEvent.terminalWindowIDs(
+            from: invalidItemReply
+        ) == nil)
+
+        let nonListReply = reply()
+        nonListReply.setParam(.init(int32: 42), forKeyword: code("----"))
+        #expect(NativeAppleEvent.terminalWindowIDs(
+            from: nonListReply
+        ) == nil)
+        #expect(NativeAppleEvent.terminalWindowIDs(from: reply()) == nil)
+    }
+
+    @Test
+    func terminalTabTTYQueryUsesTheExactStableWindowSpecifier() throws {
         let ttyQuery = try NativeAppleEvent.terminalTabTTYsQuery(windowID: 42)
+
+        #expect(ttyQuery.eventClass == code("core"))
+        #expect(ttyQuery.eventID == code("getd"))
+        try expectTarget(ttyQuery, bundleIdentifier: "com.apple.Terminal")
         let ttyProperty = try #require(ttyQuery.paramDescriptor(
             forKeyword: code("----")
         ))
@@ -110,23 +177,83 @@ struct NativeAppleEventTests {
         let window = try #require(tabs.forKeyword(code("from")))
         #expect(window.forKeyword(code("form"))?.enumCodeValue == code("ID  "))
         #expect(window.forKeyword(code("seld"))?.int32Value == 42)
+    }
 
+    @Test
+    func terminalTabTTYValuesAcceptAllTextEncodings() throws {
         let ttyReply = reply()
         let values = NSAppleEventDescriptor.list()
         values.insert(.init(string: "/dev/ttys001"), at: 1)
-        values.insert(.init(string: "/dev/ttys009"), at: 2)
+        values.insert(
+            try #require(NSAppleEventDescriptor(
+                descriptorType: code("utf8"),
+                data: Data("/dev/ttys002".utf8)
+            )),
+            at: 2
+        )
+        values.insert(
+            try #require(NSAppleEventDescriptor(
+                descriptorType: code("TEXT"),
+                data: Data("/dev/ttys003".utf8)
+            )),
+            at: 3
+        )
         ttyReply.setParam(values, forKeyword: code("----"))
-        #expect(NativeAppleEvent.terminalTabTTYs(from: ttyReply) == [
-            "/dev/ttys001",
-            "/dev/ttys009",
-        ])
-        #expect(NativeAppleEvent.terminalTabTTYs(from: reply()) == nil)
+        #expect(values.atIndex(1)?.descriptorType == code("utxt"))
 
-        let nonTextReply = reply()
-        let nonTextValues = NSAppleEventDescriptor.list()
-        nonTextValues.insert(.init(int32: 1), at: 1)
-        nonTextReply.setParam(nonTextValues, forKeyword: code("----"))
-        #expect(NativeAppleEvent.terminalTabTTYs(from: nonTextReply) == nil)
+        #expect(NativeAppleEvent.terminalTabTTYValues(
+            from: ttyReply
+        ) == [
+            .ready("/dev/ttys001"),
+            .ready("/dev/ttys002"),
+            .ready("/dev/ttys003"),
+        ])
+    }
+
+    @Test
+    func terminalTabTTYValuesMapEmptyAndMissingValuesToNotReady() throws {
+        let ttyReply = reply()
+        let values = NSAppleEventDescriptor.list()
+        values.insert(.init(string: ""), at: 1)
+        values.insert(
+            try #require(NSAppleEventDescriptor(
+                descriptorType: code("msng"),
+                data: nil
+            )),
+            at: 2
+        )
+        values.insert(.init(typeCode: code("msng")), at: 3)
+        ttyReply.setParam(values, forKeyword: code("----"))
+
+        #expect(NativeAppleEvent.terminalTabTTYValues(
+            from: ttyReply
+        ) == [.notReady, .notReady, .notReady])
+    }
+
+    @Test
+    func terminalTabTTYValuesRejectMalformedReplies() {
+        for invalidValue in [
+            NSAppleEventDescriptor(int32: 1),
+            NSAppleEventDescriptor.null(),
+        ] {
+            let invalidReply = reply()
+            let values = NSAppleEventDescriptor.list()
+            values.insert(invalidValue, at: 1)
+            invalidReply.setParam(values, forKeyword: code("----"))
+            #expect(NativeAppleEvent.terminalTabTTYValues(
+                from: invalidReply
+            ) == nil)
+        }
+
+        let nonListReply = reply()
+        nonListReply.setParam(
+            .init(string: "/dev/ttys001"),
+            forKeyword: code("----")
+        )
+        #expect(NativeAppleEvent.terminalTabTTYValues(
+            from: nonListReply
+        ) == nil)
+        #expect(NativeAppleEvent.terminalTabTTYValues(from: reply()) == nil)
     }
 
     @Test
@@ -180,122 +307,6 @@ struct NativeAppleEventTests {
         )
         #expect(NativeAppleEvent.terminalTabCount(from: malformedInteger) == nil)
         #expect(NativeAppleEvent.terminalTabCount(from: reply()) == nil)
-    }
-
-    @Test
-    func terminalSelectedTabTTYUsesTheExactStableWindowPropertyChain() throws {
-        let query = try NativeAppleEvent.terminalSelectedTabTTYQuery(
-            windowID: 42
-        )
-
-        #expect(query.eventClass == code("core"))
-        #expect(query.eventID == code("getd"))
-        try expectTarget(query, bundleIdentifier: "com.apple.Terminal")
-        let tty = try #require(query.paramDescriptor(
-            forKeyword: code("----")
-        ))
-        try expectPropertySpecifier(tty, selector: "ttty")
-        let selectedTab = try #require(tty.forKeyword(code("from")))
-        try expectPropertySpecifier(selectedTab, selector: "tcnt")
-        let window = try #require(selectedTab.forKeyword(code("from")))
-        #expect(window.forKeyword(code("want"))?.typeCodeValue == code("cwin"))
-        #expect(window.forKeyword(code("form"))?.enumCodeValue == code("ID  "))
-        #expect(window.forKeyword(code("seld"))?.int32Value == 42)
-        #expect(window.forKeyword(code("from"))?.descriptorType == code("null"))
-    }
-
-    @Test
-    func terminalSelectedTabTTYDistinguishesNotReadyFromMalformedReplies()
-        throws {
-        let ready = reply()
-        ready.setParam(
-            .init(string: "/dev/ttys009"),
-            forKeyword: code("----")
-        )
-        #expect(NativeAppleEvent.classifyTerminalSelectedTabTTYReply(
-            ready
-        ) == .ready("/dev/ttys009"))
-
-        for descriptorType in ["utf8", "TEXT"] {
-            let alternateText = reply()
-            alternateText.setParam(
-                try #require(NSAppleEventDescriptor(
-                    descriptorType: code(descriptorType),
-                    data: Data("/dev/ttys010".utf8)
-                )),
-                forKeyword: code("----")
-            )
-            #expect(NativeAppleEvent.classifyTerminalSelectedTabTTYReply(
-                alternateText
-            ) == .ready("/dev/ttys010"))
-        }
-
-        let empty = reply()
-        empty.setParam(.init(string: ""), forKeyword: code("----"))
-        #expect(NativeAppleEvent.classifyTerminalSelectedTabTTYReply(
-            empty
-        ) == .notReady)
-
-        let missing = reply()
-        missing.setParam(
-            .init(typeCode: code("msng")),
-            forKeyword: code("----")
-        )
-        #expect(NativeAppleEvent.classifyTerminalSelectedTabTTYReply(
-            missing
-        ) == .notReady)
-
-        let legacyMissing = reply()
-        legacyMissing.setParam(
-            try #require(NSAppleEventDescriptor(
-                descriptorType: code("msng"),
-                data: nil
-            )),
-            forKeyword: code("----")
-        )
-        #expect(NativeAppleEvent.classifyTerminalSelectedTabTTYReply(
-            legacyMissing
-        ) == .notReady)
-
-        #expect(NativeAppleEvent.classifyTerminalSelectedTabTTYReply(
-            reply()
-        ) == .invalid(nil))
-
-        let integer = reply()
-        integer.setParam(.init(int32: 9), forKeyword: code("----"))
-        #expect(NativeAppleEvent.classifyTerminalSelectedTabTTYReply(
-            integer
-        ) == .invalid(code("long")))
-
-        let null = reply()
-        null.setParam(.null(), forKeyword: code("----"))
-        #expect(NativeAppleEvent.classifyTerminalSelectedTabTTYReply(
-            null
-        ) == .invalid(code("null")))
-    }
-
-    @Test
-    func systemEventsShortcutTargetsOnlyTerminalCommandT() throws {
-        let event = try NativeAppleEvent.systemEventsTerminalNewTabShortcut()
-
-        #expect(event.eventClass == code("prcs"))
-        #expect(event.eventID == code("kprs"))
-        try expectTarget(event, bundleIdentifier: "com.apple.systemevents")
-        #expect(event.paramDescriptor(
-            forKeyword: code("----")
-        )?.stringValue == "t")
-        #expect(event.paramDescriptor(
-            forKeyword: code("faal")
-        )?.enumCodeValue == code("Kcmd"))
-
-        let subject = try #require(event.attributeDescriptor(
-            forKeyword: code("subj")
-        ))
-        #expect(subject.descriptorType == code("obj "))
-        #expect(subject.forKeyword(code("want"))?.typeCodeValue == code("prcs"))
-        #expect(subject.forKeyword(code("form"))?.enumCodeValue == code("name"))
-        #expect(subject.forKeyword(code("seld"))?.stringValue == "Terminal")
-        #expect(subject.forKeyword(code("from"))?.descriptorType == code("null"))
     }
 
     @Test

@@ -516,7 +516,7 @@ smoke_actual_sha="$(/usr/bin/shasum -a 256 "$smoke_manifest" | /usr/bin/awk '{ p
 [[ "$smoke_format" == "1" ]] || safety_die "unsupported Debug smoke receipt"
 [[ "$smoke_head" == "$current_head" ]] || safety_die "Debug smoke check does not match the current commit"
 [[ "$smoke_result" == "pass" ]] || safety_die "Debug smoke check did not pass"
-[[ "$smoke_checklist" == "3" ]] || safety_die "Debug smoke checklist is obsolete"
+[[ "$smoke_checklist" == "4" ]] || safety_die "Debug smoke checklist is obsolete"
 [[ "$smoke_actual_sha" == "$candidate_expected_smoke_sha" ]] \
     || safety_die "Debug smoke receipt changed after the candidate was created"
 "$script_dir/verify-app.sh" "$debug_app" Debug --signing stable-local
