@@ -58,7 +58,11 @@ extension SettingsModel {
         return SettingsModel(
             preferences: preferences,
             toolbar: FinderToolbarSettingsService(),
-            availability: LaunchServicesSettingsAvailabilityService()
+            availability: LaunchServicesSettingsAvailabilityService(),
+            cliAvailabilityProbe: SystemCLIExecutableAvailabilityProbe(
+                loginShellPathLookup: SystemLoginShellPathLookup(),
+                runner: SystemLoginShellCommandRunner()
+            )
         )
     }
 }
@@ -144,6 +148,33 @@ struct SettingsView: View {
 
     private var cliSection: some View {
         Section("CLI") {
+            cliAvailabilityRow(
+                "Codex CLI",
+                executable: .codex,
+                accessibilityIdentifier: "codex-cli-availability"
+            )
+            cliAvailabilityRow(
+                "Claude Code CLI",
+                executable: .claude,
+                accessibilityIdentifier: "claude-cli-availability"
+            )
+
+            HStack {
+                Button("Refresh CLI Status") {
+                    Task {
+                        await model.refreshCLIExecutableStatus()
+                    }
+                }
+                .disabled(isCheckingCLIAvailability)
+                .accessibilityIdentifier("refresh-cli-availability")
+
+                Spacer()
+            }
+
+            Text("CLI checks run in the background using your account login shell. Results are advisory and do not block saving or launching because terminal-specific shell setup can differ. Refresh after installing a CLI.")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+
             Picker(
                 "Default Terminal Host",
                 selection: Binding(
@@ -179,6 +210,59 @@ struct SettingsView: View {
             .pickerStyle(.segmented)
             .disabled(!model.controlsAreEnabled)
             .accessibilityIdentifier("session-placement")
+        }
+    }
+
+    private func cliAvailabilityRow(
+        _ title: LocalizedStringKey,
+        executable: CLIExecutable,
+        accessibilityIdentifier: String
+    ) -> some View {
+        let status = model.cliStatus(for: executable)
+        return LabeledContent(title) {
+            HStack(spacing: 6) {
+                if status == .checking {
+                    ProgressView()
+                        .controlSize(.small)
+                }
+                Text(cliStatusTitle(status))
+                    .foregroundStyle(cliStatusColor(status))
+            }
+        }
+        .accessibilityIdentifier(accessibilityIdentifier)
+    }
+
+    private var isCheckingCLIAvailability: Bool {
+        CLIExecutable.allCases.contains {
+            model.cliStatus(for: $0) == .checking
+        }
+    }
+
+    private func cliStatusTitle(
+        _ status: CLIExecutableSettingsStatus
+    ) -> LocalizedStringKey {
+        switch status {
+        case .checking:
+            "Checking…"
+        case .available:
+            "Available"
+        case .missing:
+            "Not Found"
+        case .couldNotVerify:
+            "Couldn’t Verify"
+        }
+    }
+
+    private func cliStatusColor(
+        _ status: CLIExecutableSettingsStatus
+    ) -> Color {
+        switch status {
+        case .available:
+            .green
+        case .missing, .couldNotVerify:
+            .orange
+        case .checking:
+            .secondary
         }
     }
 

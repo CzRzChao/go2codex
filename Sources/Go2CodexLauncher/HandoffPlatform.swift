@@ -144,23 +144,6 @@ struct WorkspaceTerminalApplicationState: TerminalApplicationStateLookingUp {
 }
 
 @MainActor
-protocol LoginShellPathLookingUp {
-    func loginShellPath() -> String?
-}
-
-@MainActor
-struct SystemLoginShellPathLookup: LoginShellPathLookingUp {
-    func loginShellPath() -> String? {
-        guard let passwordEntry = getpwuid(getuid()),
-              let shell = passwordEntry.pointee.pw_shell else {
-            return nil
-        }
-        let path = String(cString: shell)
-        return path.isEmpty ? nil : path
-    }
-}
-
-@MainActor
 protocol TerminalServicePerforming {
     func performNewWindow(at directoryURL: URL) -> Bool
     func performNewTab(at directoryURL: URL) -> Bool
@@ -669,6 +652,7 @@ struct AppleEventTerminalSnapshotReader: TerminalSnapshotReading {
 struct TerminalTabCandidate: Equatable, Sendable {
     let windowID: Int32
     let tty: String
+    let tabIndex: Int32
 }
 
 enum TerminalTabObservation: Equatable, Sendable {
@@ -724,9 +708,22 @@ func terminalTabDelta(
         } else if newTTYs.count == 1,
                   current.notReadyTabCount == 0,
                   let tty = newTTYs.first,
-                  currentOwners[tty] == changedWindowID {
+                  currentOwners[tty] == changedWindowID,
+                  let changedWindow = current.windows.first(
+                    where: { $0.windowID == changedWindowID }
+                  ),
+                  let zeroBasedTabIndex = changedWindow.tabTTYValues.firstIndex(
+                    where: { $0 == .ready(tty) }
+                  ),
+                  zeroBasedTabIndex < Int(Int32.max),
+                  let tabIndex = Int32(exactly: zeroBasedTabIndex + 1),
+                  tabIndex > 0 {
             observation = .candidate(
-                TerminalTabCandidate(windowID: changedWindowID, tty: tty)
+                TerminalTabCandidate(
+                    windowID: changedWindowID,
+                    tty: tty,
+                    tabIndex: tabIndex
+                )
             )
         } else {
             observation = .ambiguous
@@ -1322,8 +1319,24 @@ struct TerminalOpenAdapter: TerminalHandoffPerforming {
             if attempt > 0 {
                 await terminalTabPollDelay()
             }
-            guard let current = try terminalSnapshotReader
-                .coherentSnapshot() else {
+            let current: TerminalSnapshot?
+            do {
+                current = try terminalSnapshotReader.coherentSnapshot()
+            } catch let error as TerminalHandoffError {
+                guard error == .appleEventFailure(
+                    .terminal,
+                    status: NativeAppleEvent.transportFailureStatus
+                ) || error == .appleEventFailure(.terminal, status: -10000) else {
+                    throw error
+                }
+                // Snapshots are read-only and can retry after a launch race.
+                // Terminal scripting model settling can surface errAEEventFailed;
+                // the later targeted command remains intentionally unretried.
+                previous = nil
+                snapshotUnstableAfterService = true
+                continue
+            }
+            guard let current else {
                 previous = nil
                 snapshotUnstableAfterService = true
                 continue
@@ -1349,7 +1362,7 @@ struct TerminalOpenAdapter: TerminalHandoffPerforming {
                 _ = try sendTerminalEvent(
                     try NativeAppleEvent.terminalCommand(
                         command: command,
-                        targetTabTTY: candidate.tty,
+                        targetTabIndex: candidate.tabIndex,
                         inWindowID: candidate.windowID
                     ),
                     host: .terminal

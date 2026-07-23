@@ -1,20 +1,21 @@
-name: GitHub Preview Release
+name: GitHub Release
 
 on:
   push:
     tags:
       - "v*-preview.*"
+      - "v*.*.*"
 
 permissions:
   contents: write
 
 concurrency:
-  group: github-preview-release-${{ github.ref }}
+  group: github-release-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
   release:
-    name: Build and publish unsigned preview
+    name: Build and publish unsigned release
     # macOS 15 arm64 still provides Xcode 16.2, while the macOS 14 runner is being retired.
     runs-on: macos-15
     env:
@@ -59,16 +60,13 @@ jobs:
             -resultBundlePath "$RUNNER_TEMP/test-results.xcresult" \
             SWIFT_TREAT_WARNINGS_AS_ERRORS=YES
 
-      - name: Build and verify preview archive
+      - name: Build and verify release archive
         id: package
         run: ./Scripts/package-github-release.sh "$GITHUB_REF_NAME"
 
-      - name: Publish GitHub pre-release
+      - name: Verify remote release tag and main ancestry
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_WARNING: |
-            > [!WARNING]
-            > This is an ad-hoc-signed, non-notarized preview build. macOS will block the first launch until the user explicitly chooses Open Anyway in System Settings > Privacy & Security. Only install it if you trust this repository and have verified the published SHA-256 checksum.
         run: |
           set -euo pipefail
           remote_main_ref="refs/github-release/remote-main"
@@ -86,6 +84,16 @@ jobs:
             echo "Tagged commit is no longer reachable from main; refusing to publish." >&2
             exit 1
           }
+
+      - name: Publish GitHub preview release
+        if: steps.package.outputs.release_channel == 'preview'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_WARNING: |
+            > [!WARNING]
+            > This is an unsigned (not Developer ID-signed), ad-hoc-signed, non-notarized preview build. macOS will block the first launch until the user explicitly chooses Open Anyway in System Settings > Privacy & Security. Only install it if you trust this repository and have verified the published SHA-256 checksum.
+        run: |
+          set -euo pipefail
           gh release create "${{ steps.package.outputs.release_tag }}" \
             "${{ steps.package.outputs.archive_path }}#Go2Codex unsigned preview for Apple Silicon" \
             "${{ steps.package.outputs.checksum_path }}#SHA-256 checksum" \
@@ -93,5 +101,23 @@ jobs:
             --prerelease \
             --latest=false \
             --title "Go2Codex ${{ steps.package.outputs.release_version }} (unsigned preview)" \
+            --notes "$RELEASE_WARNING" \
+            --generate-notes
+
+      - name: Publish GitHub stable release
+        if: steps.package.outputs.release_channel == 'stable'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_WARNING: |
+            > [!WARNING]
+            > This is an unsigned (not Developer ID-signed), ad-hoc-signed, non-notarized stable build. macOS will block the first launch until the user explicitly chooses Open Anyway in System Settings > Privacy & Security. Only install it if you trust this repository and have verified the published SHA-256 checksum.
+        run: |
+          set -euo pipefail
+          gh release create "${{ steps.package.outputs.release_tag }}" \
+            "${{ steps.package.outputs.archive_path }}#Go2Codex unsigned stable build for Apple Silicon" \
+            "${{ steps.package.outputs.checksum_path }}#SHA-256 checksum" \
+            --verify-tag \
+            --latest \
+            --title "Go2Codex ${{ steps.package.outputs.release_version }} (unsigned, non-notarized)" \
             --notes "$RELEASE_WARNING" \
             --generate-notes

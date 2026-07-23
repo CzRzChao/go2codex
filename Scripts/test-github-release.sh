@@ -50,6 +50,21 @@ assert_count() {
     pass
 }
 
+workflow_step() {
+    local step_name="$1"
+    /usr/bin/awk -v header="      - name: $step_name" '
+        $0 == header {
+            printing = 1
+        }
+        printing && $0 ~ /^      - name: / && $0 != header {
+            exit
+        }
+        printing {
+            print
+        }
+    ' "$workflow"
+}
+
 marketing_version="$(/usr/bin/awk -F= '
     $1 ~ /^[[:space:]]*MARKETING_VERSION[[:space:]]*$/ {
         value=$2
@@ -68,7 +83,7 @@ build_version="$(/usr/bin/awk -F= '
 ' "$project_dir/Config/Base.xcconfig")"
 tag="v${marketing_version}-preview.${build_version}"
 expected_contract="$(/usr/bin/printf \
-    'release_tag=%s\nrelease_version=%s-preview.%s\narchive_path=dist/Go2Codex-%s-preview.%s-macos-arm64.zip\nchecksum_path=dist/Go2Codex-%s-preview.%s-macos-arm64.zip.sha256' \
+    'release_tag=%s\nrelease_version=%s-preview.%s\nrelease_channel=preview\narchive_path=dist/Go2Codex-%s-preview.%s-macos-arm64.zip\nchecksum_path=dist/Go2Codex-%s-preview.%s-macos-arm64.zip.sha256' \
     "$tag" \
     "$marketing_version" \
     "$build_version" \
@@ -81,8 +96,22 @@ actual_contract="$("$package_script" --validate-only "$tag")"
     || fail "valid preview contract output changed"
 pass
 
-expect_failure "stable tag must not publish an unsigned build" \
-    "$package_script" --validate-only "v$marketing_version"
+stable_tag="v${marketing_version}"
+expected_stable_contract="$(/usr/bin/printf \
+    'release_tag=%s\nrelease_version=%s\nrelease_channel=stable\narchive_path=dist/Go2Codex-%s-macos-arm64.zip\nchecksum_path=dist/Go2Codex-%s-macos-arm64.zip.sha256' \
+    "$stable_tag" \
+    "$marketing_version" \
+    "$marketing_version" \
+    "$marketing_version")"
+actual_stable_contract="$("$package_script" --validate-only "$stable_tag")"
+[[ "$actual_stable_contract" == "$expected_stable_contract" ]] \
+    || fail "valid stable contract output changed"
+pass
+
+expect_failure "stable tag version must match the bundle version" \
+    "$package_script" --validate-only "v99.99.99"
+expect_failure "stable tag must use major.minor.patch form" \
+    "$package_script" --validate-only "v${marketing_version}.0"
 expect_failure "preview number must be positive" \
     "$package_script" --validate-only "v${marketing_version}-preview.0"
 expect_failure "preview number must not have a leading zero" \
@@ -95,6 +124,7 @@ expect_failure "extra arguments are rejected" \
     "$package_script" --validate-only "$tag" extra
 
 assert_contains "$workflow" '      - "v*-preview.*"' "workflow preview-tag filter"
+assert_contains "$workflow" '      - "v*.*.*"' "workflow stable-tag filter"
 assert_contains "$workflow" "./Scripts/package-github-release.sh \"\$GITHUB_REF_NAME\"" "workflow package command"
 assert_contains "$workflow" 'git merge-base --is-ancestor "$GITHUB_SHA" origin/main' "workflow main ancestry gate"
 assert_contains "$workflow" 'uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5' "workflow immutable checkout action"
@@ -106,8 +136,23 @@ assert_contains "$workflow" '[[ "$remote_tag_commit" == "$event_commit" ]]' "wor
 assert_contains "$workflow" 'git merge-base --is-ancestor "$remote_tag_commit" "$remote_main_ref"' "workflow final main ancestry gate"
 assert_contains "$workflow" "./Scripts/test-sop.sh" "workflow SOP safety gate"
 assert_contains "$workflow" "SWIFT_TREAT_WARNINGS_AS_ERRORS=YES" "workflow unit warning gate"
-assert_contains "$workflow" "--prerelease" "workflow prerelease flag"
-assert_contains "$workflow" "--latest=false" "workflow latest-release guard"
+assert_contains "$workflow" "steps.package.outputs.release_channel == 'preview'" "workflow preview branch"
+assert_contains "$workflow" "steps.package.outputs.release_channel == 'stable'" "workflow stable branch"
+assert_count "$workflow" "--prerelease" 1 "workflow preview-only prerelease flag"
+assert_count "$workflow" "--latest=false" 1 "workflow preview latest-release guard"
+assert_contains "$workflow" "unsigned (not Developer ID-signed), ad-hoc-signed, non-notarized preview build" "workflow preview warning"
+assert_contains "$workflow" "unsigned (not Developer ID-signed), ad-hoc-signed, non-notarized stable build" "workflow stable warning"
+preview_publish_step="$(workflow_step "Publish GitHub preview release")"
+stable_publish_step="$(workflow_step "Publish GitHub stable release")"
+[[ "$preview_publish_step" == *"--prerelease"* ]] \
+    || fail "preview publishing step must mark releases as prereleases"
+pass
+[[ "$stable_publish_step" != *"--prerelease"* ]] \
+    || fail "stable publishing step must not mark releases as prereleases"
+pass
+[[ "$stable_publish_step" == *"--latest"* && "$stable_publish_step" != *"--latest=false"* ]] \
+    || fail "stable publishing step must explicitly mark the release as latest"
+pass
 assert_contains "$ci_workflow" "permissions:" "CI explicit permissions"
 assert_contains "$ci_workflow" "contents: read" "CI read-only contents permission"
 assert_contains "$ci_workflow" "runs-on: macos-15" "CI supported runner"

@@ -222,7 +222,7 @@ struct HandoffPlatformTests {
         #expect(sender.events.count == 1)
         try expectTerminalDoScriptEvent(
             #require(sender.events.first),
-            targetTabTTY: "/dev/ttys009",
+            targetTabIndex: 1,
             targetWindowID: 42
         )
         #expect(service.newWindowDirectoryURLs == [testWorkspace.fileURL])
@@ -469,13 +469,214 @@ struct HandoffPlatformTests {
         #expect(sender.events.count == 1)
         try expectTerminalDoScriptEvent(
             #require(sender.events.first),
-            targetTabTTY: "/dev/ttys009",
+            targetTabIndex: 1,
             targetWindowID: 42
         )
         #expect(service.newWindowDirectoryURLs == [testWorkspace.fileURL])
         #expect(snapshots.callCount == 2)
         #expect(opener.applicationURLs.isEmpty)
         #expect(locker.lock.releaseCount == 1)
+    }
+
+    @Test
+    func terminalNewTabRetriesPostServiceTransportFailureBeforeTargeting()
+        async throws {
+        let baseline = makeTerminalSnapshot(
+            makeTerminalWindowSnapshot(42, .ready("/dev/ttys001"))
+        )
+        let candidate = makeTerminalSnapshot(
+            makeTerminalWindowSnapshot(
+                42,
+                .ready("/dev/ttys001"),
+                .ready("/dev/ttys009")
+            )
+        )
+        let state = TerminalApplicationStateStub()
+        state.isRunning = true
+        let opener = TerminalApplicationOpenerStub()
+        let sender = AppleEventSenderStub()
+        let service = TerminalServiceStub()
+        let snapshots = TerminalSnapshotReaderStub(outcomes: [
+            .snapshot(baseline),
+            .snapshot(baseline),
+            .error(TerminalHandoffError.appleEventFailure(
+                .terminal,
+                status: NativeAppleEvent.transportFailureStatus
+            )),
+            .snapshot(candidate),
+            .snapshot(candidate),
+        ])
+        let locker = TerminalTabOperationLockerStub()
+        let adapter = TerminalOpenAdapter(
+            applicationState: state,
+            applicationOpener: opener,
+            eventSender: sender,
+            terminalService: service,
+            terminalSnapshotReader: snapshots,
+            terminalTabOperationLocker: locker,
+            terminalTabPollAttempts: 3,
+            terminalTabPollDelay: {}
+        )
+
+        let acceptance = try await adapter.open(
+            testCommand,
+            in: .terminal,
+            placement: .newTab
+        )
+
+        #expect(acceptance == .acceptedByTerminalHost)
+        #expect(snapshots.callCount == 5)
+        #expect(sender.events.count == 1)
+        try expectTerminalDoScriptEvent(
+            #require(sender.events.first),
+            targetTabIndex: 2,
+            targetWindowID: 42
+        )
+    }
+
+    @Test
+    func terminalColdNewWindowRetriesPostServiceTransportFailureBeforeTargeting()
+        async throws {
+        let candidate = makeTerminalSnapshot(
+            makeTerminalWindowSnapshot(42, .ready("/dev/ttys009"))
+        )
+        let state = TerminalApplicationStateStub()
+        let opener = TerminalApplicationOpenerStub()
+        let sender = AppleEventSenderStub()
+        let service = TerminalServiceStub()
+        service.onPerformNewWindow = { _ in
+            state.isRunning = true
+        }
+        let snapshots = TerminalSnapshotReaderStub(outcomes: [
+            .error(TerminalHandoffError.appleEventFailure(
+                .terminal,
+                status: -10000
+            )),
+            .snapshot(candidate),
+            .snapshot(candidate),
+        ])
+        let locker = TerminalTabOperationLockerStub()
+        let adapter = TerminalOpenAdapter(
+            applicationState: state,
+            applicationOpener: opener,
+            eventSender: sender,
+            terminalService: service,
+            terminalSnapshotReader: snapshots,
+            terminalTabOperationLocker: locker,
+            terminalTabPollAttempts: 3,
+            terminalTabPollDelay: {}
+        )
+
+        let acceptance = try await adapter.open(
+            testCommand,
+            in: .terminal,
+            placement: .newWindow
+        )
+
+        #expect(acceptance == .acceptedByTerminalHost)
+        #expect(snapshots.callCount == 3)
+        #expect(sender.events.count == 1)
+        try expectTerminalDoScriptEvent(
+            #require(sender.events.first),
+            targetTabIndex: 1,
+            targetWindowID: 42
+        )
+    }
+
+    @Test
+    func terminalColdNewWindowFailsClosedAfterPersistentTransportFailures()
+        async {
+        let state = TerminalApplicationStateStub()
+        let opener = TerminalApplicationOpenerStub()
+        let sender = AppleEventSenderStub()
+        let service = TerminalServiceStub()
+        service.onPerformNewWindow = { _ in
+            state.isRunning = true
+        }
+        let snapshots = TerminalSnapshotReaderStub(outcomes: [
+            .error(TerminalHandoffError.appleEventFailure(
+                .terminal,
+                status: NativeAppleEvent.transportFailureStatus
+            )),
+            .error(TerminalHandoffError.appleEventFailure(
+                .terminal,
+                status: NativeAppleEvent.transportFailureStatus
+            )),
+        ])
+        let locker = TerminalTabOperationLockerStub()
+        let adapter = TerminalOpenAdapter(
+            applicationState: state,
+            applicationOpener: opener,
+            eventSender: sender,
+            terminalService: service,
+            terminalSnapshotReader: snapshots,
+            terminalTabOperationLocker: locker,
+            terminalTabPollAttempts: 2,
+            terminalTabPollDelay: {}
+        )
+
+        let error = await capturedTerminalAdapterError {
+            try await adapter.open(
+                testCommand,
+                in: .terminal,
+                placement: .newWindow
+            )
+        }
+
+        #expect(error?.diagnosticCode.rawValue ==
+            "terminal-window-identity-timeout")
+        #expect(snapshots.callCount == 2)
+        #expect(sender.events.isEmpty)
+    }
+
+    @Test(arguments: [NativeAppleEvent.transportFailureStatus, -10000])
+    func terminalColdNewWindowTargetedTransportFailureDoesNotRetry(
+        status: Int32
+    ) async throws {
+        let ready = makeTerminalSnapshot(
+            makeTerminalWindowSnapshot(42, .ready("/dev/ttys009"))
+        )
+        let state = TerminalApplicationStateStub()
+        let opener = TerminalApplicationOpenerStub()
+        let sender = AppleEventSenderStub()
+        sender.outcomes = [.status(status)]
+        let service = TerminalServiceStub()
+        service.onPerformNewWindow = { _ in
+            state.isRunning = true
+        }
+        let snapshots = TerminalSnapshotReaderStub(
+            snapshots: [ready, ready]
+        )
+        let locker = TerminalTabOperationLockerStub()
+        let adapter = TerminalOpenAdapter(
+            applicationState: state,
+            applicationOpener: opener,
+            eventSender: sender,
+            terminalService: service,
+            terminalSnapshotReader: snapshots,
+            terminalTabOperationLocker: locker,
+            terminalTabPollAttempts: 2,
+            terminalTabPollDelay: {}
+        )
+
+        let error = await capturedTerminalError {
+            try await adapter.open(
+                testCommand,
+                in: .terminal,
+                placement: .newWindow
+            )
+        }
+
+        #expect(error == .appleEventFailure(
+            .terminal,
+            status: status
+        ))
+        #expect(sender.events.count == 1)
+        try expectTerminalDoScriptEvent(
+            #require(sender.events.first),
+            targetTabIndex: 1,
+            targetWindowID: 42
+        )
     }
 
     @Test
@@ -545,7 +746,7 @@ struct HandoffPlatformTests {
         #expect(sender.events.count == 1)
         try expectTerminalDoScriptEvent(
             #require(sender.events.first),
-            targetTabTTY: "/dev/ttys009",
+            targetTabIndex: 2,
             targetWindowID: 42
         )
         #expect(state.activationRequests == [
@@ -600,7 +801,7 @@ struct HandoffPlatformTests {
         #expect(sender.events.count == 1)
         try expectTerminalDoScriptEvent(
             #require(sender.events.first),
-            targetTabTTY: "/dev/ttys009",
+            targetTabIndex: 1,
             targetWindowID: 42
         )
         #expect(state.runningLookups == [
@@ -935,7 +1136,7 @@ struct HandoffPlatformTests {
         #expect(sender.events.count == 1)
         try expectTerminalDoScriptEvent(
             #require(sender.events.first),
-            targetTabTTY: "/dev/ttys009",
+            targetTabIndex: 1,
             targetWindowID: 99
         )
     }
@@ -1001,7 +1202,7 @@ struct HandoffPlatformTests {
         #expect(sender.events.count == 1)
         try expectTerminalDoScriptEvent(
             #require(sender.events.first),
-            targetTabTTY: "/dev/ttys009",
+            targetTabIndex: 1,
             targetWindowID: 99
         )
     }
@@ -1298,7 +1499,7 @@ struct HandoffPlatformTests {
         #expect(sender.events.count == 1)
         try expectTerminalDoScriptEvent(
             #require(sender.events.first),
-            targetTabTTY: "/dev/ttys009",
+            targetTabIndex: 2,
             targetWindowID: 42
         )
         #expect(opener.applicationURLs.isEmpty)
@@ -2036,8 +2237,8 @@ struct HandoffPlatformTests {
                     try expectTerminalDoScriptEvent(
                         #require(sender.events.last),
                         command: command,
-                        targetTabTTY: placement == .newTab
-                            ? "/dev/ttys009"
+                        targetTabIndex: placement == .newTab
+                            ? 2
                             : nil,
                         targetWindowID: placement == .newTab ? 42 : 0
                     )
@@ -2557,6 +2758,7 @@ private final class TerminalServiceStub: TerminalServicePerforming {
 @MainActor
 private final class TerminalSnapshotReaderStub: TerminalSnapshotReading {
     var snapshots: [TerminalSnapshot?]
+    var outcomes: [TerminalSnapshotReaderOutcome] = []
     var error: (any Error)?
     private(set) var callCount = 0
 
@@ -2564,16 +2766,34 @@ private final class TerminalSnapshotReaderStub: TerminalSnapshotReading {
         self.snapshots = snapshots
     }
 
+    init(outcomes: [TerminalSnapshotReaderOutcome]) {
+        snapshots = []
+        self.outcomes = outcomes
+    }
+
     func coherentSnapshot() throws -> TerminalSnapshot? {
         callCount += 1
         if let error {
             throw error
+        }
+        if !outcomes.isEmpty {
+            switch outcomes.removeFirst() {
+            case let .snapshot(snapshot):
+                return snapshot
+            case let .error(error):
+                throw error
+            }
         }
         guard !snapshots.isEmpty else {
             return nil
         }
         return snapshots.removeFirst()
     }
+}
+
+private enum TerminalSnapshotReaderOutcome {
+    case snapshot(TerminalSnapshot?)
+    case error(any Error)
 }
 
 private final class TerminalTabOperationLockStub:
@@ -2922,7 +3142,7 @@ private func expectTerminalDoScriptEvent(
     _ event: NSAppleEventDescriptor,
     command: TerminalCommand = testCommand,
     targetsFrontWindow: Bool = false,
-    targetTabTTY: String? = nil,
+    targetTabIndex: Int32? = nil,
     targetWindowID: Int32 = 0
 ) throws {
     #expect(event.eventClass == eventCode("core"))
@@ -2932,7 +3152,7 @@ private func expectTerminalDoScriptEvent(
         forKeyword: eventCode("----")
     )?.stringValue == command.line)
     let target = event.paramDescriptor(forKeyword: eventCode("kfil"))
-    if let targetTabTTY {
+    if let targetTabIndex {
         let target = try #require(target)
         #expect(target.descriptorType == eventCode("obj "))
         #expect(target.forKeyword(
@@ -2940,7 +3160,7 @@ private func expectTerminalDoScriptEvent(
         )?.typeCodeValue == eventCode("ttab"))
         #expect(target.forKeyword(
             eventCode("form")
-        )?.enumCodeValue == eventCode("test"))
+        )?.enumCodeValue == eventCode("indx"))
         let window = try #require(target.forKeyword(eventCode("from")))
         #expect(window.forKeyword(
             eventCode("want")
@@ -2951,21 +3171,9 @@ private func expectTerminalDoScriptEvent(
         #expect(window.forKeyword(
             eventCode("seld")
         )?.int32Value == targetWindowID)
-        let predicate = try #require(target.forKeyword(eventCode("seld")))
-        #expect(predicate.descriptorType == eventCode("cmpd"))
-        #expect(predicate.forKeyword(
-            eventCode("relo")
-        )?.enumCodeValue == eventCode("=   "))
-        #expect(predicate.forKeyword(
-            eventCode("obj2")
-        )?.stringValue == targetTabTTY)
-        let tty = try #require(predicate.forKeyword(eventCode("obj1")))
-        #expect(tty.forKeyword(
+        #expect(target.forKeyword(
             eventCode("seld")
-        )?.typeCodeValue == eventCode("ttty"))
-        #expect(tty.forKeyword(
-            eventCode("from")
-        )?.descriptorType == eventCode("exmn"))
+        )?.int32Value == targetTabIndex)
     } else if targetsFrontWindow {
         let target = try #require(target)
         #expect(target.descriptorType == eventCode("obj "))

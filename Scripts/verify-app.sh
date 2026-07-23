@@ -457,8 +457,8 @@ fi
 assert_equal "$(localization_list "$app_path/Contents/Resources")" "en,zh-Hans" "outer packaged localizations"
 assert_equal "$(localization_list "$inner_path/Contents/Resources")" "en,zh-Hans" "Launcher packaged localizations"
 if [[ "$content_contract" == "current" ]]; then
-    assert_equal "$(plist_key_count "$app_path/Contents/Resources/zh-Hans.lproj/Localizable.strings")" "109" "outer Simplified Chinese string count"
-    assert_equal "$(plist_key_count "$inner_path/Contents/Resources/zh-Hans.lproj/Localizable.strings")" "109" "Launcher Simplified Chinese string count"
+    assert_equal "$(plist_key_count "$app_path/Contents/Resources/zh-Hans.lproj/Localizable.strings")" "114" "outer Simplified Chinese string count"
+    assert_equal "$(plist_key_count "$inner_path/Contents/Resources/zh-Hans.lproj/Localizable.strings")" "114" "Launcher Simplified Chinese string count"
 fi
 for strings_file in \
     "$app_path/Contents/Resources/zh-Hans.lproj/Localizable.strings" \
@@ -476,6 +476,11 @@ for strings_file in \
         assert_equal "$(plist_value "$strings_file" "No terminal session was opened. Try again, or choose New Window in Go2Codex Settings.")" "未打开任何终端会话。请重试，或在 Go2Codex 设置中选择“新窗口”。" "iTerm window-state guidance localization"
         assert_equal "$(plist_value "$strings_file" "Show in Finder")" "在 Finder 中显示" "manual Finder reveal localization"
         assert_equal "$(plist_value "$strings_file" "Install and Restart Finder")" "安装并重启 Finder" "automatic Finder install localization"
+        assert_equal "$(plist_value "$strings_file" "Available")" "可用" "CLI available localization"
+        assert_equal "$(plist_value "$strings_file" "Not Found")" "未找到" "CLI missing localization"
+        assert_equal "$(plist_value "$strings_file" "Couldn’t Verify")" "无法验证" "CLI unknown localization"
+        assert_equal "$(plist_value "$strings_file" "Refresh CLI Status")" "刷新 CLI 状态" "CLI refresh localization"
+        assert_equal "$(plist_value "$strings_file" "CLI checks run in the background using your account login shell. Results are advisory and do not block saving or launching because terminal-specific shell setup can differ. Refresh after installing a CLI.")" "CLI 检测会在后台使用你的账户登录 shell 运行。由于不同终端的 shell 设置可能不同，检测结果仅供参考，不会阻止保存或启动。安装 CLI 后请刷新状态。" "CLI availability guidance localization"
         assert_equal "$(plist_value "$strings_file" "Go2Codex could not create a Terminal tab")" "Go2Codex 无法创建 Terminal 标签页" "Terminal tab creation localization"
         assert_equal "$(plist_value "$strings_file" "Go2Codex could not create a Terminal window")" "Go2Codex 无法创建 Terminal 窗口" "Terminal window creation localization"
         assert_equal "$(plist_value "$strings_file" "Go2Codex could not begin the Terminal handoff")" "Go2Codex 无法开始 Terminal 交接" "Terminal handoff start localization"

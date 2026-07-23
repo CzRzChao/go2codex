@@ -201,6 +201,56 @@
         }
       }
     },
+    "Available": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "可用"
+          }
+        }
+      }
+    },
+    "Not Found": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未找到"
+          }
+        }
+      }
+    },
+    "Couldn’t Verify": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法验证"
+          }
+        }
+      }
+    },
+    "Refresh CLI Status": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "刷新 CLI 状态"
+          }
+        }
+      }
+    },
+    "CLI checks run in the background using your account login shell. Results are advisory and do not block saving or launching because terminal-specific shell setup can differ. Refresh after installing a CLI.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "CLI 检测会在后台使用你的账户登录 shell 运行。由于不同终端的 shell 设置可能不同，检测结果仅供参考，不会阻止保存或启动。安装 CLI 后请刷新状态。"
+          }
+        }
+      }
+    },
     "Checking…": {
       "localizations": {
         "zh-Hans": {

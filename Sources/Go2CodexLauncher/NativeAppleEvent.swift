@@ -2,7 +2,7 @@ import AppKit
 import Foundation
 import Go2CodexCore
 
-enum AppleEventConstructionError: Error, DiagnosticCodeProviding {
+enum AppleEventConstructionError: Error, Equatable, DiagnosticCodeProviding {
     case objectSpecifier
 
     var diagnosticCode: DiagnosticCode {
@@ -47,18 +47,11 @@ enum NativeAppleEvent {
         static let container: UInt32 = 0x66726f6d
         static let keyForm: UInt32 = 0x666f726d
         static let keyData: UInt32 = 0x73656c64
-        static let comparisonOperator: UInt32 = 0x72656c6f
-        static let comparisonObject1: UInt32 = 0x6f626a31
-        static let comparisonObject2: UInt32 = 0x6f626a32
         static let propertyClass: UInt32 = 0x70726f70
         static let propertyForm: UInt32 = 0x70726f70
         static let absolutePositionForm: UInt32 = 0x696e6478
         static let uniqueIDForm: UInt32 = 0x49442020
-        static let testForm: UInt32 = 0x74657374
         static let allElements: UInt32 = 0x616c6c20
-        static let equals: UInt32 = 0x3d202020
-        static let comparisonDescriptor: UInt32 = 0x636d7064
-        static let objectBeingExamined: UInt32 = 0x65786d6e
         static let list: UInt32 = 0x6c697374
         static let signedInteger: UInt32 = 0x6c6f6e67
         static let unicodeText: UInt32 = 0x75747874
@@ -182,13 +175,13 @@ enum NativeAppleEvent {
 
     static func terminalCommand(
         command: String,
-        targetTabTTY: String,
+        targetTabIndex: Int32,
         inWindowID windowID: Int32
     ) throws -> NSAppleEventDescriptor {
         let event = terminalNewWindow(command: command)
         event.setParam(
             try terminalTabSpecifier(
-                tty: targetTabTTY,
+                index: targetTabIndex,
                 windowID: windowID
             ),
             forKeyword: Code.terminalTarget
@@ -345,7 +338,9 @@ enum NativeAppleEvent {
         return reply
     }
 
-    static let transportFailureStatus: Int32 = -10000
+    // This is an internal transport sentinel and must not overlap real
+    // OSStatus values such as errAEEventFailed (-10000).
+    nonisolated static let transportFailureStatus: Int32 = .min
 
     static func mapTransportError(_ error: any Error) -> RawAppleEventError {
         let nsError = error as NSError
@@ -468,41 +463,16 @@ enum NativeAppleEvent {
     }
 
     private static func terminalTabSpecifier(
-        tty: String,
+        index: Int32,
         windowID: Int32
     ) throws -> NSAppleEventDescriptor {
-        guard let objectBeingExamined = NSAppleEventDescriptor(
-            descriptorType: Code.objectBeingExamined,
-            data: Data()
-        ) else {
+        guard index > 0 else {
             throw AppleEventConstructionError.objectSpecifier
         }
-        let comparison = NSAppleEventDescriptor.record()
-        comparison.setDescriptor(
-            try propertySpecifier(
-                Code.terminalTTY,
-                container: objectBeingExamined
-            ),
-            forKeyword: Code.comparisonObject1
-        )
-        comparison.setDescriptor(
-            .init(enumCode: Code.equals),
-            forKeyword: Code.comparisonOperator
-        )
-        comparison.setDescriptor(
-            .init(string: tty),
-            forKeyword: Code.comparisonObject2
-        )
-        guard let predicate = comparison.coerce(
-            toDescriptorType: Code.comparisonDescriptor
-        ) else {
-            throw AppleEventConstructionError.objectSpecifier
-        }
-        return try objectSpecifier(
+        return try elementSpecifier(
             desiredClass: Code.terminalTab,
-            container: try terminalWindowSpecifier(id: windowID),
-            form: Code.testForm,
-            selector: predicate
+            index: index,
+            container: try terminalWindowSpecifier(id: windowID)
         )
     }
 
