@@ -12,6 +12,8 @@ launcher_runtime="$project_dir/Sources/Go2CodexLauncher/LauncherRuntime.swift"
 published_release_config="$project_dir/Config/PublishedRelease.xcconfig"
 english_readme="$project_dir/README.md"
 chinese_readme="$project_dir/README.zh-CN.md"
+contributing_guide="$project_dir/CONTRIBUTING.md"
+release_guide="$project_dir/docs/RELEASING.md"
 english_screenshot="$project_dir/docs/assets/settings-en.png"
 chinese_screenshot="$project_dir/docs/assets/settings-zh-CN.png"
 test_count=0
@@ -95,6 +97,13 @@ stable_release_links() {
         | /usr/bin/sort -u
 }
 
+readme_maintainer_lines() {
+    /usr/bin/grep -E \
+        'MARKETING_VERSION|CURRENT_PROJECT_VERSION|PUBLISHED_STABLE_VERSION|xcode-select|xcodebuild|Scripts/|git[[:space:]]+(tag|push)|release_tag' \
+        "$1" \
+        || true
+}
+
 readme_heading_levels() {
     /usr/bin/awk '
         /^[[:space:]]*```/ {
@@ -108,7 +117,7 @@ readme_heading_levels() {
     ' "$1"
 }
 
-readme_shell_blocks() {
+markdown_shell_blocks() {
     /usr/bin/awk '
         /^[[:space:]]*```sh[[:space:]]*$/ {
             in_shell = 1
@@ -131,7 +140,7 @@ readme_shell_blocks() {
     ' "$1"
 }
 
-readme_shell_block_count() {
+markdown_shell_block_count() {
     /usr/bin/awk '
         /^[[:space:]]*```sh[[:space:]]*$/ {
             count++
@@ -142,7 +151,7 @@ readme_shell_block_count() {
     ' "$1"
 }
 
-readme_shell_code() {
+markdown_shell_code() {
     local target_block="$2"
     /usr/bin/awk -v target_block="$target_block" '
         /^[[:space:]]*```sh[[:space:]]*$/ {
@@ -163,6 +172,26 @@ readme_shell_code() {
             }
         }
     ' "$1"
+}
+
+validate_markdown_shell_blocks() {
+    local file="$1"
+    local label="$2"
+    local block_count
+    local block_index
+    local shell_code
+    block_count="$(markdown_shell_block_count "$file")"
+    [[ "$block_count" -gt 0 ]] \
+        || fail "$label shell example code is missing"
+    block_index=1
+    while [[ "$block_index" -le "$block_count" ]]; do
+        shell_code="$(markdown_shell_code "$file" "$block_index")"
+        [[ -n "$shell_code" ]] \
+            || fail "$label shell example block $block_index is empty"
+        /usr/bin/printf '%s\n' "$shell_code" | /bin/bash -n \
+            || fail "$label shell example block $block_index contains invalid syntax"
+        block_index=$((block_index + 1))
+    done
 }
 
 png_signature() {
@@ -229,8 +258,6 @@ expected_readme_sections="$(/usr/bin/printf '%s\n' \
     update-and-uninstall \
     troubleshooting \
     known-limitations \
-    building-from-source \
-    publishing \
     license)"
 expected_readme_heading_levels="$(/usr/bin/printf '%s\n' \
     1 \
@@ -239,9 +266,7 @@ expected_readme_heading_levels="$(/usr/bin/printf '%s\n' \
     2 3 3 \
     2 \
     2 3 3 \
-    2 3 3 3 3 3 3 3 \
-    2 \
-    2 \
+    2 3 3 3 3 3 3 3 3 \
     2 \
     2)"
 
@@ -261,6 +286,28 @@ assert_count "$chinese_readme" \
     'src="docs/assets/settings-zh-CN.png"' \
     1 \
     "Chinese README screenshot link"
+assert_count "$english_readme" \
+    'PUBLISHED_STABLE_VERSION' \
+    0 \
+    "English README maintainer metadata"
+assert_count "$chinese_readme" \
+    'PUBLISHED_STABLE_VERSION' \
+    0 \
+    "Chinese README maintainer metadata"
+assert_count "$english_readme" \
+    'Scripts/test.sh' \
+    0 \
+    "English README maintainer command"
+assert_count "$chinese_readme" \
+    'Scripts/test.sh' \
+    0 \
+    "Chinese README maintainer command"
+[[ -z "$(readme_maintainer_lines "$english_readme")" ]] \
+    || fail "English README contains maintainer-only content"
+pass
+[[ -z "$(readme_maintainer_lines "$chinese_readme")" ]] \
+    || fail "Chinese README contains maintainer-only content"
+pass
 [[ "$(stable_release_links "$english_readme")" == "$stable_release_url" ]] \
     || fail "English README stable release link set does not match PUBLISHED_STABLE_VERSION"
 pass
@@ -295,26 +342,43 @@ pass
 [[ "$english_heading_levels" == "$chinese_heading_levels" ]] \
     || fail "English and Chinese README heading-level contracts differ"
 pass
-english_shell_blocks="$(readme_shell_blocks "$english_readme")"
-chinese_shell_blocks="$(readme_shell_blocks "$chinese_readme")"
+english_shell_blocks="$(markdown_shell_blocks "$english_readme")"
+chinese_shell_blocks="$(markdown_shell_blocks "$chinese_readme")"
 [[ -n "$english_shell_blocks" ]] \
     || fail "English README shell examples are missing"
 pass
 [[ "$english_shell_blocks" == "$chinese_shell_blocks" ]] \
     || fail "English and Chinese README shell examples differ"
 pass
-english_shell_block_count="$(readme_shell_block_count "$english_readme")"
-[[ "$english_shell_block_count" -gt 0 ]] \
-    || fail "English README shell example code is missing"
-shell_block_index=1
-while [[ "$shell_block_index" -le "$english_shell_block_count" ]]; do
-    english_shell_code="$(readme_shell_code "$english_readme" "$shell_block_index")"
-    [[ -n "$english_shell_code" ]] \
-        || fail "README shell example block $shell_block_index is empty"
-    /usr/bin/printf '%s\n' "$english_shell_code" | /bin/bash -n \
-        || fail "README shell example block $shell_block_index contains invalid syntax"
-    shell_block_index=$((shell_block_index + 1))
-done
+validate_markdown_shell_blocks "$english_readme" "README"
+pass
+[[ -f "$contributing_guide" && -s "$contributing_guide" && ! -L "$contributing_guide" ]] \
+    || fail "contributor guide is missing or unsafe"
+pass
+assert_contains "$contributing_guide" \
+    '[docs/RELEASING.md](docs/RELEASING.md)' \
+    "contributor guide release link"
+assert_contains "$contributing_guide" \
+    'Scripts/test.sh' \
+    "contributor guide test command"
+validate_markdown_shell_blocks "$contributing_guide" "Contributor guide"
+pass
+[[ -f "$release_guide" && -s "$release_guide" && ! -L "$release_guide" ]] \
+    || fail "release guide is missing or unsafe"
+pass
+assert_contains "$release_guide" \
+    'release_tag="" # Set to "$stable_tag" or "$preview_tag".' \
+    "release guide explicit channel choice"
+assert_contains "$release_guide" \
+    'remote_tag_refs="$(git ls-remote --tags origin "refs/tags/${release_tag}")"' \
+    "release guide remote tag query"
+assert_contains "$release_guide" \
+    'git push origin "refs/tags/${release_tag}"' \
+    "release guide publication command"
+assert_contains "$release_guide" \
+    'PUBLISHED_STABLE_VERSION' \
+    "release guide published stable lifecycle"
+validate_markdown_shell_blocks "$release_guide" "Release guide"
 pass
 [[ -f "$english_screenshot" && -s "$english_screenshot" && ! -L "$english_screenshot" ]] \
     || fail "English README screenshot is missing or unsafe"
