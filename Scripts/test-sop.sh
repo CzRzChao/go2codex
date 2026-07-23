@@ -114,8 +114,20 @@ assert_file_contains \
     "Release install smoke checklist version"
 assert_file_contains \
     "$script_dir/smoke-debug.sh" \
+    "无窗口恢复的干净冷启动" \
+    "Terminal clean cold-start smoke coverage"
+assert_file_contains \
+    "$script_dir/smoke-debug.sh" \
     "单窗口和多窗口时，New Window 新建独立窗口，New Tab 只新增一个承载命令的标签" \
     "Terminal running-state smoke coverage"
+assert_file_contains \
+    "$script_dir/smoke-debug.sh" \
+    "恢复既有窗口、以及既有窗口位于不同 Space" \
+    "Terminal cold New Window recovery and Space smoke coverage"
+assert_file_contains \
+    "$script_dir/smoke-debug.sh" \
+    "可因无法安全定向而失败；失败时不提交命令、不自动重试，可能留下一个空窗口；绝不向未定向会话重复提交或创建第二个窗口" \
+    "Terminal cold New Window fail-closed smoke coverage"
 assert_file_contains \
     "$script_dir/smoke-debug.sh" \
     "Terminal New Tab 不请求辅助功能或 System Events" \

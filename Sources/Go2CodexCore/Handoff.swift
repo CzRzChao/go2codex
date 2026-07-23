@@ -121,7 +121,7 @@ public enum DesktopTargetHandlerPolicy {
     }
 }
 
-public enum CLIExecutable: String, CaseIterable, Codable, Sendable {
+public enum CLIExecutable: String, CaseIterable, Codable, Hashable, Sendable {
     case codex
     case claude
 

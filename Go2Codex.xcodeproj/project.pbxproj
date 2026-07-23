@@ -55,6 +55,7 @@
 		A55555555555555555555002 /* HandoffPlatform.swift in Sources */ = {isa = PBXBuildFile; fileRef = B55555555555555555555001 /* HandoffPlatform.swift */; };
 		A55555555555555555555003 /* HandoffPlatformTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B55555555555555555555002 /* HandoffPlatformTests.swift */; };
 		A66666666666666666666001 /* FinderWorkspacePlatform.swift in Sources */ = {isa = PBXBuildFile; fileRef = B66666666666666666666001 /* FinderWorkspacePlatform.swift */; };
+		AC1E00000000000000000001 /* CLIExecutableAvailability.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC1E00000000000000000001 /* CLIExecutableAvailability.swift */; };
 		A66666666666666666666002 /* FinderWorkspacePlatform.swift in Sources */ = {isa = PBXBuildFile; fileRef = B66666666666666666666001 /* FinderWorkspacePlatform.swift */; };
 		A66666666666666666666003 /* FinderWorkspacePlatformTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B66666666666666666666002 /* FinderWorkspacePlatformTests.swift */; };
 		A77777777777777777777001 /* FinderToolbarPlatform.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000024 /* FinderToolbarPlatform.swift */; };
@@ -162,6 +163,7 @@
 		B55555555555555555555001 /* HandoffPlatform.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HandoffPlatform.swift; sourceTree = "<group>"; };
 		B55555555555555555555002 /* HandoffPlatformTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HandoffPlatformTests.swift; sourceTree = "<group>"; };
 		B66666666666666666666001 /* FinderWorkspacePlatform.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FinderWorkspacePlatform.swift; sourceTree = "<group>"; };
+		BC1E00000000000000000001 /* CLIExecutableAvailability.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CLIExecutableAvailability.swift; sourceTree = "<group>"; };
 		B66666666666666666666002 /* FinderWorkspacePlatformTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FinderWorkspacePlatformTests.swift; sourceTree = "<group>"; };
 		B77777777777777777777001 /* FinderToolbarPlatformIdentityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FinderToolbarPlatformIdentityTests.swift; sourceTree = "<group>"; };
 		B88888888888888888888001 /* LauncherRuntime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LauncherRuntime.swift; sourceTree = "<group>"; };
@@ -243,6 +245,7 @@
 				B00000000000000000000011 /* DomainModels.swift */,
 				B00000000000000000000012 /* Preferences.swift */,
 				B00000000000000000000013 /* Handoff.swift */,
+				BC1E00000000000000000001 /* CLIExecutableAvailability.swift */,
 				B00000000000000000000014 /* Diagnostics.swift */,
 				B00000000000000000000015 /* PlatformProtocols.swift */,
 				B00000000000000000000017 /* FinderToolbarCore.swift */,
@@ -544,6 +547,7 @@
 				A0000000000000000000000F /* DomainModels.swift in Sources */,
 				A00000000000000000000010 /* Preferences.swift in Sources */,
 				A00000000000000000000011 /* Handoff.swift in Sources */,
+				AC1E00000000000000000001 /* CLIExecutableAvailability.swift in Sources */,
 				A00000000000000000000012 /* Diagnostics.swift in Sources */,
 				A00000000000000000000013 /* PlatformProtocols.swift in Sources */,
 				A00000000000000000000015 /* FinderToolbarCore.swift in Sources */,

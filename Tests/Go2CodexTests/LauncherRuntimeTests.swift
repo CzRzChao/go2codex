@@ -782,13 +782,95 @@ struct LauncherFailureCopyTests {
 
         #expect(failure.code.rawValue == "terminal-tab-operation-busy")
         #expect(copyResolver.messageKey(for: failure) ==
-            "Another Terminal tab handoff is already in progress")
+            "Another Terminal handoff is already in progress")
         #expect(copyResolver.informativeTextKey(for: failure) ==
-            "Wait for the current Terminal tab handoff to finish, then try again.")
+            "Wait for the current Terminal handoff to finish, then try again.")
         #expect(planResolver.resolve(failure: failure).actions == [
             .acknowledge,
             .copyDiagnostics,
         ])
+    }
+
+    @Test
+    func terminalTabLockFailureUsesPlacementNeutralCopy() {
+        let failure = LauncherWorkflowFailure(
+            error: TerminalAdapterError.terminalTabLockFailed(1),
+            stage: .terminalHandoff,
+            terminalHost: .terminal
+        )
+        let resolver = LauncherFailureCopyResolver()
+
+        #expect(failure.code.rawValue == "terminal-tab-lock-failed")
+        #expect(resolver.messageKey(for: failure) ==
+            "Go2Codex could not begin the Terminal handoff")
+        #expect(resolver.informativeTextKey(for: failure) ==
+            "No command was submitted. Go2Codex did not retry automatically. Try again.")
+    }
+
+    @Test
+    func terminalWindowFailuresUseWindowSpecificFailClosedCopy() {
+        let cases: [(TerminalAdapterError, String, String, String)] = [
+            (
+                .terminalWindowServiceFailed,
+                "terminal-window-service-failed",
+                "Go2Codex could not create a Terminal window",
+                "No command was submitted. Go2Codex did not retry automatically. Check Terminal for an empty window before trying again."
+            ),
+            (
+                .terminalWindowServiceLaunchTimedOut,
+                "terminal-window-service-launch-timeout",
+                "Go2Codex could not create a Terminal window",
+                "No command was submitted. Go2Codex did not retry automatically. Check Terminal for an empty window before trying again."
+            ),
+            (
+                .terminalWindowCreationTimedOut(
+                    terminalTabCreationEvidence()
+                ),
+                "terminal-window-creation-timeout",
+                "Go2Codex could not create a Terminal window",
+                "No command was submitted. Go2Codex did not retry automatically. Check Terminal for an empty window before trying again."
+            ),
+            (
+                .terminalWindowCreationTimedOut(
+                    terminalTabCreationEvidence(
+                        latestTabCount: 2,
+                        latestReadyTTYCount: 1,
+                        sawGlobalTabIncrease: true,
+                        sawPendingTTY: true
+                    )
+                ),
+                "terminal-window-tty-timeout",
+                "Go2Codex could not start the CLI in the Terminal window",
+                "The Terminal window was created, but its TTY did not become ready, so no command was submitted. Close the empty window and try again. Go2Codex did not retry automatically."
+            ),
+            (
+                .terminalWindowCreationTimedOut(
+                    terminalTabCreationEvidence(
+                        latestTabCount: 2,
+                        latestReadyTTYCount: 2,
+                        sawGlobalTabIncrease: true,
+                        sawUniqueNewTTY: true
+                    )
+                ),
+                "terminal-window-identity-timeout",
+                "Go2Codex could not start the CLI in the Terminal window",
+                "A Terminal window was created, but Go2Codex could not safely identify it, so no command was submitted. Close the empty window and try again. Go2Codex did not retry automatically."
+            ),
+        ]
+        let resolver = LauncherFailureCopyResolver()
+
+        for (error, expectedCode, expectedMessage, expectedInformativeText) in cases {
+            let failure = LauncherWorkflowFailure(
+                error: error,
+                stage: .terminalHandoff,
+                terminalHost: .terminal
+            )
+
+            #expect(failure.code.rawValue == expectedCode)
+            #expect(resolver.messageKey(for: failure) == expectedMessage)
+            #expect(resolver.informativeTextKey(for: failure) ==
+                expectedInformativeText)
+        }
     }
 
     @Test

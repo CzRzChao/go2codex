@@ -24,6 +24,24 @@ enum ToolbarSettingsActionResult: Equatable, Sendable {
     case failed
 }
 
+enum CLIExecutableSettingsStatus: Equatable, Sendable {
+    case checking
+    case available
+    case missing
+    case couldNotVerify
+
+    init(_ availability: CLIExecutableAvailability) {
+        switch availability {
+        case .available:
+            self = .available
+        case .missing:
+            self = .missing
+        case .unknown:
+            self = .couldNotVerify
+        }
+    }
+}
+
 @MainActor
 protocol ToolbarSettingsServing: AnyObject {
     var supportsAutomaticMutation: Bool { get }
@@ -65,24 +83,40 @@ final class SettingsModel: ObservableObject {
     @Published var toolbarStatus: ToolbarSettingsStatus = .checking
     @Published var isPerformingAction = false
     @Published var hasSaveError = false
-    @Published var hasToolbarError = false
     @Published private(set) var targetAvailability: [AgentTarget: TargetAvailability] = [:]
     @Published private(set) var terminalHostAvailability: [TerminalHost: Bool] = [:]
+    @Published private(set) var cliExecutableStatus:
+        [CLIExecutable: CLIExecutableSettingsStatus] = Dictionary(
+            uniqueKeysWithValues: CLIExecutable.allCases.map {
+                ($0, CLIExecutableSettingsStatus.checking)
+            }
+        )
 
     private let preferences: any SettingsPreferencesServing
     private let toolbar: any ToolbarSettingsServing
     private let availability: any SettingsAvailabilityServing
+    private let cliAvailabilityProbe: any CLIExecutableAvailabilityProbing
     private let logger: Logger
     private var didLoad = false
+    private var cliProbeGeneration = 0
+    private var cliProbeTask:
+        Task<[CLIExecutableAvailability], Never>?
+    @Published private var toolbarFailureAction: ToolbarSettingsAction?
+
+    var hasToolbarError: Bool {
+        toolbarFailureAction != nil
+    }
 
     init(
         preferences: any SettingsPreferencesServing,
         toolbar: any ToolbarSettingsServing,
-        availability: any SettingsAvailabilityServing
+        availability: any SettingsAvailabilityServing,
+        cliAvailabilityProbe: any CLIExecutableAvailabilityProbing
     ) {
         self.preferences = preferences
         self.toolbar = toolbar
         self.availability = availability
+        self.cliAvailabilityProbe = cliAvailabilityProbe
         let subsystem = Bundle.main.object(
             forInfoDictionaryKey: "Go2CodexPreferencesDomain"
         ) as? String ?? "io.github.czrzchao.go2codex"
@@ -128,7 +162,9 @@ final class SettingsModel: ObservableObject {
             logger.error("Saved settings require recovery")
         }
         refreshAvailability()
-        toolbarStatus = await toolbar.currentStatus()
+        async let cliRefresh: Void = refreshCLIExecutableStatus()
+        applyToolbarStatus(await toolbar.currentStatus())
+        await cliRefresh
     }
 
     func selectDefaultTarget(_ value: AgentTarget?) {
@@ -175,7 +211,7 @@ final class SettingsModel: ObservableObject {
 
         isPerformingAction = true
         hasSaveError = false
-        hasToolbarError = false
+        toolbarFailureAction = nil
         defer { isPerformingAction = false }
 
         do {
@@ -230,7 +266,7 @@ final class SettingsModel: ObservableObject {
             return
         }
         refreshAvailability()
-        toolbarStatus = await toolbar.currentStatus()
+        applyToolbarStatus(await toolbar.currentStatus())
     }
 
     func refreshAfterActivation() async {
@@ -239,7 +275,62 @@ final class SettingsModel: ObservableObject {
             apply(envelope)
             phase = .configured
         }
+        async let cliRefresh: Void = refreshCLIExecutableStatus()
         await refreshToolbarStatus()
+        await cliRefresh
+    }
+
+    func refreshCLIExecutableStatus() async {
+        cliProbeGeneration &+= 1
+        let generation = cliProbeGeneration
+        let executables = CLIExecutable.allCases
+        cliProbeTask?.cancel()
+        cliExecutableStatus = Dictionary(
+            uniqueKeysWithValues: executables.map {
+                ($0, CLIExecutableSettingsStatus.checking)
+            }
+        )
+
+        let probeTask = Task { [cliAvailabilityProbe] in
+            await cliAvailabilityProbe.availabilities(for: executables)
+        }
+        cliProbeTask = probeTask
+        let results = await withTaskCancellationHandler {
+            await probeTask.value
+        } onCancel: {
+            probeTask.cancel()
+        }
+        guard generation == cliProbeGeneration else {
+            return
+        }
+        cliProbeTask = nil
+        guard !Task.isCancelled else {
+            cliExecutableStatus = Dictionary(
+                uniqueKeysWithValues: executables.map {
+                    ($0, CLIExecutableSettingsStatus.couldNotVerify)
+                }
+            )
+            return
+        }
+        guard results.count == executables.count else {
+            cliExecutableStatus = Dictionary(
+                uniqueKeysWithValues: executables.map {
+                    ($0, CLIExecutableSettingsStatus.couldNotVerify)
+                }
+            )
+            return
+        }
+        cliExecutableStatus = Dictionary(
+            uniqueKeysWithValues: zip(executables, results).map {
+                ($0, CLIExecutableSettingsStatus($1))
+            }
+        )
+    }
+
+    func cliStatus(
+        for executable: CLIExecutable
+    ) -> CLIExecutableSettingsStatus {
+        cliExecutableStatus[executable] ?? .checking
     }
 
     func targetIsKnownUnavailable(_ target: AgentTarget) -> Bool {
@@ -268,7 +359,7 @@ final class SettingsModel: ObservableObject {
 
         let wasAlreadyPerforming = isPerformingAction
         isPerformingAction = true
-        hasToolbarError = false
+        toolbarFailureAction = nil
         defer {
             if !wasAlreadyPerforming {
                 isPerformingAction = false
@@ -277,16 +368,13 @@ final class SettingsModel: ObservableObject {
 
         switch await toolbar.perform(action) {
         case let .status(status):
-            toolbarStatus = status
+            applyToolbarStatus(status)
         case .cancelled:
             break
         case .failed:
+            toolbarFailureAction = action
             let reconciledStatus = await toolbar.currentStatus()
-            toolbarStatus = reconciledStatus
-            hasToolbarError = !toolbarActionReachedExpectedStatus(
-                action,
-                status: reconciledStatus
-            )
+            applyToolbarStatus(reconciledStatus)
             if hasToolbarError {
                 logger.error("Finder toolbar action failed")
             } else {
@@ -295,12 +383,27 @@ final class SettingsModel: ObservableObject {
         }
     }
 
+    private func applyToolbarStatus(_ status: ToolbarSettingsStatus) {
+        toolbarStatus = status
+        guard let toolbarFailureAction,
+              toolbarActionReachedExpectedStatus(
+                  toolbarFailureAction,
+                  status: status
+              ) else {
+            return
+        }
+        self.toolbarFailureAction = nil
+    }
+
     private func toolbarActionReachedExpectedStatus(
         _ action: ToolbarSettingsAction,
         status: ToolbarSettingsStatus
     ) -> Bool {
         switch (action, status) {
-        case (.install, .installed), (.repair, .installed), (.uninstall, .notInstalled):
+        case (.install, .installed),
+             (.repair, .installed),
+             (.showManualSetup, .installed),
+             (.uninstall, .notInstalled):
             true
         case (.install, _), (.repair, _), (.uninstall, _), (.showManualSetup, _):
             false

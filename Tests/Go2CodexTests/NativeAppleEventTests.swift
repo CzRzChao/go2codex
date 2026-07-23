@@ -59,10 +59,10 @@ struct NativeAppleEventTests {
     }
 
     @Test
-    func terminalExactTabTargetUsesStableWindowIDAndTTY() throws {
+    func terminalExactTabTargetUsesStableWindowIDAndAbsoluteIndex() throws {
         let event = try NativeAppleEvent.terminalCommand(
             command: "printf marker",
-            targetTabTTY: "/dev/ttys009",
+            targetTabIndex: 2,
             inWindowID: 42
         )
 
@@ -70,18 +70,25 @@ struct NativeAppleEventTests {
             forKeyword: code("kfil")
         ))
         #expect(target.forKeyword(code("want"))?.typeCodeValue == code("ttab"))
-        #expect(target.forKeyword(code("form"))?.enumCodeValue == code("test"))
+        #expect(target.forKeyword(code("form"))?.enumCodeValue == code("indx"))
         let window = try #require(target.forKeyword(code("from")))
         #expect(window.forKeyword(code("want"))?.typeCodeValue == code("cwin"))
         #expect(window.forKeyword(code("form"))?.enumCodeValue == code("ID  "))
         #expect(window.forKeyword(code("seld"))?.int32Value == 42)
-        let predicate = try #require(target.forKeyword(code("seld")))
-        #expect(predicate.descriptorType == code("cmpd"))
-        #expect(predicate.forKeyword(code("relo"))?.enumCodeValue == code("=   "))
-        #expect(predicate.forKeyword(code("obj2"))?.stringValue == "/dev/ttys009")
-        let tty = try #require(predicate.forKeyword(code("obj1")))
-        try expectPropertySpecifier(tty, selector: "ttty")
-        #expect(tty.forKeyword(code("from"))?.descriptorType == code("exmn"))
+        #expect(target.forKeyword(code("seld"))?.int32Value == 2)
+    }
+
+    @Test(arguments: [Int32(0), -1])
+    func terminalExactTabTargetRejectsNonpositiveAbsoluteIndex(
+        index: Int32
+    ) {
+        #expect(throws: AppleEventConstructionError.objectSpecifier) {
+            try NativeAppleEvent.terminalCommand(
+                command: "printf marker",
+                targetTabIndex: index,
+                inWindowID: 42
+            )
+        }
     }
 
     @Test
@@ -522,11 +529,15 @@ struct NativeAppleEventTests {
             NSError(domain: NSOSStatusErrorDomain, code: -1743)
         ) == .status(-1743))
         #expect(NativeAppleEvent.mapTransportError(
+            NSError(domain: NSOSStatusErrorDomain, code: -10000)
+        ) == .status(-10000))
+        #expect(NativeAppleEvent.mapTransportError(
             NSError(domain: NSOSStatusErrorDomain, code: Int.max)
         ) == .status(Int32.max))
         #expect(NativeAppleEvent.mapTransportError(
             NSError(domain: "test", code: -1743)
         ) == .status(NativeAppleEvent.transportFailureStatus))
+        #expect(NativeAppleEvent.transportFailureStatus != -10000)
     }
 }
 

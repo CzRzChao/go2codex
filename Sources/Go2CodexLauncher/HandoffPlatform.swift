@@ -144,30 +144,15 @@ struct WorkspaceTerminalApplicationState: TerminalApplicationStateLookingUp {
 }
 
 @MainActor
-protocol LoginShellPathLookingUp {
-    func loginShellPath() -> String?
-}
-
-@MainActor
-struct SystemLoginShellPathLookup: LoginShellPathLookingUp {
-    func loginShellPath() -> String? {
-        guard let passwordEntry = getpwuid(getuid()),
-              let shell = passwordEntry.pointee.pw_shell else {
-            return nil
-        }
-        let path = String(cString: shell)
-        return path.isEmpty ? nil : path
-    }
-}
-
-@MainActor
-protocol TerminalTabServicePerforming {
+protocol TerminalServicePerforming {
+    func performNewWindow(at directoryURL: URL) -> Bool
     func performNewTab(at directoryURL: URL) -> Bool
 }
 
 @MainActor
-struct WorkspaceTerminalTabServicePerformer: TerminalTabServicePerforming {
-    static let serviceName = "New Terminal Tab at Folder"
+struct WorkspaceTerminalServicePerformer: TerminalServicePerforming {
+    static let newWindowServiceName = "New Terminal at Folder"
+    static let newTabServiceName = "New Terminal Tab at Folder"
 
     private let performService: @MainActor (String, NSPasteboard) -> Bool
 
@@ -182,7 +167,21 @@ struct WorkspaceTerminalTabServicePerformer: TerminalTabServicePerforming {
         self.performService = performService
     }
 
+    func performNewWindow(at directoryURL: URL) -> Bool {
+        perform(
+            Self.newWindowServiceName,
+            at: directoryURL
+        )
+    }
+
     func performNewTab(at directoryURL: URL) -> Bool {
+        perform(
+            Self.newTabServiceName,
+            at: directoryURL
+        )
+    }
+
+    private func perform(_ serviceName: String, at directoryURL: URL) -> Bool {
         guard directoryURL.isFileURL,
               directoryURL.path(percentEncoded: false).hasPrefix("/") else {
             return false
@@ -193,7 +192,7 @@ struct WorkspaceTerminalTabServicePerformer: TerminalTabServicePerforming {
         guard pasteboard.writeObjects([directoryURL as NSURL]) else {
             return false
         }
-        return performService(Self.serviceName, pasteboard)
+        return performService(serviceName, pasteboard)
     }
 }
 
@@ -349,6 +348,8 @@ enum TerminalAdapterError: Error, Equatable, DiagnosticCodeProviding {
     case terminalTabOperationBusy
     case terminalTabServiceFailed
     case terminalTabServiceLaunchTimedOut
+    case terminalWindowServiceFailed
+    case terminalWindowServiceLaunchTimedOut
     case terminalWindowListReplyInvalid(UInt32?)
     case terminalTabCountReplyInvalid(UInt32?)
     case terminalTabTTYListReplyInvalid(UInt32?)
@@ -356,6 +357,7 @@ enum TerminalAdapterError: Error, Equatable, DiagnosticCodeProviding {
     case terminalSnapshotStabilityTimedOut
     case terminalBaselineTTYTimedOut
     case terminalTabCreationTimedOut(TerminalTabCreationEvidence)
+    case terminalWindowCreationTimedOut(TerminalTabCreationEvidence)
 
     var diagnosticCode: DiagnosticCode {
         switch self {
@@ -381,6 +383,10 @@ enum TerminalAdapterError: Error, Equatable, DiagnosticCodeProviding {
             DiagnosticCode(rawValue: "terminal-tab-service-failed")
         case .terminalTabServiceLaunchTimedOut:
             DiagnosticCode(rawValue: "terminal-tab-service-launch-timeout")
+        case .terminalWindowServiceFailed:
+            DiagnosticCode(rawValue: "terminal-window-service-failed")
+        case .terminalWindowServiceLaunchTimedOut:
+            DiagnosticCode(rawValue: "terminal-window-service-launch-timeout")
         case .terminalWindowListReplyInvalid:
             DiagnosticCode(rawValue: "terminal-window-list-malformed")
         case .terminalTabCountReplyInvalid:
@@ -394,21 +400,40 @@ enum TerminalAdapterError: Error, Equatable, DiagnosticCodeProviding {
         case .terminalBaselineTTYTimedOut:
             DiagnosticCode(rawValue: "terminal-baseline-tty-timeout")
         case .terminalTabCreationTimedOut(let evidence):
-            if evidence.sawUniqueNewTTY
-                || evidence.windowSetChanged
-                || evidence.oldTTYOwnerChanged
-                || evidence.snapshotUnstableAfterService
-                || evidence.latestTotalTabCount
-                    > evidence.initialTotalTabCount + 1 {
-                DiagnosticCode(rawValue: "terminal-tab-identity-timeout")
-            } else if evidence.sawPendingTTY
-                || evidence.latestTotalTabCount
-                    == evidence.initialTotalTabCount + 1 {
-                DiagnosticCode(rawValue: "terminal-tab-tty-timeout")
-            } else {
-                DiagnosticCode(rawValue: "terminal-tab-creation-timeout")
-            }
+            Self.terminalCreationTimeoutDiagnosticCode(
+                evidence: evidence,
+                placement: "tab"
+            )
+        case .terminalWindowCreationTimedOut(let evidence):
+            Self.terminalCreationTimeoutDiagnosticCode(
+                evidence: evidence,
+                placement: "window"
+            )
         }
+    }
+
+    private static func terminalCreationTimeoutDiagnosticCode(
+        evidence: TerminalTabCreationEvidence,
+        placement: String
+    ) -> DiagnosticCode {
+        if evidence.sawUniqueNewTTY
+            || evidence.windowSetChanged
+            || evidence.oldTTYOwnerChanged
+            || evidence.snapshotUnstableAfterService
+            || evidence.latestTotalTabCount
+                > evidence.initialTotalTabCount + 1 {
+            return DiagnosticCode(
+                rawValue: "terminal-\(placement)-identity-timeout"
+            )
+        }
+        if evidence.sawPendingTTY
+            || evidence.latestTotalTabCount
+                == evidence.initialTotalTabCount + 1 {
+            return DiagnosticCode(
+                rawValue: "terminal-\(placement)-tty-timeout"
+            )
+        }
+        return DiagnosticCode(rawValue: "terminal-\(placement)-creation-timeout")
     }
 }
 
@@ -627,6 +652,7 @@ struct AppleEventTerminalSnapshotReader: TerminalSnapshotReading {
 struct TerminalTabCandidate: Equatable, Sendable {
     let windowID: Int32
     let tty: String
+    let tabIndex: Int32
 }
 
 enum TerminalTabObservation: Equatable, Sendable {
@@ -667,25 +693,37 @@ func terminalTabDelta(
     let sawPendingTTY = current.totalTabCount
         == baseline.totalTabCount + 1 && current.notReadyTabCount == 1
     let sawUniqueNewTTY = newTTYs.count == 1
+    let changedWindowID = windowSetChanged
+        ? terminalNewWindowFallbackID(from: baseline, to: current)
+        : terminalChangedWindowID(from: baseline, to: current)
 
     let observation: TerminalTabObservation
     if current == baseline {
         observation = .unchanged
-    } else if !windowSetChanged,
-              !oldTTYOwnerChanged,
+    } else if !oldTTYOwnerChanged,
               current.totalTabCount == baseline.totalTabCount + 1,
-              let changedWindowID = terminalChangedWindowID(
-                  from: baseline,
-                  to: current
-              ) {
+              let changedWindowID {
         if newTTYs.isEmpty, current.notReadyTabCount == 1 {
             observation = .pending
         } else if newTTYs.count == 1,
                   current.notReadyTabCount == 0,
                   let tty = newTTYs.first,
-                  currentOwners[tty] == changedWindowID {
+                  currentOwners[tty] == changedWindowID,
+                  let changedWindow = current.windows.first(
+                    where: { $0.windowID == changedWindowID }
+                  ),
+                  let zeroBasedTabIndex = changedWindow.tabTTYValues.firstIndex(
+                    where: { $0 == .ready(tty) }
+                  ),
+                  zeroBasedTabIndex < Int(Int32.max),
+                  let tabIndex = Int32(exactly: zeroBasedTabIndex + 1),
+                  tabIndex > 0 {
             observation = .candidate(
-                TerminalTabCandidate(windowID: changedWindowID, tty: tty)
+                TerminalTabCandidate(
+                    windowID: changedWindowID,
+                    tty: tty,
+                    tabIndex: tabIndex
+                )
             )
         } else {
             observation = .ambiguous
@@ -732,6 +770,38 @@ private func terminalChangedWindowID(
         return nil
     }
     return changed[0].windowID
+}
+
+private func terminalNewWindowFallbackID(
+    from baseline: TerminalSnapshot,
+    to current: TerminalSnapshot
+) -> Int32? {
+    guard !baseline.windows.isEmpty,
+          current.totalTabCount == baseline.totalTabCount + 1 else {
+        return nil
+    }
+
+    let currentWindowsByID = Dictionary(
+        current.windows.map { ($0.windowID, $0) },
+        uniquingKeysWith: { first, _ in first }
+    )
+    guard currentWindowsByID.count == current.windows.count,
+          baseline.windows.allSatisfy({ window in
+        currentWindowsByID[window.windowID]?.tabTTYValues
+            == window.tabTTYValues
+    }) else {
+        return nil
+    }
+
+    let baselineWindowIDs = Set(baseline.windows.map(\.windowID))
+    let newWindows = current.windows.filter {
+        !baselineWindowIDs.contains($0.windowID)
+    }
+    guard newWindows.count == 1,
+          newWindows[0].tabCount == 1 else {
+        return nil
+    }
+    return newWindows[0].windowID
 }
 
 protocol TerminalTabOperationLock: AnyObject {
@@ -844,7 +914,7 @@ struct TerminalOpenAdapter: TerminalHandoffPerforming {
     private let eventSender: any NativeAppleEventSending
     private let iTermScriptExecutor: any ITermHandoffScriptExecuting
     private let loginShellPathLookup: any LoginShellPathLookingUp
-    private let terminalTabService: any TerminalTabServicePerforming
+    private let terminalService: any TerminalServicePerforming
     private let terminalSnapshotReader: any TerminalSnapshotReading
     private let terminalTabOperationLocker: any TerminalTabOperationLocking
     private let terminalTabPollAttempts: Int
@@ -860,8 +930,8 @@ struct TerminalOpenAdapter: TerminalHandoffPerforming {
             BundledITermHandoffScriptExecutor(),
         loginShellPathLookup: any LoginShellPathLookingUp =
             SystemLoginShellPathLookup(),
-        terminalTabService: any TerminalTabServicePerforming =
-            WorkspaceTerminalTabServicePerformer(),
+        terminalService: any TerminalServicePerforming =
+            WorkspaceTerminalServicePerformer(),
         terminalSnapshotReader: (any TerminalSnapshotReading)? = nil,
         terminalTabOperationLocker: any TerminalTabOperationLocking =
             WorkspaceTerminalTabOperationLocker(),
@@ -875,7 +945,7 @@ struct TerminalOpenAdapter: TerminalHandoffPerforming {
         self.eventSender = eventSender
         self.iTermScriptExecutor = iTermScriptExecutor
         self.loginShellPathLookup = loginShellPathLookup
-        self.terminalTabService = terminalTabService
+        self.terminalService = terminalService
         self.terminalSnapshotReader = terminalSnapshotReader
             ?? AppleEventTerminalSnapshotReader(eventSender: eventSender)
         self.terminalTabOperationLocker = terminalTabOperationLocker
@@ -925,21 +995,17 @@ struct TerminalOpenAdapter: TerminalHandoffPerforming {
             let wasRunning = applicationState.isRunning(
                 bundleIdentifier: host.bundleIdentifier
             )
-            if !wasRunning {
-                try await openHost(
-                    applicationURL: applicationURL,
-                    event: nil,
+            if wasRunning {
+                try await requestHostAutomationPermission(host)
+                try await sendTerminal(
+                    command: command.line,
                     host: host,
-                    activates: true
+                    applicationURL: applicationURL,
+                    isRunning: true
                 )
+            } else {
+                try await sendTerminalNewWindow(command: command)
             }
-            try await requestHostAutomationPermission(host)
-            try await sendTerminal(
-                command: command.line,
-                host: host,
-                applicationURL: applicationURL,
-                isRunning: true
-            )
         }
     }
 
@@ -1130,19 +1196,44 @@ struct TerminalOpenAdapter: TerminalHandoffPerforming {
             baseline = .empty
         }
 
-        guard terminalTabService.performNewTab(
+        guard terminalService.performNewTab(
             at: command.workspace.fileURL
         ) else {
             throw TerminalAdapterError.terminalTabServiceFailed
         }
 
         if !wasRunning {
-            try await waitForTerminalServiceLaunch()
+            try await waitForTerminalServiceLaunch(placement: .newTab)
             try await requestHostAutomationPermission(.terminal)
         }
         try await submitTerminalCommand(
             command.line,
-            intoTabCreatedAfter: baseline
+            intoTabCreatedAfter: baseline,
+            placement: .newTab
+        )
+        _ = applicationState.activate(
+            bundleIdentifier: TerminalHost.terminal.bundleIdentifier
+        )
+    }
+
+    private func sendTerminalNewWindow(
+        command: TerminalCommand
+    ) async throws {
+        let operationLock = try await acquireTerminalTabOperationLock()
+        defer { operationLock.release() }
+
+        guard terminalService.performNewWindow(
+            at: command.workspace.fileURL
+        ) else {
+            throw TerminalAdapterError.terminalWindowServiceFailed
+        }
+
+        try await waitForTerminalServiceLaunch(placement: .newWindow)
+        try await requestHostAutomationPermission(.terminal)
+        try await submitTerminalCommand(
+            command.line,
+            intoTabCreatedAfter: .empty,
+            placement: .newWindow
         )
         _ = applicationState.activate(
             bundleIdentifier: TerminalHost.terminal.bundleIdentifier
@@ -1188,7 +1279,9 @@ struct TerminalOpenAdapter: TerminalHandoffPerforming {
         throw TerminalAdapterError.terminalSnapshotStabilityTimedOut
     }
 
-    private func waitForTerminalServiceLaunch() async throws {
+    private func waitForTerminalServiceLaunch(
+        placement: SessionPlacement
+    ) async throws {
         let bundleIdentifier = TerminalHost.terminal.bundleIdentifier
         for attempt in 0..<terminalTabPollAttempts {
             if applicationState.isRunning(
@@ -1200,12 +1293,18 @@ struct TerminalOpenAdapter: TerminalHandoffPerforming {
                 await terminalTabPollDelay()
             }
         }
-        throw TerminalAdapterError.terminalTabServiceLaunchTimedOut
+        switch placement {
+        case .newTab:
+            throw TerminalAdapterError.terminalTabServiceLaunchTimedOut
+        case .newWindow:
+            throw TerminalAdapterError.terminalWindowServiceLaunchTimedOut
+        }
     }
 
     private func submitTerminalCommand(
         _ command: String,
-        intoTabCreatedAfter baseline: TerminalSnapshot
+        intoTabCreatedAfter baseline: TerminalSnapshot,
+        placement: SessionPlacement
     ) async throws {
         var previous: TerminalSnapshot?
         var latest = baseline
@@ -1220,8 +1319,24 @@ struct TerminalOpenAdapter: TerminalHandoffPerforming {
             if attempt > 0 {
                 await terminalTabPollDelay()
             }
-            guard let current = try terminalSnapshotReader
-                .coherentSnapshot() else {
+            let current: TerminalSnapshot?
+            do {
+                current = try terminalSnapshotReader.coherentSnapshot()
+            } catch let error as TerminalHandoffError {
+                guard error == .appleEventFailure(
+                    .terminal,
+                    status: NativeAppleEvent.transportFailureStatus
+                ) || error == .appleEventFailure(.terminal, status: -10000) else {
+                    throw error
+                }
+                // Snapshots are read-only and can retry after a launch race.
+                // Terminal scripting model settling can surface errAEEventFailed;
+                // the later targeted command remains intentionally unretried.
+                previous = nil
+                snapshotUnstableAfterService = true
+                continue
+            }
+            guard let current else {
                 previous = nil
                 snapshotUnstableAfterService = true
                 continue
@@ -1247,14 +1362,14 @@ struct TerminalOpenAdapter: TerminalHandoffPerforming {
                 _ = try sendTerminalEvent(
                     try NativeAppleEvent.terminalCommand(
                         command: command,
-                        targetTabTTY: candidate.tty,
+                        targetTabIndex: candidate.tabIndex,
                         inWindowID: candidate.windowID
                     ),
                     host: .terminal
                 )
                 return
             case .ambiguous:
-                throw terminalTabCreationError(
+                throw terminalCreationError(
                     baseline: baseline,
                     latest: latest,
                     sawGlobalTabIncrease: sawGlobalTabIncrease,
@@ -1263,11 +1378,12 @@ struct TerminalOpenAdapter: TerminalHandoffPerforming {
                     windowSetChanged: windowSetChanged,
                     oldTTYOwnerChanged: oldTTYOwnerChanged,
                     snapshotUnstableAfterService:
-                        snapshotUnstableAfterService
+                        snapshotUnstableAfterService,
+                    placement: placement
                 )
             }
         }
-        throw terminalTabCreationError(
+        throw terminalCreationError(
             baseline: baseline,
             latest: latest,
             sawGlobalTabIncrease: sawGlobalTabIncrease,
@@ -1275,11 +1391,12 @@ struct TerminalOpenAdapter: TerminalHandoffPerforming {
             sawUniqueNewTTY: sawUniqueNewTTY,
             windowSetChanged: windowSetChanged,
             oldTTYOwnerChanged: oldTTYOwnerChanged,
-            snapshotUnstableAfterService: snapshotUnstableAfterService
+            snapshotUnstableAfterService: snapshotUnstableAfterService,
+            placement: placement
         )
     }
 
-    private func terminalTabCreationError(
+    private func terminalCreationError(
         baseline: TerminalSnapshot,
         latest: TerminalSnapshot,
         sawGlobalTabIncrease: Bool,
@@ -1287,21 +1404,25 @@ struct TerminalOpenAdapter: TerminalHandoffPerforming {
         sawUniqueNewTTY: Bool,
         windowSetChanged: Bool,
         oldTTYOwnerChanged: Bool,
-        snapshotUnstableAfterService: Bool
+        snapshotUnstableAfterService: Bool,
+        placement: SessionPlacement
     ) -> TerminalAdapterError {
-        .terminalTabCreationTimedOut(
-            TerminalTabCreationEvidence(
-                initialWindows: baseline.evidence,
-                latestWindows: latest.evidence,
-                sawGlobalTabIncrease: sawGlobalTabIncrease,
-                sawPendingTTY: sawPendingTTY,
-                sawUniqueNewTTY: sawUniqueNewTTY,
-                windowSetChanged: windowSetChanged,
-                oldTTYOwnerChanged: oldTTYOwnerChanged,
-                snapshotUnstableAfterService:
-                    snapshotUnstableAfterService
-            )
+        let evidence = TerminalTabCreationEvidence(
+            initialWindows: baseline.evidence,
+            latestWindows: latest.evidence,
+            sawGlobalTabIncrease: sawGlobalTabIncrease,
+            sawPendingTTY: sawPendingTTY,
+            sawUniqueNewTTY: sawUniqueNewTTY,
+            windowSetChanged: windowSetChanged,
+            oldTTYOwnerChanged: oldTTYOwnerChanged,
+            snapshotUnstableAfterService: snapshotUnstableAfterService
         )
+        switch placement {
+        case .newTab:
+            return .terminalTabCreationTimedOut(evidence)
+        case .newWindow:
+            return .terminalWindowCreationTimedOut(evidence)
+        }
     }
 
     private func sendTerminalEvent(

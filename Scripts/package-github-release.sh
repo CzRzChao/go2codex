@@ -8,8 +8,8 @@ project_dir="$(cd "$script_dir/.." && /bin/pwd -P)"
 source "$script_dir/lib/safety.sh"
 
 usage() {
-    echo "Usage: $0 <vX.Y.Z-preview.N>" >&2
-    echo "       $0 --validate-only <vX.Y.Z-preview.N>" >&2
+    echo "Usage: $0 <vX.Y.Z-preview.N|vX.Y.Z>" >&2
+    echo "       $0 --validate-only <vX.Y.Z-preview.N|vX.Y.Z>" >&2
     echo "       $0 --verify-build-only" >&2
     exit 64
 }
@@ -21,6 +21,7 @@ release_die() {
 
 release_tag=""
 release_version=""
+release_channel=""
 marketing_version=""
 build_version=""
 archive_name=""
@@ -32,7 +33,7 @@ load_project_versions() {
 
     [[ "$marketing_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] \
         || release_die "MARKETING_VERSION must use numeric major.minor.patch form"
-    assert_positive_integer "$build_version" "GitHub preview build number"
+    assert_positive_integer "$build_version" "GitHub release build number"
 }
 
 validate_release_contract() {
@@ -40,17 +41,22 @@ validate_release_contract() {
     local preview_number
     local tag_marketing_version
 
-    if [[ ! "$requested_tag" =~ ^v([0-9]+\.[0-9]+\.[0-9]+)-preview\.([1-9][0-9]*)$ ]]; then
-        release_die "tag must match vX.Y.Z-preview.N, with a positive preview number"
+    load_project_versions
+    if [[ "$requested_tag" =~ ^v([0-9]+\.[0-9]+\.[0-9]+)-preview\.([1-9][0-9]*)$ ]]; then
+        tag_marketing_version="${BASH_REMATCH[1]}"
+        preview_number="${BASH_REMATCH[2]}"
+        [[ "$preview_number" == "$build_version" ]] \
+            || release_die "tag preview number $preview_number does not match CURRENT_PROJECT_VERSION $build_version"
+        release_channel="preview"
+    elif [[ "$requested_tag" =~ ^v([0-9]+\.[0-9]+\.[0-9]+)$ ]]; then
+        tag_marketing_version="${BASH_REMATCH[1]}"
+        release_channel="stable"
+    else
+        release_die "tag must match vX.Y.Z or vX.Y.Z-preview.N, with a positive preview number"
     fi
 
-    tag_marketing_version="${BASH_REMATCH[1]}"
-    preview_number="${BASH_REMATCH[2]}"
-    load_project_versions
     [[ "$tag_marketing_version" == "$marketing_version" ]] \
         || release_die "tag version $tag_marketing_version does not match MARKETING_VERSION $marketing_version"
-    [[ "$preview_number" == "$build_version" ]] \
-        || release_die "tag preview number $preview_number does not match CURRENT_PROJECT_VERSION $build_version"
 
     release_tag="$requested_tag"
     release_version="${requested_tag#v}"
@@ -60,9 +66,10 @@ validate_release_contract() {
 
 print_release_contract() {
     /usr/bin/printf \
-        'release_tag=%s\nrelease_version=%s\narchive_path=dist/%s\nchecksum_path=dist/%s\n' \
+        'release_tag=%s\nrelease_version=%s\nrelease_channel=%s\narchive_path=dist/%s\nchecksum_path=dist/%s\n' \
         "$release_tag" \
         "$release_version" \
+        "$release_channel" \
         "$archive_name" \
         "$checksum_name"
 }
@@ -257,14 +264,15 @@ prepare_regular_output_path "$published_checksum" "GitHub preview checksum"
 
 if [[ "${GITHUB_ACTIONS:-false}" == "true" && -n "${GITHUB_OUTPUT:-}" ]]; then
     /usr/bin/printf \
-        'release_tag=%s\nrelease_version=%s\narchive_path=dist/%s\nchecksum_path=dist/%s\n' \
+        'release_tag=%s\nrelease_version=%s\nrelease_channel=%s\narchive_path=dist/%s\nchecksum_path=dist/%s\n' \
         "$release_tag" \
         "$release_version" \
+        "$release_channel" \
         "$archive_name" \
         "$checksum_name" \
         >>"$GITHUB_OUTPUT"
 fi
 
-echo "package-github-release: verified unsigned preview archive created"
+echo "package-github-release: verified unsigned $release_channel archive created"
 echo "$published_archive"
 echo "$published_checksum"

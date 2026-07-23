@@ -1030,6 +1030,411 @@ private actor PreferencesStoreFake: PreferencesEnvelopeStoring {
     }
 }
 
+@Suite("CLI executable availability")
+@MainActor
+struct CLIExecutableAvailabilityProbeTests {
+    @Test
+    func supportedShellsUseFixedShellSpecificLookups() {
+        let bash = SystemCLIExecutableAvailabilityProbe.LoginShell(
+            path: "/bin/bash"
+        )?.lookupScript(for: [.codex], markerToken: "TEST")
+        let fish = SystemCLIExecutableAvailabilityProbe.LoginShell(
+            path: "/usr/local/bin/fish"
+        )?.lookupScript(for: [.codex], markerToken: "TEST")
+        let zsh = SystemCLIExecutableAvailabilityProbe.LoginShell(
+            path: "/bin/zsh"
+        )?.lookupScript(for: [.claude], markerToken: "TEST")
+
+        #expect(bash?.contains("builtin type -P codex") == true)
+        #expect(bash?.contains("builtin printf") == true)
+        #expect(fish?.contains("builtin type -P codex") == true)
+        #expect(fish?.contains("builtin test") == true)
+        #expect(zsh?.contains("builtin whence -p claude") == true)
+        #expect(zsh?.contains("builtin printf") == true)
+        #expect(zsh?.contains("go2codex_candidate") == true)
+        #expect(zsh?.contains("\npath=") == false)
+        #expect(SystemCLIExecutableAvailabilityProbe.LoginShell(
+            path: "/bin/sh"
+        ) == nil)
+    }
+
+    @Test
+    func batchProbeUsesOneLoginShellCommandAndClassifiesNonceMarkers() async {
+        let runner = CLIProbeRunnerStub { command in
+            guard let markerToken = cliProbeMarkerToken(from: command) else {
+                return .completed(stdout: Data(), exitStatus: 0)
+            }
+            return .completed(
+                stdout: Data("""
+                __GO2CODEX_CLI_WRONG_MISSING__: codex
+                shell startup noise
+                __GO2CODEX_CLI_\(markerToken)_AVAILABLE__: codex
+                __GO2CODEX_CLI_\(markerToken)_MISSING__: claude
+                """.utf8),
+                exitStatus: 0
+            )
+        }
+        let probe = SystemCLIExecutableAvailabilityProbe(
+            loginShellPathLookup: CLIProbeLoginShellPathLookup(path: "/bin/zsh"),
+            runner: runner
+        )
+
+        let result = await probe.availabilities(
+            for: [.codex, .claude, .codex]
+        )
+
+        #expect(result == [.available, .missing, .available])
+        let commands = await runner.recordedCommands
+        #expect(commands.count == 1)
+        #expect(commands.first?.executablePath == "/bin/zsh")
+        #expect(commands.first?.arguments.prefix(3) == ["-l", "-i", "-c"])
+        let script = commands.first?.arguments.last ?? ""
+        #expect(script.components(
+            separatedBy: "builtin whence -p codex"
+        ).count - 1 == 1)
+        #expect(script.components(
+            separatedBy: "builtin whence -p claude"
+        ).count - 1 == 1)
+        #expect(await runner.recordedTimeouts == [.seconds(2)])
+    }
+
+    @Test
+    func nonceInconclusiveMarkerDoesNotBecomeMissing() async {
+        let runner = CLIProbeRunnerStub { command in
+            guard let markerToken = cliProbeMarkerToken(from: command) else {
+                return .completed(stdout: Data(), exitStatus: 0)
+            }
+            return .completed(
+                stdout: Data("""
+                __GO2CODEX_CLI_\(markerToken)_INCONCLUSIVE__: codex
+                """.utf8),
+                exitStatus: 0
+            )
+        }
+        let probe = SystemCLIExecutableAvailabilityProbe(
+            loginShellPathLookup: CLIProbeLoginShellPathLookup(path: "/bin/zsh"),
+            runner: runner
+        )
+
+        let result = await probe.availability(for: .codex)
+
+        #expect(result == .unknown(.invalidResult))
+    }
+
+    @Test
+    func lookupUsesBuiltinsEvenWhenStartupFunctionsShadowNames()
+        async throws {
+        for (shellPath, expectedLookup) in [
+            ("/bin/bash", "builtin type -P codex"),
+            ("/bin/zsh", "builtin whence -p codex"),
+        ] {
+            let shell = try #require(
+                SystemCLIExecutableAvailabilityProbe.LoginShell(
+                    path: shellPath
+                )
+            )
+            let lookupScript = shell.lookupScript(
+                for: [.codex],
+                markerToken: "TEST"
+            )
+            let result = await SystemLoginShellCommandRunner().run(
+                LoginShellCommand(
+                    executablePath: shellPath,
+                    arguments: [
+                        "-c",
+                        """
+                        PATH=/usr/bin:/bin
+                        export PATH
+                        function type() { echo fake; }
+                        function whence() { echo fake; }
+                        function printf() { echo fake; }
+                        \(lookupScript)
+                        """,
+                    ]
+                ),
+                timeout: .seconds(1)
+            )
+
+            guard case let .completed(stdout, exitStatus) = result else {
+                Issue.record("Expected the shell command to complete")
+                continue
+            }
+            #expect(exitStatus == 0)
+            #expect(String(decoding: stdout, as: UTF8.self).contains(
+                "__GO2CODEX_CLI_TEST_MISSING__: codex"
+            ))
+            #expect(lookupScript.contains(expectedLookup))
+        }
+    }
+
+    @Test
+    func unsafePathIsInconclusiveWhenProbeDirectoryMissesButWorkspaceWouldHit() async throws {
+        let rootURL = FileManager.default.temporaryDirectory.appendingPathComponent(
+            "go2codex-relative-path-\(UUID().uuidString)",
+            isDirectory: true
+        )
+        let probeDirectoryURL = rootURL.appendingPathComponent(
+            "probe",
+            isDirectory: true
+        )
+        let workspaceURL = rootURL.appendingPathComponent(
+            "workspace",
+            isDirectory: true
+        )
+        let relativeBinURL = workspaceURL.appendingPathComponent(
+            "relative-bin",
+            isDirectory: true
+        )
+        let executableURL = relativeBinURL.appendingPathComponent("codex")
+        try FileManager.default.createDirectory(
+            at: probeDirectoryURL,
+            withIntermediateDirectories: true
+        )
+        try FileManager.default.createDirectory(
+            at: relativeBinURL,
+            withIntermediateDirectories: true
+        )
+        try Data("#!/bin/sh\nexit 0\n".utf8).write(to: executableURL)
+        #expect(chmod(executableURL.path, S_IRUSR | S_IWUSR | S_IXUSR) == 0)
+        #expect(FileManager.default.isExecutableFile(atPath: executableURL.path))
+        defer {
+            try? FileManager.default.removeItem(at: rootURL)
+        }
+
+        for shellPath in ["/bin/bash", "/bin/zsh"] {
+            let shell = try #require(
+                SystemCLIExecutableAvailabilityProbe.LoginShell(
+                    path: shellPath
+                )
+            )
+            let lookupScript = shell.lookupScript(
+                for: [.codex],
+                markerToken: "TEST"
+            )
+            for path in ["relative-bin:/usr/bin:/bin", ":/usr/bin:/bin"] {
+                let result = await SystemLoginShellCommandRunner().run(
+                    LoginShellCommand(
+                        executablePath: shellPath,
+                        arguments: [
+                            "-c",
+                            """
+                            cd "$1"
+                            PATH="$2"
+                            export PATH
+                            \(lookupScript)
+                            """,
+                            "go2codex-test",
+                            probeDirectoryURL.path,
+                            path,
+                        ]
+                    ),
+                    timeout: .seconds(1)
+                )
+
+                guard case let .completed(stdout, exitStatus) = result else {
+                    Issue.record("Expected the unsafe PATH lookup to complete")
+                    continue
+                }
+                #expect(exitStatus == 0)
+                #expect(String(decoding: stdout, as: UTF8.self).contains(
+                    "__GO2CODEX_CLI_TEST_INCONCLUSIVE__: codex"
+                ))
+            }
+        }
+    }
+
+    @Test(arguments: [
+        LoginShellCommandRunResult.timedOut,
+        .cancelled,
+        .launchFailed,
+        .completed(stdout: Data(), exitStatus: 0),
+        .completed(stdout: Data("__GO2CODEX_CLI_AVAILABLE__: codex\n__GO2CODEX_CLI_MISSING__: codex\n".utf8), exitStatus: 0),
+        .completed(stdout: Data("__GO2CODEX_CLI_AVAILABLE__: codex\n".utf8), exitStatus: 1),
+    ])
+    func inconclusiveRunnerResultsAreUnknown(
+        runnerResult: LoginShellCommandRunResult
+    ) async {
+        let probe = SystemCLIExecutableAvailabilityProbe(
+            loginShellPathLookup: CLIProbeLoginShellPathLookup(path: "/bin/zsh"),
+            runner: CLIProbeRunnerStub(result: runnerResult)
+        )
+
+        let result = await probe.availability(for: .codex)
+
+        guard case .unknown = result else {
+            Issue.record("Expected an unknown result, got \(result)")
+            return
+        }
+    }
+
+    @Test
+    func systemRunnerCapturesStandardOutputAndDrainsStandardError() async {
+        let largeStandardError = String(repeating: "ignored-error", count: 8_192)
+        let result = await SystemLoginShellCommandRunner().run(
+            LoginShellCommand(
+                executablePath: "/bin/sh",
+                arguments: [
+                    "-c",
+                    "printf 'probe-result'; printf '%s' \"$1\" >&2",
+                    "go2codex-test",
+                    largeStandardError,
+                ]
+            ),
+            timeout: .seconds(1)
+        )
+
+        #expect(result == .completed(
+            stdout: Data("probe-result".utf8),
+            exitStatus: 0
+        ))
+    }
+
+    @Test
+    func systemRunnerForceStopsAShellThatIgnoresTermination() async {
+        let clock = ContinuousClock()
+        let startedAt = clock.now
+        let result = await SystemLoginShellCommandRunner().run(
+            LoginShellCommand(
+                executablePath: "/bin/sh",
+                arguments: [
+                    "-c",
+                    "trap '' TERM; while :; do :; done",
+                ]
+            ),
+            timeout: .milliseconds(50)
+        )
+
+        #expect(result == .timedOut)
+        #expect(startedAt.duration(to: clock.now) < .seconds(2))
+    }
+
+    @Test
+    func cancellingSystemRunnerForceStopsTheEntireProcessGroup() async throws {
+        let markerURL = FileManager.default.temporaryDirectory.appendingPathComponent(
+            "go2codex-cli-probe-\(UUID().uuidString)"
+        )
+        var childProcessID: pid_t?
+        defer {
+            if let childProcessID {
+                _ = kill(childProcessID, SIGKILL)
+            }
+            try? FileManager.default.removeItem(at: markerURL)
+        }
+        let command = LoginShellCommand(
+            executablePath: "/bin/sh",
+            arguments: [
+                "-c",
+                """
+                trap '' TERM
+                /bin/sh -c 'trap "" TERM; while :; do :; done' &
+                printf '%d' "$!" > "$1"
+                while :; do :; done
+                """,
+                "go2codex-test",
+                markerURL.path,
+            ]
+        )
+        let clock = ContinuousClock()
+        let task = Task {
+            await SystemLoginShellCommandRunner().run(
+                command,
+                timeout: .seconds(30)
+            )
+        }
+
+        for _ in 0 ..< 100 where childProcessID == nil {
+            if let data = try? Data(contentsOf: markerURL),
+               let value = Int32(String(decoding: data, as: UTF8.self)) {
+                childProcessID = value
+                break
+            }
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        #expect(childProcessID != nil)
+
+        let cancelledAt = clock.now
+        task.cancel()
+        let result = await task.value
+
+        #expect(result == .cancelled)
+        #expect(cancelledAt.duration(to: clock.now) < .seconds(2))
+        if let processID = childProcessID {
+            for _ in 0 ..< 100 where kill(processID, 0) == 0 {
+                try await Task.sleep(for: .milliseconds(10))
+            }
+            let processIsGone = kill(processID, 0) == -1 && errno == ESRCH
+            #expect(processIsGone)
+            if processIsGone {
+                childProcessID = nil
+            }
+        }
+    }
+
+    @Test
+    func systemRunnerRejectsNonpositiveTimeoutWithoutLaunching() async {
+        let result = await SystemLoginShellCommandRunner().run(
+            LoginShellCommand(
+                executablePath: "/path/that/does/not/exist",
+                arguments: []
+            ),
+            timeout: .zero
+        )
+
+        #expect(result == .timedOut)
+    }
+}
+
+@MainActor
+private struct CLIProbeLoginShellPathLookup: LoginShellPathLookingUp {
+    let path: String?
+
+    func loginShellPath() -> String? {
+        path
+    }
+}
+
+private actor CLIProbeRunnerStub: LoginShellCommandRunning {
+    private let resultProvider:
+        @Sendable (LoginShellCommand) -> LoginShellCommandRunResult
+    private(set) var recordedCommands: [LoginShellCommand] = []
+    private(set) var recordedTimeouts: [Duration] = []
+
+    init(result: LoginShellCommandRunResult) {
+        resultProvider = { _ in result }
+    }
+
+    init(
+        resultProvider:
+            @escaping @Sendable
+            (LoginShellCommand) -> LoginShellCommandRunResult
+    ) {
+        self.resultProvider = resultProvider
+    }
+
+    func run(
+        _ command: LoginShellCommand,
+        timeout: Duration
+    ) async -> LoginShellCommandRunResult {
+        recordedCommands.append(command)
+        recordedTimeouts.append(timeout)
+        return resultProvider(command)
+    }
+}
+
+private func cliProbeMarkerToken(
+    from command: LoginShellCommand
+) -> String? {
+    guard let script = command.arguments.last,
+          let markerEnd = script.range(of: "_AVAILABLE__"),
+          let markerStart = script[..<markerEnd.lowerBound].range(
+              of: "__GO2CODEX_CLI_",
+              options: .backwards
+          ) else {
+        return nil
+    }
+    return String(script[markerStart.upperBound ..< markerEnd.lowerBound])
+}
+
 private func capturedError<T, E: Error & Equatable>(
     _ operation: () throws -> T
 ) -> E? {

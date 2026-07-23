@@ -95,6 +95,142 @@ struct SettingsModelTests {
     }
 
     @Test
+    func cliAvailabilityUsesOneBatchProbeAndPublishesIndependentResults() async {
+        let probe = SettingsCLIAvailabilityProbeFake(
+            responses: [
+                .init(results: [
+                    .available,
+                    .missing,
+                ]),
+            ]
+        )
+        let model = makeModel(
+            preferences: SettingsPreferencesFake(state: .firstRun),
+            cliAvailabilityProbe: probe
+        )
+
+        await model.loadIfNeeded()
+
+        #expect(model.cliStatus(for: .codex) == .available)
+        #expect(model.cliStatus(for: .claude) == .missing)
+        #expect(await probe.requests() == [CLIExecutable.allCases])
+    }
+
+    @Test
+    func cliProbeUnknownAndMissingStatusesDoNotBlockSavingPreferences() async {
+        let preferences = SettingsPreferencesFake(state: .firstRun)
+        let probe = SettingsCLIAvailabilityProbeFake(
+            responses: [
+                .init(results: [
+                    .unknown(.timedOut),
+                    .missing,
+                ]),
+            ]
+        )
+        let model = makeModel(
+            preferences: preferences,
+            cliAvailabilityProbe: probe
+        )
+
+        await model.loadIfNeeded()
+        model.selectDefaultTarget(.claudeCodeCLI)
+        model.selectDefaultTerminalHost(.terminal)
+
+        #expect(model.cliStatus(for: .codex) == .couldNotVerify)
+        #expect(model.cliStatus(for: .claude) == .missing)
+        #expect(model.canCompleteFirstRun)
+
+        await model.completeFirstRunAndInstall()
+
+        #expect(model.phase == .configured)
+        #expect(preferences.completedSelections.first?.defaultTarget == .claudeCodeCLI)
+    }
+
+    @Test
+    func malformedBatchProbeResultDoesNotBecomeAFalseMissingStatus() async {
+        let probe = SettingsCLIAvailabilityProbeFake(
+            responses: [
+                .init(results: [.missing]),
+            ]
+        )
+        let model = makeModel(
+            preferences: SettingsPreferencesFake(state: .firstRun),
+            cliAvailabilityProbe: probe
+        )
+
+        await model.loadIfNeeded()
+
+        #expect(model.cliStatus(for: .codex) == .couldNotVerify)
+        #expect(model.cliStatus(for: .claude) == .couldNotVerify)
+    }
+
+    @Test
+    func newerCLIRefreshCancelsAndCannotBeOverwrittenByOlderProbe() async {
+        let probe = ControllableSettingsCLIAvailabilityProbeFake()
+        let model = makeModel(
+            preferences: SettingsPreferencesFake(state: .firstRun),
+            cliAvailabilityProbe: probe
+        )
+
+        let olderRefresh = Task {
+            await model.refreshCLIExecutableStatus()
+        }
+        await probe.waitForRequestCount(1)
+
+        let newerRefresh = Task {
+            await model.refreshCLIExecutableStatus()
+        }
+        await probe.waitForRequestCount(2)
+        await probe.waitForCancellationCount(1)
+        await probe.resumeRequest(
+            1,
+            with: [.missing, .available]
+        )
+        await newerRefresh.value
+
+        #expect(model.cliStatus(for: .codex) == .missing)
+        #expect(model.cliStatus(for: .claude) == .available)
+
+        await probe.resumeRequest(
+            0,
+            with: [.available, .missing]
+        )
+        await olderRefresh.value
+
+        #expect(model.cliStatus(for: .codex) == .missing)
+        #expect(model.cliStatus(for: .claude) == .available)
+        #expect(await probe.requests() == [
+            CLIExecutable.allCases,
+            CLIExecutable.allCases,
+        ])
+        #expect(await probe.cancelledRequestIDs() == [0])
+    }
+
+    @Test
+    func cancelledCurrentCLIRefreshLeavesRetryableUnknownStatuses() async {
+        let probe = ControllableSettingsCLIAvailabilityProbeFake()
+        let model = makeModel(
+            preferences: SettingsPreferencesFake(state: .firstRun),
+            cliAvailabilityProbe: probe
+        )
+        let refresh = Task {
+            await model.refreshCLIExecutableStatus()
+        }
+        await probe.waitForRequestCount(1)
+
+        refresh.cancel()
+        await probe.waitForCancellationCount(1)
+        await probe.resumeRequest(
+            0,
+            with: [.available, .available]
+        )
+        await refresh.value
+
+        #expect(model.cliStatus(for: .codex) == .couldNotVerify)
+        #expect(model.cliStatus(for: .claude) == .couldNotVerify)
+    }
+
+    @Test
     func firstRunCommitsOneEnvelopeBeforeStartingTheInstallOrFallbackFlow() async {
         let events = SettingsEventLog()
         let preferences = SettingsPreferencesFake(state: .firstRun, events: events)
@@ -316,6 +452,7 @@ struct SettingsModelTests {
         ToolbarSettingsAction.install,
         ToolbarSettingsAction.repair,
         ToolbarSettingsAction.uninstall,
+        ToolbarSettingsAction.showManualSetup,
     ])
     func lateToolbarConvergenceClearsTheReportedFailure(
         _ action: ToolbarSettingsAction
@@ -349,6 +486,80 @@ struct SettingsModelTests {
         #expect(!model.hasToolbarError)
         #expect(toolbar.actions == [action])
         #expect(toolbar.currentStatusCalls == 2)
+    }
+
+    @Test(arguments: [
+        ToolbarSettingsAction.install,
+        ToolbarSettingsAction.repair,
+        ToolbarSettingsAction.showManualSetup,
+    ])
+    func toolbarRefreshClearsFailureOnlyAfterInstallConverges(
+        _ action: ToolbarSettingsAction
+    ) async {
+        let envelope = PreferencesEnvelope(
+            defaultTarget: .codexApp,
+            alternateTrigger: .shiftClick,
+            defaultTerminalHost: .terminal,
+            sessionPlacement: .newTab
+        )
+        let initialStatus: ToolbarSettingsStatus = action == .repair
+            ? .needsRepair
+            : .notInstalled
+        let toolbar = ToolbarSettingsFake(
+            status: initialStatus,
+            actionResult: .failed
+        )
+        let model = makeModel(
+            preferences: SettingsPreferencesFake(state: .configured(envelope)),
+            toolbar: toolbar
+        )
+
+        await model.loadIfNeeded()
+        await model.performToolbarAction(action)
+
+        #expect(model.hasToolbarError)
+        #expect(model.toolbarStatus == initialStatus)
+
+        toolbar.status = .installed
+        await model.refreshToolbarStatus()
+
+        #expect(model.toolbarStatus == .installed)
+        #expect(!model.hasToolbarError)
+        #expect(toolbar.actions == [action])
+        #expect(toolbar.currentStatusCalls == 3)
+    }
+
+    @Test
+    func failedUninstallErrorSurvivesRefreshUntilToolbarIsNotInstalled() async {
+        let envelope = PreferencesEnvelope(
+            defaultTarget: .codexApp,
+            alternateTrigger: .shiftClick,
+            defaultTerminalHost: .terminal,
+            sessionPlacement: .newTab
+        )
+        let toolbar = ToolbarSettingsFake(
+            status: .installed,
+            actionResult: .failed
+        )
+        let model = makeModel(
+            preferences: SettingsPreferencesFake(state: .configured(envelope)),
+            toolbar: toolbar
+        )
+
+        await model.loadIfNeeded()
+        await model.performToolbarAction(.uninstall)
+        await model.refreshToolbarStatus()
+
+        #expect(model.toolbarStatus == .installed)
+        #expect(model.hasToolbarError)
+
+        toolbar.status = .notInstalled
+        await model.refreshToolbarStatus()
+
+        #expect(model.toolbarStatus == .notInstalled)
+        #expect(!model.hasToolbarError)
+        #expect(toolbar.actions == [.uninstall])
+        #expect(toolbar.currentStatusCalls == 4)
     }
 
     @Test
@@ -488,12 +699,15 @@ struct SettingsModelTests {
     private func makeModel(
         preferences: SettingsPreferencesFake,
         toolbar: ToolbarSettingsFake = ToolbarSettingsFake(),
-        availability: SettingsAvailabilityFake = SettingsAvailabilityFake()
+        availability: SettingsAvailabilityFake = SettingsAvailabilityFake(),
+        cliAvailabilityProbe: any CLIExecutableAvailabilityProbing =
+            SettingsCLIAvailabilityProbeFake()
     ) -> SettingsModel {
         SettingsModel(
             preferences: preferences,
             toolbar: toolbar,
-            availability: availability
+            availability: availability,
+            cliAvailabilityProbe: cliAvailabilityProbe
         )
     }
 }
@@ -624,5 +838,143 @@ private final class SettingsAvailabilityFake: SettingsAvailabilityServing {
 
     func terminalHostIsAvailable(_ terminalHost: TerminalHost) -> Bool {
         terminalHosts[terminalHost] ?? true
+    }
+}
+
+private actor SettingsCLIAvailabilityProbeFake:
+    CLIExecutableAvailabilityProbing {
+    struct Response: Sendable {
+        let results: [CLIExecutableAvailability]
+        let delay: Duration
+
+        init(
+            results: [CLIExecutableAvailability],
+            delay: Duration = .zero
+        ) {
+            self.results = results
+            self.delay = delay
+        }
+    }
+
+    private var queuedResponses: [Response]
+    private var requestedExecutables: [[CLIExecutable]] = []
+
+    init(
+        responses: [Response] = [
+            .init(results: CLIExecutable.allCases.map { _ in .available }),
+        ]
+    ) {
+        queuedResponses = responses
+    }
+
+    func availabilities(
+        for executables: [CLIExecutable]
+    ) async -> [CLIExecutableAvailability] {
+        requestedExecutables.append(executables)
+        let response = queuedResponses.isEmpty
+            ? Response(results: executables.map { _ in .available })
+            : queuedResponses.removeFirst()
+        if response.delay > .zero {
+            try? await Task.sleep(for: response.delay)
+        }
+        return response.results
+    }
+
+    func requests() -> [[CLIExecutable]] {
+        requestedExecutables
+    }
+}
+
+private actor ControllableSettingsCLIAvailabilityProbeFake:
+    CLIExecutableAvailabilityProbing {
+    private struct Waiter {
+        let count: Int
+        let continuation: CheckedContinuation<Void, Never>
+    }
+
+    private var requestedExecutables: [[CLIExecutable]] = []
+    private var pending:
+        [Int: CheckedContinuation<[CLIExecutableAvailability], Never>] = [:]
+    private var cancelledIDs: [Int] = []
+    private var requestWaiters: [Waiter] = []
+    private var cancellationWaiters: [Waiter] = []
+
+    func availabilities(
+        for executables: [CLIExecutable]
+    ) async -> [CLIExecutableAvailability] {
+        let requestID = requestedExecutables.count
+        requestedExecutables.append(executables)
+        Self.resumeSatisfiedWaiters(
+            &requestWaiters,
+            currentCount: requestedExecutables.count
+        )
+
+        return await withTaskCancellationHandler {
+            await withCheckedContinuation { continuation in
+                pending[requestID] = continuation
+            }
+        } onCancel: {
+            Task {
+                await self.recordCancellation(requestID)
+            }
+        }
+    }
+
+    func waitForRequestCount(_ count: Int) async {
+        guard requestedExecutables.count < count else {
+            return
+        }
+        await withCheckedContinuation { continuation in
+            requestWaiters.append(Waiter(
+                count: count,
+                continuation: continuation
+            ))
+        }
+    }
+
+    func waitForCancellationCount(_ count: Int) async {
+        guard cancelledIDs.count < count else {
+            return
+        }
+        await withCheckedContinuation { continuation in
+            cancellationWaiters.append(Waiter(
+                count: count,
+                continuation: continuation
+            ))
+        }
+    }
+
+    func resumeRequest(
+        _ requestID: Int,
+        with results: [CLIExecutableAvailability]
+    ) {
+        pending.removeValue(forKey: requestID)?.resume(
+            returning: results
+        )
+    }
+
+    func requests() -> [[CLIExecutable]] {
+        requestedExecutables
+    }
+
+    func cancelledRequestIDs() -> [Int] {
+        cancelledIDs
+    }
+
+    private func recordCancellation(_ requestID: Int) {
+        cancelledIDs.append(requestID)
+        Self.resumeSatisfiedWaiters(
+            &cancellationWaiters,
+            currentCount: cancelledIDs.count
+        )
+    }
+
+    private static func resumeSatisfiedWaiters(
+        _ waiters: inout [Waiter],
+        currentCount: Int
+    ) {
+        let satisfied = waiters.filter { currentCount >= $0.count }
+        waiters.removeAll { currentCount >= $0.count }
+        satisfied.forEach { $0.continuation.resume() }
     }
 }
