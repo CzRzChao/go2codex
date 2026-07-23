@@ -571,12 +571,12 @@
         }
       }
     },
-    "Another Terminal tab handoff is already in progress": {
+    "Another Terminal handoff is already in progress": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "另一个 Terminal 标签页交接正在进行"
+            "value": "另一个 Terminal 交接正在进行"
           }
         }
       }
@@ -601,12 +601,42 @@
         }
       }
     },
+    "Go2Codex could not create a Terminal window": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Go2Codex 无法创建 Terminal 窗口"
+          }
+        }
+      }
+    },
+    "Go2Codex could not begin the Terminal handoff": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Go2Codex 无法开始 Terminal 交接"
+          }
+        }
+      }
+    },
     "Go2Codex could not start the CLI in the Terminal tab": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "Go2Codex 无法在 Terminal 标签页中启动 CLI"
+          }
+        }
+      }
+    },
+    "Go2Codex could not start the CLI in the Terminal window": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Go2Codex 无法在 Terminal 窗口中启动 CLI"
           }
         }
       }
@@ -631,12 +661,32 @@
         }
       }
     },
-    "Wait for the current Terminal tab handoff to finish, then try again.": {
+    "The Terminal window was created, but its TTY did not become ready, so no command was submitted. Close the empty window and try again. Go2Codex did not retry automatically.": {
       "localizations": {
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "请等待当前 Terminal 标签页交接完成，然后重试。"
+            "value": "Terminal 窗口已创建，但其 TTY 未就绪，因此未提交任何命令。请关闭空窗口后重试。Go2Codex 未自动重试。"
+          }
+        }
+      }
+    },
+    "A Terminal window was created, but Go2Codex could not safely identify it, so no command was submitted. Close the empty window and try again. Go2Codex did not retry automatically.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Terminal 窗口已创建，但 Go2Codex 无法安全识别它，因此未提交任何命令。请关闭空窗口后重试。Go2Codex 未自动重试。"
+          }
+        }
+      }
+    },
+    "Wait for the current Terminal handoff to finish, then try again.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请等待当前 Terminal 交接完成，然后重试。"
           }
         }
       }
@@ -657,6 +707,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "未提交任何命令。重试前请先检查 Terminal 中是否有空标签页，或在 Go2Codex 设置中选择“新窗口”。"
+          }
+        }
+      }
+    },
+    "No command was submitted. Go2Codex did not retry automatically. Check Terminal for an empty window before trying again.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未提交任何命令。Go2Codex 未自动重试。重试前请检查 Terminal 中是否有空窗口。"
+          }
+        }
+      }
+    },
+    "No command was submitted. Go2Codex did not retry automatically. Try again.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未提交任何命令。Go2Codex 未自动重试。请重试。"
           }
         }
       }

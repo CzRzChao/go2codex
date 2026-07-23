@@ -789,11 +789,16 @@ struct LauncherFailureCopyResolver {
             "The Finder folder is not accessible"
         case "terminal-tab-service-failed",
              "terminal-tab-service-launch-timeout",
-             "terminal-tab-creation-timeout",
-             "terminal-tab-lock-failed":
+             "terminal-tab-creation-timeout":
             "Go2Codex could not create a Terminal tab"
+        case "terminal-window-service-failed",
+             "terminal-window-service-launch-timeout",
+             "terminal-window-creation-timeout":
+            "Go2Codex could not create a Terminal window"
+        case "terminal-tab-lock-failed":
+            "Go2Codex could not begin the Terminal handoff"
         case "terminal-tab-operation-busy":
-            "Another Terminal tab handoff is already in progress"
+            "Another Terminal handoff is already in progress"
         case "terminal-window-list-malformed",
              "terminal-tab-count-malformed",
              "terminal-tab-tty-list-malformed",
@@ -804,6 +809,9 @@ struct LauncherFailureCopyResolver {
         case "terminal-tab-tty-timeout",
              "terminal-tab-identity-timeout":
             "Go2Codex could not start the CLI in the Terminal tab"
+        case "terminal-window-tty-timeout",
+             "terminal-window-identity-timeout":
+            "Go2Codex could not start the CLI in the Terminal window"
         case "iterm-login-shell-unavailable",
              "iterm-login-shell-path-not-absolute",
              "iterm-login-shell-path-invalid",
@@ -829,7 +837,7 @@ struct LauncherFailureCopyResolver {
         case "finder-malformed-reply", "finder-unsupported-location":
             return "Open a regular folder in Finder, then try again. Smart folders such as Recents cannot be used as a workspace."
         case "terminal-tab-operation-busy":
-            return "Wait for the current Terminal tab handoff to finish, then try again."
+            return "Wait for the current Terminal handoff to finish, then try again."
         case "terminal-snapshot-stability-timeout",
              "terminal-baseline-tty-timeout":
             return "No Terminal tab was requested and no command was submitted. Wait for existing Terminal tabs to finish opening, then try again."
@@ -837,10 +845,19 @@ struct LauncherFailureCopyResolver {
             return "The Terminal tab was created, but its TTY did not become ready, so no command was submitted. Close the empty tab and try again, or choose New Window in Go2Codex Settings."
         case "terminal-tab-identity-timeout":
             return "A Terminal tab was created, but Go2Codex could not safely identify it, so no command was submitted. Close the empty tab and try again, or choose New Window in Go2Codex Settings."
+        case "terminal-window-service-failed",
+             "terminal-window-service-launch-timeout",
+             "terminal-window-creation-timeout":
+            return "No command was submitted. Go2Codex did not retry automatically. Check Terminal for an empty window before trying again."
+        case "terminal-window-tty-timeout":
+            return "The Terminal window was created, but its TTY did not become ready, so no command was submitted. Close the empty window and try again. Go2Codex did not retry automatically."
+        case "terminal-window-identity-timeout":
+            return "A Terminal window was created, but Go2Codex could not safely identify it, so no command was submitted. Close the empty window and try again. Go2Codex did not retry automatically."
+        case "terminal-tab-lock-failed":
+            return "No command was submitted. Go2Codex did not retry automatically. Try again."
         case "terminal-tab-service-failed",
              "terminal-tab-service-launch-timeout",
              "terminal-tab-creation-timeout",
-             "terminal-tab-lock-failed",
              "terminal-window-list-malformed",
              "terminal-tab-count-malformed",
              "terminal-tab-tty-list-malformed",
