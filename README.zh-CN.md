@@ -146,12 +146,12 @@ shasum -a 256 -c Go2Codex-0.1.1-macos-arm64.zip.sha256
 | Codex CLI | 在文件夹中启动 Codex CLI | Terminal.app 或 iTerm2 |
 | Claude Desktop Code | 在 Claude Desktop 中打开文件夹 | 不使用 |
 | Claude Code CLI | 在文件夹中启动 Claude Code CLI | Terminal.app 或 iTerm2 |
-| Cursor | 在 Cursor 中打开文件夹 | 不使用 |
+| Cursor | 在 Cursor 项目（IDE）窗口中打开文件夹 | 不使用 |
 | Cursor CLI | 在文件夹中启动 Cursor Agent（`cursor-agent`） | Terminal.app 或 iTerm2 |
 
 没有安装的桌面 App 和 iTerm2 会在设置页中显示为不可用。如果无法选择 iTerm2，请改选 Terminal 后继续。桌面目标不会使用终端设置，但首次设置仍要求选择一个终端；只有启动 CLI 目标时才会使用它。
 
-启动 Cursor 时，Go2Codex 只把文件夹交给 Cursor。复用现有窗口还是打开新窗口，由 Cursor 自己的设置决定。
+启动 Cursor 时，Go2Codex 会在 Cursor 项目（IDE）窗口中打开 Finder 当前显示的精确文件夹。目前不支持 Cursor Agents Window，因为 Cursor 没有提供可以通过指定本地文件夹打开它的稳定公开接口。Go2Codex 不使用 Cursor 的私有接口或仅供开发使用的接口。
 
 ### CLI 状态
 

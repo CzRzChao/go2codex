@@ -96,21 +96,32 @@ assert_file_excludes() {
     pass
 }
 
+assert_tree_excludes() {
+    local root="$1"
+    local unexpected="$2"
+    local label="$3"
+    if /usr/bin/grep -R -Fq -- "$unexpected" "$root"; then
+        echo "test-sop: $label: found forbidden text: $unexpected" >&2
+        exit 1
+    fi
+    pass
+}
+
 assert_equal_value \
-    "$(/usr/bin/grep -Fc 'CHECKLIST_VERSION=5' "$script_dir/smoke-debug.sh")" \
+    "$(/usr/bin/grep -Fc 'CHECKLIST_VERSION=6' "$script_dir/smoke-debug.sh")" \
     "2" \
     "smoke checklist version is written consistently"
 assert_file_contains \
     "$script_dir/smoke-debug.sh" \
-    '[[ "$(manifest_value "$pending_manifest" CHECKLIST_VERSION)" == "5" ]]' \
+    '[[ "$(manifest_value "$pending_manifest" CHECKLIST_VERSION)" == "6" ]]' \
     "pending smoke checklist version"
 assert_file_contains \
     "$script_dir/build-personal.sh" \
-    '[[ "$smoke_checklist" == "5" ]]' \
+    '[[ "$smoke_checklist" == "6" ]]' \
     "Release build smoke checklist version"
 assert_file_contains \
     "$script_dir/install-personal.sh" \
-    '[[ "$smoke_checklist" == "5" ]]' \
+    '[[ "$smoke_checklist" == "6" ]]' \
     "Release install smoke checklist version"
 assert_file_contains \
     "$script_dir/smoke-debug.sh" \
@@ -118,8 +129,28 @@ assert_file_contains \
     "six-target picker smoke coverage"
 assert_file_contains \
     "$script_dir/smoke-debug.sh" \
-    "完全退出后的冷启动和已经运行时的热启动都收到准确目录；复用现有窗口或新建窗口遵循 Cursor 自身设置" \
+    "完全退出后的冷启动和已经运行时的热启动都在项目（IDE）窗口中打开准确目录；不打开 Cursor Agents Window" \
     "Cursor desktop cold and warm launch smoke coverage"
+assert_tree_excludes \
+    "$project_dir/Sources" \
+    "--glass" \
+    "Cursor development-only CLI flag exclusion"
+assert_tree_excludes \
+    "$project_dir/Sources" \
+    "cursor://anysphere.cursor-deeplink/glass" \
+    "Cursor private Agents Window deep-link exclusion"
+assert_tree_excludes \
+    "$project_dir/Sources" \
+    "cursor/userWindowRestorationPreference" \
+    "Cursor private preference exclusion"
+assert_tree_excludes \
+    "$project_dir/Sources" \
+    "state.vscdb" \
+    "Cursor private state database exclusion"
+assert_tree_excludes \
+    "$project_dir/Sources" \
+    "Contents/Resources/app/bin/cursor" \
+    "Cursor private bundled CLI exclusion"
 assert_file_contains \
     "$script_dir/smoke-debug.sh" \
     "Cursor CLI：确认实际运行 cursor-agent；重复 iTerm2 新标签、新窗口和无现有窗口路径" \

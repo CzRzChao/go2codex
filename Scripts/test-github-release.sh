@@ -300,10 +300,10 @@ assert_contains "$chinese_readme" \
     '只需点击一次 Finder 工具栏按钮，即可在 Codex、Claude 或 Cursor 中打开当前文件夹。' \
     "Chinese README Cursor overview"
 assert_contains "$english_readme" \
-    '| Cursor | The folder in Cursor | Not used |' \
+    '| Cursor | The folder in Cursor'\''s project (IDE) window | Not used |' \
     "English README Cursor target"
 assert_contains "$chinese_readme" \
-    '| Cursor | 在 Cursor 中打开文件夹 | 不使用 |' \
+    '| Cursor | 在 Cursor 项目（IDE）窗口中打开文件夹 | 不使用 |' \
     "Chinese README Cursor target"
 assert_contains "$english_readme" \
     '| Cursor CLI | Cursor Agent (`cursor-agent`) in the folder | Terminal.app or iTerm2 |' \
@@ -318,11 +318,17 @@ assert_contains "$chinese_readme" \
     'Go2Codex 不会安装或捆绑 Codex、Claude、Cursor、它们的 CLI 或 iTerm2。' \
     "Chinese README Cursor installation boundary"
 assert_contains "$english_readme" \
-    'Cursor’s own settings decide whether it reuses an existing window or opens a new one.' \
+    'Cursor Agents Window is not currently supported because Cursor does not provide a stable public interface for opening it with a specific local folder.' \
     "English README Cursor window behavior"
 assert_contains "$chinese_readme" \
-    '复用现有窗口还是打开新窗口，由 Cursor 自己的设置决定。' \
+    '目前不支持 Cursor Agents Window，因为 Cursor 没有提供可以通过指定本地文件夹打开它的稳定公开接口。' \
     "Chinese README Cursor window behavior"
+assert_contains "$english_readme" \
+    'Go2Codex does not use Cursor’s private or development-only interfaces.' \
+    "English README Cursor public-interface boundary"
+assert_contains "$chinese_readme" \
+    'Go2Codex 不使用 Cursor 的私有接口或仅供开发使用的接口。' \
+    "Chinese README Cursor public-interface boundary"
 assert_contains "$english_readme" \
     'Settings checks `codex`, `claude`, and `cursor-agent` in the background without opening a terminal window.' \
     "English README CLI detection"

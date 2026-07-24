@@ -146,12 +146,12 @@ Manual setup lets Finder save its own toolbar change, does not restart Finder, a
 | Codex CLI | Codex CLI in the folder | Terminal.app or iTerm2 |
 | Claude Desktop Code | The folder in Claude Desktop | Not used |
 | Claude Code CLI | Claude Code CLI in the folder | Terminal.app or iTerm2 |
-| Cursor | The folder in Cursor | Not used |
+| Cursor | The folder in Cursor's project (IDE) window | Not used |
 | Cursor CLI | Cursor Agent (`cursor-agent`) in the folder | Terminal.app or iTerm2 |
 
 Settings marks desktop apps and iTerm2 as unavailable when they are not installed. If iTerm2 cannot be selected, choose Terminal and continue. Desktop targets do not use the Terminal setting. First-run setup still requires a terminal choice; it is used only when you launch a CLI target.
 
-When you launch Cursor, Go2Codex hands the folder to Cursor. Cursor’s own settings decide whether it reuses an existing window or opens a new one.
+When you launch Cursor, Go2Codex opens the exact folder shown in Finder in Cursor's project (IDE) window. Cursor Agents Window is not currently supported because Cursor does not provide a stable public interface for opening it with a specific local folder. Go2Codex does not use Cursor’s private or development-only interfaces.
 
 ### CLI status
 

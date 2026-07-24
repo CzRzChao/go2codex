@@ -144,6 +144,13 @@ struct SettingsView: View {
             .disabled(!model.controlsAreEnabled)
             .accessibilityIdentifier("default-target")
 
+            if model.defaultTarget == .cursorApp {
+                Text("Cursor opens the current Finder folder in a project (IDE) window. Cursor Agents Window is not supported.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .accessibilityIdentifier("cursor-target-guidance")
+            }
+
             Picker(
                 "Alternate Trigger",
                 selection: Binding(

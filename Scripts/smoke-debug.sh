@@ -95,7 +95,7 @@ if [[ "$mode" == "begin" ]]; then
     prepare_regular_output_path "$pending_manifest_next" "Debug smoke pending staging file"
     assert_safe_regular_output_path "$pending_manifest" "Debug smoke pending record"
     /usr/bin/printf \
-        'FORMAT_VERSION=1\nGIT_HEAD=%s\nDEBUG_TREE_SHA256=%s\nTEAM_ID=%s\nOUTER_REQUIREMENT_SHA256=%s\nINNER_REQUIREMENT_SHA256=%s\nCHECKLIST_VERSION=5\nSTARTED_AT=%s\n' \
+        'FORMAT_VERSION=1\nGIT_HEAD=%s\nDEBUG_TREE_SHA256=%s\nTEAM_ID=%s\nOUTER_REQUIREMENT_SHA256=%s\nINNER_REQUIREMENT_SHA256=%s\nCHECKLIST_VERSION=6\nSTARTED_AT=%s\n' \
         "$current_head" \
         "$debug_tree" \
         "$debug_team" \
@@ -113,7 +113,7 @@ if [[ "$mode" == "begin" ]]; then
     echo "4. 普通文件夹 Shift 点击：Codex App、Codex CLI、Claude Desktop Code、Claude Code CLI、Cursor、Cursor CLI 六个目标顺序正确；不可用目标置灰；面板稳定；Escape/外部点击安静取消；选择只 Handoff 一次。"
     echo "5. 连续至少 5 次打开/取消并快速重复点击：无重叠面板、无重复 Handoff。"
     echo "6. Codex App 与 Claude Desktop：分别从选择器启动一次，目录准确。"
-    echo "7. Cursor App：完全退出后的冷启动和已经运行时的热启动都收到准确目录；复用现有窗口或新建窗口遵循 Cursor 自身设置。"
+    echo "7. Cursor：完全退出后的冷启动和已经运行时的热启动都在项目（IDE）窗口中打开准确目录；不打开 Cursor Agents Window。"
     echo "8. Codex CLI：iTerm2 无窗口时新建窗口；有窗口时按设置新建标签/窗口且不改原标签；连续执行 5 次。"
     echo "9. Claude Code CLI：重复 iTerm2 新标签、新窗口和无现有窗口路径。"
     echo "10. Cursor CLI：确认实际运行 cursor-agent；重复 iTerm2 新标签、新窗口和无现有窗口路径。"
@@ -139,12 +139,12 @@ else
     [[ "$(manifest_value "$pending_manifest" TEAM_ID)" == "$debug_team" ]] || safety_die "Debug signing team changed during the smoke check"
     [[ "$(manifest_value "$pending_manifest" OUTER_REQUIREMENT_SHA256)" == "$debug_outer_requirement" ]] || safety_die "Debug outer signing identity changed during the smoke check"
     [[ "$(manifest_value "$pending_manifest" INNER_REQUIREMENT_SHA256)" == "$debug_inner_requirement" ]] || safety_die "Debug Launcher signing identity changed during the smoke check"
-    [[ "$(manifest_value "$pending_manifest" CHECKLIST_VERSION)" == "5" ]] || safety_die "the pending smoke checklist is obsolete"
+    [[ "$(manifest_value "$pending_manifest" CHECKLIST_VERSION)" == "6" ]] || safety_die "the pending smoke checklist is obsolete"
     recorded_at="$(/bin/date -u '+%Y-%m-%dT%H:%M:%SZ')" || safety_die "Debug smoke completion time could not be recorded"
     prepare_regular_output_path "$pass_manifest_next" "Debug smoke pass staging file"
     assert_safe_regular_output_path "$pass_manifest" "Debug smoke pass record"
     /usr/bin/printf \
-        'FORMAT_VERSION=1\nGIT_HEAD=%s\nDEBUG_TREE_SHA256=%s\nTEAM_ID=%s\nOUTER_REQUIREMENT_SHA256=%s\nINNER_REQUIREMENT_SHA256=%s\nCHECKLIST_VERSION=5\nRESULT=pass\nRECORDED_AT=%s\n' \
+        'FORMAT_VERSION=1\nGIT_HEAD=%s\nDEBUG_TREE_SHA256=%s\nTEAM_ID=%s\nOUTER_REQUIREMENT_SHA256=%s\nINNER_REQUIREMENT_SHA256=%s\nCHECKLIST_VERSION=6\nRESULT=pass\nRECORDED_AT=%s\n' \
         "$current_head" \
         "$debug_tree" \
         "$debug_team" \
