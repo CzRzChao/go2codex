@@ -44,10 +44,7 @@ public enum HandoffAcceptance: Equatable, Sendable {
 
 @MainActor
 public protocol DesktopHandoffPerforming {
-    func open(
-        _ url: URL,
-        for target: AgentTarget
-    ) async throws -> HandoffAcceptance
+    func open(_ request: DesktopOpenRequest) async throws -> HandoffAcceptance
 }
 
 @MainActor

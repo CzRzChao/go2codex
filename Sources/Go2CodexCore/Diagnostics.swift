@@ -198,14 +198,17 @@ public enum DiagnosticSanitizer {
                 sensitiveValues.append(percentEncodedPath)
             }
             for target in AgentTargetCatalog.targets where target.kind == .desktop {
-                guard let desktopURL = try? DesktopURLBuilder.url(for: target, workspace: workspace),
+                guard let desktopRequest = try? DesktopOpenRequestBuilder.request(
+                    for: target,
+                    workspace: workspace
+                ),
                       let components = URLComponents(
-                        url: desktopURL,
+                        url: desktopRequest.url,
                         resolvingAgainstBaseURL: false
                       ) else {
                     continue
                 }
-                sensitiveValues.append(desktopURL.absoluteString)
+                sensitiveValues.append(desktopRequest.url.absoluteString)
                 if let query = components.percentEncodedQuery,
                    let separator = query.firstIndex(of: "=") {
                     sensitiveValues.append(String(query[query.index(after: separator)...]))

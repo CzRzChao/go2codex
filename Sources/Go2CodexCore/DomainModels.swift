@@ -5,12 +5,14 @@ public enum AgentTarget: String, CaseIterable, Codable, Hashable, Sendable {
     case codexCLI = "codex-cli"
     case claudeDesktopCode = "claude-desktop-code"
     case claudeCodeCLI = "claude-code-cli"
+    case cursorApp = "cursor-app"
+    case cursorCLI = "cursor-cli"
 
     public var kind: AgentTargetKind {
         switch self {
-        case .codexApp, .claudeDesktopCode:
+        case .codexApp, .claudeDesktopCode, .cursorApp:
             .desktop
-        case .codexCLI, .claudeCodeCLI:
+        case .codexCLI, .claudeCodeCLI, .cursorCLI:
             .cli
         }
     }
@@ -25,6 +27,10 @@ public enum AgentTarget: String, CaseIterable, Codable, Hashable, Sendable {
             "Claude Desktop Code"
         case .claudeCodeCLI:
             "Claude Code CLI"
+        case .cursorApp:
+            "Cursor"
+        case .cursorCLI:
+            "Cursor CLI"
         }
     }
 }
@@ -168,7 +174,7 @@ public enum TargetAvailability: Equatable, Hashable, Sendable {
 }
 
 public enum TargetAvailabilityEvidence: Equatable, Sendable {
-    case desktopURLHandler(isRegistered: Bool)
+    case desktopApplication(isRegistered: Bool)
     case terminalHost(TerminalHost, isRegistered: Bool)
 }
 
@@ -182,7 +188,7 @@ public enum TargetAvailabilityClassifier {
         evidence: TargetAvailabilityEvidence
     ) throws -> TargetAvailability {
         switch (target.kind, evidence) {
-        case let (.desktop, .desktopURLHandler(isRegistered)):
+        case let (.desktop, .desktopApplication(isRegistered)):
             isRegistered ? .available : .unavailable(.desktopHandlerMissing(target))
         case let (.cli, .terminalHost(host, isRegistered)):
             isRegistered ? .available : .unavailable(.terminalHostMissing(host))
@@ -218,6 +224,8 @@ public enum AgentTargetCatalog {
         .codexCLI,
         .claudeDesktopCode,
         .claudeCodeCLI,
+        .cursorApp,
+        .cursorCLI,
     ]
 
     public static func items(

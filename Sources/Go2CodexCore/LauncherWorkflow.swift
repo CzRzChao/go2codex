@@ -127,10 +127,10 @@ public enum LauncherWorkflowInvocationError: Error, Equatable, Sendable,
     }
 }
 
-public typealias DesktopURLBuildingOperation = @MainActor (
+public typealias DesktopOpenRequestBuildingOperation = @MainActor (
     AgentTarget,
     Workspace
-) throws -> URL
+) throws -> DesktopOpenRequest
 
 public typealias TerminalCommandBuildingOperation = @MainActor (
     AgentTarget,
@@ -146,7 +146,7 @@ public struct LauncherWorkflow {
     private let targetPicker: any TargetPicking
     private let desktopHandoff: any DesktopHandoffPerforming
     private let terminalHandoff: any TerminalHandoffPerforming
-    private let desktopURLBuilder: DesktopURLBuildingOperation
+    private let desktopOpenRequestBuilder: DesktopOpenRequestBuildingOperation
     private let terminalCommandBuilder: TerminalCommandBuildingOperation
 
     public init(
@@ -157,8 +157,8 @@ public struct LauncherWorkflow {
         targetPicker: any TargetPicking,
         desktopHandoff: any DesktopHandoffPerforming,
         terminalHandoff: any TerminalHandoffPerforming,
-        desktopURLBuilder: @escaping DesktopURLBuildingOperation = {
-            try DesktopURLBuilder.url(for: $0, workspace: $1)
+        desktopOpenRequestBuilder: @escaping DesktopOpenRequestBuildingOperation = {
+            try DesktopOpenRequestBuilder.request(for: $0, workspace: $1)
         },
         terminalCommandBuilder: @escaping TerminalCommandBuildingOperation = {
             try TerminalCommandBuilder.command(for: $0, workspace: $1)
@@ -171,7 +171,7 @@ public struct LauncherWorkflow {
         self.targetPicker = targetPicker
         self.desktopHandoff = desktopHandoff
         self.terminalHandoff = terminalHandoff
-        self.desktopURLBuilder = desktopURLBuilder
+        self.desktopOpenRequestBuilder = desktopOpenRequestBuilder
         self.terminalCommandBuilder = terminalCommandBuilder
     }
 
@@ -340,9 +340,12 @@ public struct LauncherWorkflow {
     private func performDesktopHandoff(
         _ request: LaunchRequest
     ) async throws -> LauncherWorkflowOutcome {
-        let url: URL
+        let desktopRequest: DesktopOpenRequest
         do {
-            url = try desktopURLBuilder(request.target, request.workspace)
+            desktopRequest = try desktopOpenRequestBuilder(
+                request.target,
+                request.workspace
+            )
         } catch {
             throw LauncherWorkflowFailure(
                 error: error,
@@ -353,10 +356,7 @@ public struct LauncherWorkflow {
         }
 
         do {
-            let acceptance = try await desktopHandoff.open(
-                url,
-                for: request.target
-            )
+            let acceptance = try await desktopHandoff.open(desktopRequest)
             return .handoffAccepted(
                 target: request.target,
                 terminalHost: nil,

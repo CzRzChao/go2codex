@@ -129,7 +129,7 @@ smoke_debug_tree="$(manifest_value "$smoke_manifest" DEBUG_TREE_SHA256)" || safe
 [[ "$smoke_format" == "1" ]] || safety_die "unsupported Debug smoke receipt"
 [[ "$smoke_head" == "$current_head" ]] || safety_die "Debug smoke check does not match the current commit"
 [[ "$smoke_result" == "pass" ]] || safety_die "Debug smoke check did not pass"
-[[ "$smoke_checklist" == "4" ]] || safety_die "Debug smoke checklist is obsolete"
+[[ "$smoke_checklist" == "6" ]] || safety_die "Debug smoke checklist is obsolete"
 "$script_dir/verify-app.sh" "$debug_app" Debug --signing stable-local
 debug_team="$(team_identifier "$debug_app")" || safety_die "installed Debug signing team is unavailable"
 debug_outer_requirement="$(designated_requirement_hash "$debug_app")" || safety_die "installed Debug outer signing requirement is unavailable"

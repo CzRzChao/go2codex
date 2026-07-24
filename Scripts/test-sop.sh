@@ -96,22 +96,73 @@ assert_file_excludes() {
     pass
 }
 
+assert_tree_excludes() {
+    local root="$1"
+    local unexpected="$2"
+    local label="$3"
+    if /usr/bin/grep -R -Fq -- "$unexpected" "$root"; then
+        echo "test-sop: $label: found forbidden text: $unexpected" >&2
+        exit 1
+    fi
+    pass
+}
+
 assert_equal_value \
-    "$(/usr/bin/grep -Fc 'CHECKLIST_VERSION=4' "$script_dir/smoke-debug.sh")" \
+    "$(/usr/bin/grep -Fc 'CHECKLIST_VERSION=6' "$script_dir/smoke-debug.sh")" \
     "2" \
     "smoke checklist version is written consistently"
 assert_file_contains \
     "$script_dir/smoke-debug.sh" \
-    '[[ "$(manifest_value "$pending_manifest" CHECKLIST_VERSION)" == "4" ]]' \
+    '[[ "$(manifest_value "$pending_manifest" CHECKLIST_VERSION)" == "6" ]]' \
     "pending smoke checklist version"
 assert_file_contains \
     "$script_dir/build-personal.sh" \
-    '[[ "$smoke_checklist" == "4" ]]' \
+    '[[ "$smoke_checklist" == "6" ]]' \
     "Release build smoke checklist version"
 assert_file_contains \
     "$script_dir/install-personal.sh" \
-    '[[ "$smoke_checklist" == "4" ]]' \
+    '[[ "$smoke_checklist" == "6" ]]' \
     "Release install smoke checklist version"
+assert_file_contains \
+    "$script_dir/smoke-debug.sh" \
+    "Cursor、Cursor CLI 六个目标顺序正确；不可用目标置灰" \
+    "six-target picker smoke coverage"
+assert_file_contains \
+    "$script_dir/smoke-debug.sh" \
+    "完全退出后的冷启动和已经运行时的热启动都在项目（IDE）窗口中打开准确目录；不打开 Cursor Agents Window" \
+    "Cursor desktop cold and warm launch smoke coverage"
+assert_tree_excludes \
+    "$project_dir/Sources" \
+    "--glass" \
+    "Cursor development-only CLI flag exclusion"
+assert_tree_excludes \
+    "$project_dir/Sources" \
+    "cursor://anysphere.cursor-deeplink/glass" \
+    "Cursor private Agents Window deep-link exclusion"
+assert_tree_excludes \
+    "$project_dir/Sources" \
+    "cursor/userWindowRestorationPreference" \
+    "Cursor private preference exclusion"
+assert_tree_excludes \
+    "$project_dir/Sources" \
+    "state.vscdb" \
+    "Cursor private state database exclusion"
+assert_tree_excludes \
+    "$project_dir/Sources" \
+    "Contents/Resources/app/bin/cursor" \
+    "Cursor private bundled CLI exclusion"
+assert_file_contains \
+    "$script_dir/smoke-debug.sh" \
+    "Cursor CLI：确认实际运行 cursor-agent；重复 iTerm2 新标签、新窗口和无现有窗口路径" \
+    "Cursor CLI iTerm2 placement smoke coverage"
+assert_file_contains \
+    "$script_dir/smoke-debug.sh" \
+    "Codex CLI/Claude Code CLI/Cursor CLI × New Window/New Tab" \
+    "Cursor CLI Terminal cold-start placement smoke coverage"
+assert_file_contains \
+    "$script_dir/smoke-debug.sh" \
+    "Codex CLI/Claude Code CLI/Cursor CLI 各连续执行 5 次" \
+    "Cursor CLI Terminal running-state placement smoke coverage"
 assert_file_contains \
     "$script_dir/smoke-debug.sh" \
     "无窗口恢复的干净冷启动" \

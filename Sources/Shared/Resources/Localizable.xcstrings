@@ -71,6 +71,36 @@
         }
       }
     },
+    "Cursor": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cursor"
+          }
+        }
+      }
+    },
+    "Cursor CLI": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cursor CLI"
+          }
+        }
+      }
+    },
+    "Cursor opens the current Finder folder in a project (IDE) window. Cursor Agents Window is not supported.": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cursor 会在项目（IDE）窗口中打开 Finder 当前文件夹；不支持 Cursor Agents Window。"
+          }
+        }
+      }
+    },
     "Alternate Trigger": {
       "localizations": {
         "zh-Hans": {

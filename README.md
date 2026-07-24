@@ -4,9 +4,9 @@ English | [简体中文](README.zh-CN.md)
 
 # Go2Codex
 
-Open the folder shown in Finder in Codex or Claude with one toolbar click.
+Open the folder shown in Finder in Codex, Claude, or Cursor with one toolbar click.
 
-Go2Codex adds one button to the Finder toolbar. It passes the exact folder shown by the frontmost Finder window to Codex App, Codex CLI, Claude Desktop, or Claude Code CLI. The public package contains one top-level `Go2Codex.app`; its Finder Launcher is embedded inside that app.
+Go2Codex adds one button to the Finder toolbar. It passes the exact folder shown by the frontmost Finder window to Codex App, Codex CLI, Claude Desktop, Claude Code CLI, Cursor, or Cursor CLI. The public package contains one top-level `Go2Codex.app`; its Finder Launcher is embedded inside that app.
 
 [Download the latest stable release](https://github.com/CzRzChao/go2codex/releases/tag/v0.1.1) · [All releases](https://github.com/CzRzChao/go2codex/releases) · [Security policy](SECURITY.md)
 
@@ -58,11 +58,11 @@ The Settings window itself does not request Automation access. The first real to
 - An **Apple Silicon** Mac. Intel and Universal builds are not published.
 - **macOS 14 Sonoma** or later.
 - At least one supported coding agent already installed:
-  - Codex App or Claude Desktop for a desktop target; and/or
-  - `codex` or `claude` available in your shell for a CLI target.
+  - Codex App, Claude Desktop, or Cursor for a desktop target; and/or
+  - `codex`, `claude`, or `cursor-agent` available in your shell for a CLI target.
 - Terminal.app or iTerm2 for CLI targets. iTerm2 works with **zsh**, **bash**, or **fish** as the account login shell.
 
-Go2Codex does not install or bundle Codex, Claude, or iTerm2. Xcode and a paid Apple Developer account are not required to use the prebuilt release.
+Go2Codex does not install or bundle Codex, Claude, Cursor, their CLIs, or iTerm2. Install the targets you want separately before using them. Xcode and a paid Apple Developer account are not required to use the prebuilt release.
 
 <!-- readme-section: download-and-gatekeeper -->
 
@@ -146,12 +146,16 @@ Manual setup lets Finder save its own toolbar change, does not restart Finder, a
 | Codex CLI | Codex CLI in the folder | Terminal.app or iTerm2 |
 | Claude Desktop Code | The folder in Claude Desktop | Not used |
 | Claude Code CLI | Claude Code CLI in the folder | Terminal.app or iTerm2 |
+| Cursor | The folder in Cursor's project (IDE) window | Not used |
+| Cursor CLI | Cursor Agent (`cursor-agent`) in the folder | Terminal.app or iTerm2 |
 
 Settings marks desktop apps and iTerm2 as unavailable when they are not installed. If iTerm2 cannot be selected, choose Terminal and continue. Desktop targets do not use the Terminal setting. First-run setup still requires a terminal choice; it is used only when you launch a CLI target.
 
+When you launch Cursor, Go2Codex opens the exact folder shown in Finder in Cursor's project (IDE) window. Cursor Agents Window is not currently supported because Cursor does not provide a stable public interface for opening it with a specific local folder. Go2Codex does not use Cursor’s private or development-only interfaces.
+
 ### CLI status
 
-Settings checks `codex` and `claude` in the background without opening a terminal window. Your zsh, bash, or fish startup files may run during this short check.
+Settings checks `codex`, `claude`, and `cursor-agent` in the background without opening a terminal window. Your zsh, bash, or fish startup files may run during this short check.
 
 | Status | Meaning |
 | --- | --- |
@@ -164,13 +168,14 @@ These statuses do not block saving or launching because Terminal or iTerm2 may u
 ```sh
 command -v codex
 command -v claude
+command -v cursor-agent
 ```
 
 ### New Tab or New Window
 
 - **New Tab** asks the selected terminal for a new tab. Terminal may natively fall back to a new window when no suitable window exists.
 - **New Window** asks for a separate window.
-- Both placements are supported for Codex CLI and Claude Code CLI in Terminal.app and iTerm2.
+- Both placements are supported for Codex CLI, Claude Code CLI, and Cursor CLI in Terminal.app and iTerm2.
 
 Go2Codex never retries a failed or uncertain terminal handoff automatically. Depending on when the handoff stopped, an empty session may remain or the CLI may already be running. Check the selected terminal before retrying.
 
@@ -250,7 +255,7 @@ Open a regular, accessible folder in Finder and try again. Recents, search resul
 
 ### CLI shows Not Found or Couldn’t Verify
 
-Run `command -v codex` or `command -v claude` in the terminal profile you intend to use. Install or repair the CLI’s `PATH`, then choose **Refresh CLI Status**. These advisory states never block saving or launching.
+Run `command -v codex`, `command -v claude`, or `command -v cursor-agent` in the terminal profile you intend to use. Install or repair the CLI’s `PATH`, then choose **Refresh CLI Status**. These advisory states never block saving or launching.
 
 ### Terminal leaves an empty tab or window
 
@@ -264,7 +269,7 @@ iTerm2 may already have created the requested session even though Go2Codex did n
 
 ### Titles change while a CLI starts
 
-Terminal and iTerm2 control their own titles. A title can change while the login shell initializes and the foreground process changes to Codex or Claude; this does not mean Go2Codex is repeatedly submitting the command.
+Terminal and iTerm2 control their own titles. A title can change while the login shell initializes and the foreground process changes to Codex, Claude, or Cursor Agent; this does not mean Go2Codex is repeatedly submitting the command.
 
 ### Report a problem
 
