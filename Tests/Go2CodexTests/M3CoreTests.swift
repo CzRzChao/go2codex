@@ -580,11 +580,12 @@ struct M3HandoffEncodingTests {
                 for: target,
                 workspace: workspace
             )
-            #expect(request.target == target)
-            #expect(request.url == (try DesktopURLBuilder.url(
+            let expectedURL = try DesktopURLBuilder.url(
                 for: target,
                 workspace: workspace
-            )))
+            )
+            #expect(request.target == target)
+            #expect(request.url == expectedURL)
             #expect(request.applicationLookup == .urlHandler)
         }
 
