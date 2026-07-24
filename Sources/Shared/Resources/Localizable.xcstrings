@@ -71,6 +71,26 @@
         }
       }
     },
+    "Cursor": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cursor"
+          }
+        }
+      }
+    },
+    "Cursor CLI": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cursor CLI"
+          }
+        }
+      }
+    },
     "Alternate Trigger": {
       "localizations": {
         "zh-Hans": {

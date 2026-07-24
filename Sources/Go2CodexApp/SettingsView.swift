@@ -14,10 +14,23 @@ final class LaunchServicesSettingsAvailabilityService: SettingsAvailabilityServi
         switch target.kind {
         case .desktop:
             guard let workspace = try? Workspace(absolutePath: "/"),
-                  let url = try? DesktopURLBuilder.url(for: target, workspace: workspace) else {
+                  let request = try? DesktopOpenRequestBuilder.request(
+                    for: target,
+                    workspace: workspace
+                  ) else {
                 return .unavailable(.notEvaluated)
             }
-            let handlerURL = NSWorkspace.shared.urlForApplication(toOpen: url)
+            let handlerURL: URL?
+            switch request.applicationLookup {
+            case .urlHandler:
+                handlerURL = NSWorkspace.shared.urlForApplication(
+                    toOpen: request.url
+                )
+            case let .bundleIdentifier(bundleIdentifier):
+                handlerURL = NSWorkspace.shared.urlForApplication(
+                    withBundleIdentifier: bundleIdentifier
+                )
+            }
             return DesktopTargetHandlerPolicy.accepts(
                 target: target,
                 handlerBundleIdentifier: handlerURL.flatMap {
@@ -157,6 +170,11 @@ struct SettingsView: View {
                 "Claude Code CLI",
                 executable: .claude,
                 accessibilityIdentifier: "claude-cli-availability"
+            )
+            cliAvailabilityRow(
+                "Cursor CLI",
+                executable: .cursorAgent,
+                accessibilityIdentifier: "cursor-cli-availability"
             )
 
             HStack {

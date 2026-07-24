@@ -95,7 +95,7 @@ if [[ "$mode" == "begin" ]]; then
     prepare_regular_output_path "$pending_manifest_next" "Debug smoke pending staging file"
     assert_safe_regular_output_path "$pending_manifest" "Debug smoke pending record"
     /usr/bin/printf \
-        'FORMAT_VERSION=1\nGIT_HEAD=%s\nDEBUG_TREE_SHA256=%s\nTEAM_ID=%s\nOUTER_REQUIREMENT_SHA256=%s\nINNER_REQUIREMENT_SHA256=%s\nCHECKLIST_VERSION=4\nSTARTED_AT=%s\n' \
+        'FORMAT_VERSION=1\nGIT_HEAD=%s\nDEBUG_TREE_SHA256=%s\nTEAM_ID=%s\nOUTER_REQUIREMENT_SHA256=%s\nINNER_REQUIREMENT_SHA256=%s\nCHECKLIST_VERSION=5\nSTARTED_AT=%s\n' \
         "$current_head" \
         "$debug_tree" \
         "$debug_team" \
@@ -106,20 +106,22 @@ if [[ "$mode" == "begin" ]]; then
         || safety_die "Debug smoke pending record could not be written"
     atomic_replace_regular_file "$pending_manifest_next" "$pending_manifest" "Debug smoke pending record" \
         || safety_die "Debug smoke pending record could not be committed"
-    echo "Debug 实机检查已开始；以下 13 项必须全部可见通过："
+    echo "Debug 实机检查已开始；以下 15 项必须全部可见通过："
     echo "1. 从 Applications 启动 Debug 只进入 Debug 设置，不读取 Finder、不启动目标。"
     echo "2. 普通文件夹直接点击：默认目标只启动一次，并收到准确目录。"
     echo "3. 最近使用直接点击与 Shift 点击：都显示‘不是实际文件夹’，零 Handoff、零终端。"
-    echo "4. 普通文件夹 Shift 点击：四个目标顺序正确；面板稳定；Escape/外部点击安静取消；选择只 Handoff 一次。"
+    echo "4. 普通文件夹 Shift 点击：Codex App、Codex CLI、Claude Desktop Code、Claude Code CLI、Cursor、Cursor CLI 六个目标顺序正确；不可用目标置灰；面板稳定；Escape/外部点击安静取消；选择只 Handoff 一次。"
     echo "5. 连续至少 5 次打开/取消并快速重复点击：无重叠面板、无重复 Handoff。"
     echo "6. Codex App 与 Claude Desktop：分别从选择器启动一次，目录准确。"
-    echo "7. Codex CLI：iTerm2 无窗口时新建窗口；有窗口时按设置新建标签/窗口且不改原标签；连续执行 5 次。"
-    echo "8. Claude Code CLI：重复 iTerm2 新标签、新窗口和无现有窗口路径。"
-    echo "9. Terminal.app 无窗口恢复的干净冷启动：Codex/Claude × New Window/New Tab 都只出现一个承载命令的窗口，无额外空窗或重复提交；每种成功路径连续 5 次。"
-    echo "10. Terminal.app 冷启动 New Window 恢复路径：分别在恢复既有窗口、以及既有窗口位于不同 Space 时验证。可因无法安全定向而失败；失败时不提交命令、不自动重试，可能留下一个空窗口；绝不向未定向会话重复提交或创建第二个窗口。"
-    echo "11. Terminal.app 运行中：无窗口时 New Window/New Tab 各生成一个命令窗口；单窗口和多窗口时，New Window 新建独立窗口，New Tab 只新增一个承载命令的标签；Codex/Claude 各连续执行 5 次，无空标签、额外窗口或重复提交。"
-    echo "12. Terminal New Tab 不请求辅助功能或 System Events；command not found、Terminal.app/iTerm2 Automation 拒绝和取消均不回退或重复提交；每次结束后 Launcher 退出、不常驻。"
-    echo "13. 正式版文件、偏好、Automation 与 Finder 正式按钮均未被覆盖或重置。"
+    echo "7. Cursor App：完全退出后的冷启动和已经运行时的热启动都收到准确目录；复用现有窗口或新建窗口遵循 Cursor 自身设置。"
+    echo "8. Codex CLI：iTerm2 无窗口时新建窗口；有窗口时按设置新建标签/窗口且不改原标签；连续执行 5 次。"
+    echo "9. Claude Code CLI：重复 iTerm2 新标签、新窗口和无现有窗口路径。"
+    echo "10. Cursor CLI：确认实际运行 cursor-agent；重复 iTerm2 新标签、新窗口和无现有窗口路径。"
+    echo "11. Terminal.app 无窗口恢复的干净冷启动：Codex CLI/Claude Code CLI/Cursor CLI × New Window/New Tab 都只出现一个承载命令的窗口，无额外空窗或重复提交；每种成功路径连续 5 次。"
+    echo "12. Terminal.app 冷启动 New Window 恢复路径：分别在恢复既有窗口、以及既有窗口位于不同 Space 时验证。可因无法安全定向而失败；失败时不提交命令、不自动重试，可能留下一个空窗口；绝不向未定向会话重复提交或创建第二个窗口。"
+    echo "13. Terminal.app 运行中：无窗口时 New Window/New Tab 各生成一个命令窗口；单窗口和多窗口时，New Window 新建独立窗口，New Tab 只新增一个承载命令的标签；Codex CLI/Claude Code CLI/Cursor CLI 各连续执行 5 次，无空标签、额外窗口或重复提交。"
+    echo "14. Terminal New Tab 不请求辅助功能或 System Events；codex、claude、cursor-agent 的 command not found，以及 Terminal.app/iTerm2 Automation 拒绝和取消均不回退或重复提交；每次结束后 Launcher 退出、不常驻。"
+    echo "15. 正式版文件、偏好、Automation 与 Finder 正式按钮均未被覆盖或重置。"
     echo "全部通过后运行：./Scripts/smoke-debug.sh --record-pass --confirm-smoke-passed"
 else
     assert_manifest_keys \
@@ -137,12 +139,12 @@ else
     [[ "$(manifest_value "$pending_manifest" TEAM_ID)" == "$debug_team" ]] || safety_die "Debug signing team changed during the smoke check"
     [[ "$(manifest_value "$pending_manifest" OUTER_REQUIREMENT_SHA256)" == "$debug_outer_requirement" ]] || safety_die "Debug outer signing identity changed during the smoke check"
     [[ "$(manifest_value "$pending_manifest" INNER_REQUIREMENT_SHA256)" == "$debug_inner_requirement" ]] || safety_die "Debug Launcher signing identity changed during the smoke check"
-    [[ "$(manifest_value "$pending_manifest" CHECKLIST_VERSION)" == "4" ]] || safety_die "the pending smoke checklist is obsolete"
+    [[ "$(manifest_value "$pending_manifest" CHECKLIST_VERSION)" == "5" ]] || safety_die "the pending smoke checklist is obsolete"
     recorded_at="$(/bin/date -u '+%Y-%m-%dT%H:%M:%SZ')" || safety_die "Debug smoke completion time could not be recorded"
     prepare_regular_output_path "$pass_manifest_next" "Debug smoke pass staging file"
     assert_safe_regular_output_path "$pass_manifest" "Debug smoke pass record"
     /usr/bin/printf \
-        'FORMAT_VERSION=1\nGIT_HEAD=%s\nDEBUG_TREE_SHA256=%s\nTEAM_ID=%s\nOUTER_REQUIREMENT_SHA256=%s\nINNER_REQUIREMENT_SHA256=%s\nCHECKLIST_VERSION=4\nRESULT=pass\nRECORDED_AT=%s\n' \
+        'FORMAT_VERSION=1\nGIT_HEAD=%s\nDEBUG_TREE_SHA256=%s\nTEAM_ID=%s\nOUTER_REQUIREMENT_SHA256=%s\nINNER_REQUIREMENT_SHA256=%s\nCHECKLIST_VERSION=5\nRESULT=pass\nRECORDED_AT=%s\n' \
         "$current_head" \
         "$debug_tree" \
         "$debug_team" \

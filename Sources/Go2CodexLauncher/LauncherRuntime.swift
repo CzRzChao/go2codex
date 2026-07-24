@@ -207,6 +207,10 @@ extension AgentTarget {
             String(localized: "Claude Desktop Code")
         case .claudeCodeCLI:
             String(localized: "Claude Code CLI")
+        case .cursorApp:
+            String(localized: "Cursor")
+        case .cursorCLI:
+            String(localized: "Cursor CLI")
         }
     }
 }
@@ -250,19 +254,32 @@ struct TargetAvailabilityService: TargetAvailabilityLookingUp {
     ) throws -> TargetAvailability {
         switch target.kind {
         case .desktop:
-            let url: URL
+            let request: DesktopOpenRequest
             do {
-                url = try DesktopURLBuilder.url(for: target, workspace: workspace)
+                request = try DesktopOpenRequestBuilder.request(
+                    for: target,
+                    workspace: workspace
+                )
             } catch {
                 throw AvailabilityLookupError.lookupFailed(target)
             }
-            let handlerURL = applicationLocator.applicationURL(toOpen: url)
+            let applicationURL: URL?
+            switch request.applicationLookup {
+            case .urlHandler:
+                applicationURL = applicationLocator.applicationURL(
+                    toOpen: request.url
+                )
+            case let .bundleIdentifier(bundleIdentifier):
+                applicationURL = applicationLocator.applicationURL(
+                    withBundleIdentifier: bundleIdentifier
+                )
+            }
             return try classify(
                 target: target,
-                evidence: .desktopURLHandler(
+                evidence: .desktopApplication(
                     isRegistered: DesktopTargetHandlerPolicy.accepts(
                         target: target,
-                        handlerBundleIdentifier: handlerURL.flatMap(
+                        handlerBundleIdentifier: applicationURL.flatMap(
                             applicationLocator.bundleIdentifier(at:)
                         )
                     )

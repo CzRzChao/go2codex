@@ -188,8 +188,22 @@ struct TargetPickerRoutingTests {
         )
 
         #expect(plan.items.map(\.target) == AgentTargetCatalog.targets)
-        #expect(plan.items.map(\.isDefault) == [false, false, true, false])
-        #expect(plan.items.map(\.isEnabled) == [true, true, true, true])
+        #expect(plan.items.map(\.isDefault) == [
+            false,
+            false,
+            true,
+            false,
+            false,
+            false,
+        ])
+        #expect(plan.items.map(\.isEnabled) == [
+            true,
+            true,
+            true,
+            true,
+            true,
+            true,
+        ])
     }
 
     @Test
@@ -204,7 +218,14 @@ struct TargetPickerRoutingTests {
         )
 
         #expect(plan.items.map(\.target) == AgentTargetCatalog.targets)
-        #expect(plan.items.map(\.isEnabled) == [true, false, true, false])
+        #expect(plan.items.map(\.isEnabled) == [
+            true,
+            false,
+            true,
+            false,
+            false,
+            false,
+        ])
         #expect(plan.items[1].availability == .unavailable(.terminalHostMissing(.terminal)))
         #expect(plan.items[3].availability == .unavailable(.notEvaluated))
         #expect(plan.items[3].isDefault)

@@ -293,6 +293,68 @@ assert_count "$chinese_readme" \
     '[English](README.md)' \
     1 \
     "Chinese README language link"
+assert_contains "$english_readme" \
+    'Open the folder shown in Finder in Codex, Claude, or Cursor with one toolbar click.' \
+    "English README Cursor overview"
+assert_contains "$chinese_readme" \
+    '只需点击一次 Finder 工具栏按钮，即可在 Codex、Claude 或 Cursor 中打开当前文件夹。' \
+    "Chinese README Cursor overview"
+assert_contains "$english_readme" \
+    '| Cursor | The folder in Cursor | Not used |' \
+    "English README Cursor target"
+assert_contains "$chinese_readme" \
+    '| Cursor | 在 Cursor 中打开文件夹 | 不使用 |' \
+    "Chinese README Cursor target"
+assert_contains "$english_readme" \
+    '| Cursor CLI | Cursor Agent (`cursor-agent`) in the folder | Terminal.app or iTerm2 |' \
+    "English README Cursor CLI target"
+assert_contains "$chinese_readme" \
+    '| Cursor CLI | 在文件夹中启动 Cursor Agent（`cursor-agent`） | Terminal.app 或 iTerm2 |' \
+    "Chinese README Cursor CLI target"
+assert_contains "$english_readme" \
+    'Go2Codex does not install or bundle Codex, Claude, Cursor, their CLIs, or iTerm2.' \
+    "English README Cursor installation boundary"
+assert_contains "$chinese_readme" \
+    'Go2Codex 不会安装或捆绑 Codex、Claude、Cursor、它们的 CLI 或 iTerm2。' \
+    "Chinese README Cursor installation boundary"
+assert_contains "$english_readme" \
+    'Cursor’s own settings decide whether it reuses an existing window or opens a new one.' \
+    "English README Cursor window behavior"
+assert_contains "$chinese_readme" \
+    '复用现有窗口还是打开新窗口，由 Cursor 自己的设置决定。' \
+    "Chinese README Cursor window behavior"
+assert_contains "$english_readme" \
+    'Settings checks `codex`, `claude`, and `cursor-agent` in the background without opening a terminal window.' \
+    "English README CLI detection"
+assert_contains "$chinese_readme" \
+    '设置页会在后台检测 `codex`、`claude` 和 `cursor-agent`，不会打开终端窗口。' \
+    "Chinese README CLI detection"
+assert_count "$english_readme" \
+    'command -v cursor-agent' \
+    2 \
+    "English README Cursor CLI path checks"
+assert_count "$chinese_readme" \
+    'command -v cursor-agent' \
+    2 \
+    "Chinese README Cursor CLI path checks"
+assert_contains "$english_readme" \
+    'These statuses do not block saving or launching because Terminal or iTerm2 may use a different shell configuration.' \
+    "English README advisory CLI status"
+assert_contains "$chinese_readme" \
+    '这些状态不会阻止保存或启动，因为 Terminal 或 iTerm2 可能使用不同的 shell 配置。' \
+    "Chinese README advisory CLI status"
+assert_contains "$english_readme" \
+    'Both placements are supported for Codex CLI, Claude Code CLI, and Cursor CLI in Terminal.app and iTerm2.' \
+    "English README Cursor CLI terminal support"
+assert_contains "$chinese_readme" \
+    'Terminal.app 和 iTerm2 中的 Codex CLI、Claude Code CLI、Cursor CLI 都支持这两种方式。' \
+    "Chinese README Cursor CLI terminal support"
+assert_contains "$english_readme" \
+    'the foreground process changes to Codex, Claude, or Cursor Agent' \
+    "English README Cursor CLI title behavior"
+assert_contains "$chinese_readme" \
+    '前台进程切换到 Codex、Claude 或 Cursor Agent' \
+    "Chinese README Cursor CLI title behavior"
 assert_count "$english_readme" \
     'src="docs/assets/settings-en.png"' \
     1 \

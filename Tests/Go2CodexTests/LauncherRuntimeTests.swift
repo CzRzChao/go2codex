@@ -193,11 +193,49 @@ struct LauncherTargetAvailabilityTests {
     }
 
     @Test
+    func cursorAvailabilityUsesOnlyTheStableBundleIdentifier() throws {
+        let workspace = try Workspace(
+            absolutePath: "/Users/example/Project With Space"
+        )
+        let bundleIdentifier = "com.todesktop.230313mzl4w4u92"
+        let applicationURL = URL(
+            fileURLWithPath: "/Applications/Cursor.app"
+        )
+        let locator = LauncherApplicationLocatorStub()
+        locator.applicationURLsByIdentifier[bundleIdentifier] = applicationURL
+        locator.identifiersByApplicationURL[applicationURL] = bundleIdentifier
+        let service = TargetAvailabilityService(applicationLocator: locator)
+
+        #expect(try service.availability(
+            for: .cursorApp,
+            workspace: workspace,
+            terminalHost: .terminal
+        ) == .available)
+        #expect(locator.openURLQueries.isEmpty)
+        #expect(locator.bundleIdentifierQueries == [bundleIdentifier])
+        #expect(locator.applicationIdentifierQueries == [applicationURL])
+
+        locator.identifiersByApplicationURL[applicationURL] =
+            "com.example.cursor-lookalike"
+        #expect(try service.availability(
+            for: .cursorApp,
+            workspace: workspace,
+            terminalHost: .terminal
+        ) == .unavailable(.desktopHandlerMissing(.cursorApp)))
+        #expect(locator.openURLQueries.isEmpty)
+        #expect(locator.bundleIdentifierQueries == [
+            bundleIdentifier,
+            bundleIdentifier,
+        ])
+    }
+
+    @Test
     func cliAvailabilityUsesOnlyTheSelectedTerminalBundleIdentifier() throws {
         let workspace = try Workspace(absolutePath: "/Users/example/project")
         let cases: [(AgentTarget, TerminalHost)] = [
             (.codexCLI, .terminal),
             (.claudeCodeCLI, .iTerm2),
+            (.cursorCLI, .terminal),
         ]
 
         for (target, terminalHost) in cases {
@@ -241,9 +279,23 @@ struct LauncherTargetPickerPanelTests {
         #expect(session.panel.level == .popUpMenu)
         #expect(session.panel.contentView is NSVisualEffectView)
         #expect(session.buttons.map(\.title) == AgentTargetCatalog.targets.map(\.localizedPickerTitle))
-        #expect(session.buttons.map(\.tag) == [0, 1, 2, 3])
-        #expect(session.buttons.map { $0.state == .on } == [false, false, true, false])
-        #expect(session.buttons.map(\.isEnabled) == [true, false, true, false])
+        #expect(session.buttons.map(\.tag) == [0, 1, 2, 3, 4, 5])
+        #expect(session.buttons.map { $0.state == .on } == [
+            false,
+            false,
+            true,
+            false,
+            false,
+            false,
+        ])
+        #expect(session.buttons.map(\.isEnabled) == [
+            true,
+            false,
+            true,
+            false,
+            true,
+            false,
+        ])
         #expect(session.buttons.allSatisfy { $0.action == expectedAction })
         #expect(session.buttons.allSatisfy { $0.target === session })
     }
@@ -358,7 +410,7 @@ struct LauncherTargetPickerPanelTests {
         var removedMonitors: [Any] = []
         let session = try TargetPickerPanelSession(
             plan: pickerPlan(),
-            frame: NSRect(x: 100, y: 100, width: 240, height: 124),
+            frame: NSRect(x: 100, y: 100, width: 240, height: 180),
             runModal: { _ in
                 runModalCount += 1
                 return .stop
@@ -387,7 +439,7 @@ struct LauncherTargetPickerPanelTests {
     ) throws -> TargetPickerPanelSession {
         try TargetPickerPanelSession(
             plan: pickerPlan(),
-            frame: NSRect(x: 100, y: 100, width: 240, height: 124),
+            frame: NSRect(x: 100, y: 100, width: 240, height: 180),
             runModal: runModal,
             stopModal: stopModal,
             showPanel: { _ in },
@@ -429,6 +481,8 @@ struct LauncherTargetPickerPanelTests {
                 .codexCLI: .unavailable(.terminalHostMissing(.terminal)),
                 .claudeDesktopCode: .available,
                 .claudeCodeCLI: .unavailable(.notEvaluated),
+                .cursorApp: .available,
+                .cursorCLI: .unavailable(.notEvaluated),
             ]
         )
     }
@@ -440,11 +494,11 @@ struct LauncherTargetPickerPanelFrameTests {
     func panelPrefersBelowThePointerAndClampsHorizontally() throws {
         let frame = try TargetPickerPanelFrameResolver.frame(
             near: ScreenPoint(x: 990, y: 850),
-            panelSize: ScreenPoint(x: 240, y: 124),
+            panelSize: ScreenPoint(x: 240, y: 180),
             in: [ScreenRect(x: 0, y: 0, width: 1_000, height: 900)]
         )
 
-        #expect(frame == ScreenRect(x: 760, y: 726, width: 240, height: 124))
+        #expect(frame == ScreenRect(x: 760, y: 670, width: 240, height: 180))
     }
 
     @Test
@@ -466,11 +520,11 @@ struct LauncherTargetPickerPanelFrameTests {
     func panelMovesAboveThePointerWhenBelowDoesNotFit() throws {
         let frame = try TargetPickerPanelFrameResolver.frame(
             near: ScreenPoint(x: 100, y: 50),
-            panelSize: ScreenPoint(x: 240, y: 124),
+            panelSize: ScreenPoint(x: 240, y: 180),
             in: [ScreenRect(x: 0, y: 0, width: 1_000, height: 900)]
         )
 
-        #expect(frame == ScreenRect(x: 100, y: 50, width: 240, height: 124))
+        #expect(frame == ScreenRect(x: 100, y: 50, width: 240, height: 180))
     }
 
     @Test

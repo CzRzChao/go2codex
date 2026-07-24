@@ -42,6 +42,27 @@ public struct VerifiedDesktopTargetHandler: Equatable, Sendable {
     }
 }
 
+public enum DesktopApplicationLookup: Equatable, Sendable {
+    case urlHandler
+    case bundleIdentifier(String)
+}
+
+public struct DesktopOpenRequest: Equatable, Sendable {
+    public let target: AgentTarget
+    public let url: URL
+    public let applicationLookup: DesktopApplicationLookup
+
+    public init(
+        target: AgentTarget,
+        url: URL,
+        applicationLookup: DesktopApplicationLookup
+    ) {
+        self.target = target
+        self.url = url
+        self.applicationLookup = applicationLookup
+    }
+}
+
 public enum DesktopURLBuilder {
     public static func contract(for target: AgentTarget) throws -> DesktopURLContract {
         switch target {
@@ -59,7 +80,7 @@ public enum DesktopURLBuilder {
                 path: "/new",
                 workspaceQueryName: "folder"
             )
-        case .codexCLI, .claudeCodeCLI:
+        case .codexCLI, .claudeCodeCLI, .cursorApp, .cursorCLI:
             throw DesktopURLBuildError.unsupportedTarget(target)
         }
     }
@@ -81,6 +102,35 @@ public enum DesktopURLBuilder {
     }
 }
 
+public enum DesktopOpenRequestBuilder {
+    public static func request(
+        for target: AgentTarget,
+        workspace: Workspace
+    ) throws -> DesktopOpenRequest {
+        switch target {
+        case .codexApp, .claudeDesktopCode:
+            return DesktopOpenRequest(
+                target: target,
+                url: try DesktopURLBuilder.url(
+                    for: target,
+                    workspace: workspace
+                ),
+                applicationLookup: .urlHandler
+            )
+        case .cursorApp:
+            let bundleIdentifier = try DesktopTargetHandlerPolicy
+                .expectedBundleIdentifier(for: target)
+            return DesktopOpenRequest(
+                target: target,
+                url: workspace.fileURL,
+                applicationLookup: .bundleIdentifier(bundleIdentifier)
+            )
+        case .codexCLI, .claudeCodeCLI, .cursorCLI:
+            throw DesktopURLBuildError.unsupportedTarget(target)
+        }
+    }
+}
+
 public enum DesktopTargetHandlerPolicy {
     public static func expectedBundleIdentifier(for target: AgentTarget) throws -> String {
         switch target {
@@ -88,7 +138,9 @@ public enum DesktopTargetHandlerPolicy {
             "com.openai.codex"
         case .claudeDesktopCode:
             "com.anthropic.claudefordesktop"
-        case .codexCLI, .claudeCodeCLI:
+        case .cursorApp:
+            "com.todesktop.230313mzl4w4u92"
+        case .codexCLI, .claudeCodeCLI, .cursorCLI:
             throw DesktopURLBuildError.unsupportedTarget(target)
         }
     }
@@ -124,6 +176,7 @@ public enum DesktopTargetHandlerPolicy {
 public enum CLIExecutable: String, CaseIterable, Codable, Hashable, Sendable {
     case codex
     case claude
+    case cursorAgent = "cursor-agent"
 
     public init(target: AgentTarget) throws {
         switch target {
@@ -131,7 +184,9 @@ public enum CLIExecutable: String, CaseIterable, Codable, Hashable, Sendable {
             self = .codex
         case .claudeCodeCLI:
             self = .claude
-        case .codexApp, .claudeDesktopCode:
+        case .cursorCLI:
+            self = .cursorAgent
+        case .codexApp, .claudeDesktopCode, .cursorApp:
             throw TerminalCommandBuildError.unsupportedTarget(target)
         }
     }

@@ -11,12 +11,14 @@ struct M3DomainTests {
             .codexCLI,
             .claudeDesktopCode,
             .claudeCodeCLI,
+            .cursorApp,
+            .cursorCLI,
         ])
         #expect(AgentTargetCatalog.targets == AgentTarget.allCases)
         #expect(TerminalHost.allCases == [.terminal, .iTerm2])
         #expect(SessionPlacement.allCases == [.newTab, .newWindow])
         #expect(AlternateTrigger.allCases == [.shiftClick, .disabled])
-        #expect(CLIExecutable.allCases == [.codex, .claude])
+        #expect(CLIExecutable.allCases == [.codex, .claude, .cursorAgent])
         #expect(ProductVariant.allCases == [.debug, .release])
         #expect(DiagnosticPolicy.allCases == [.debug, .release])
         #expect(DiagnosticStage.allCases == [
@@ -43,11 +45,18 @@ struct M3DomainTests {
         #expect(AgentTarget.codexCLI.kind == .cli)
         #expect(AgentTarget.claudeDesktopCode.kind == .desktop)
         #expect(AgentTarget.claudeCodeCLI.kind == .cli)
+        #expect(AgentTarget.cursorApp.kind == .desktop)
+        #expect(AgentTarget.cursorCLI.kind == .cli)
+        #expect(AgentTarget.cursorApp.rawValue == "cursor-app")
+        #expect(AgentTarget.cursorCLI.rawValue == "cursor-cli")
+        #expect(CLIExecutable.cursorAgent.rawValue == "cursor-agent")
         #expect(AgentTargetCatalog.targets.map(\.displayName) == [
             "Codex App",
             "Codex CLI",
             "Claude Desktop Code",
             "Claude Code CLI",
+            "Cursor",
+            "Cursor CLI",
         ])
         #expect(TerminalHost.terminal.bundleIdentifier == "com.apple.Terminal")
         #expect(TerminalHost.iTerm2.bundleIdentifier == "com.googlecode.iterm2")
@@ -65,9 +74,15 @@ struct M3DomainTests {
         )
 
         #expect(items.map(\.target) == AgentTargetCatalog.targets)
-        #expect(items.map(\.isDefault) == [false, false, true, false])
-        #expect(items.map(\.isEnabled) == [true, false, true, false])
+        #expect(items.map(\.isDefault) == [
+            false, false, true, false, false, false,
+        ])
+        #expect(items.map(\.isEnabled) == [
+            true, false, true, false, false, false,
+        ])
         #expect(items[3].availability == .unavailable(.notEvaluated))
+        #expect(items[4].availability == .unavailable(.notEvaluated))
+        #expect(items[5].availability == .unavailable(.notEvaluated))
     }
 
     @Test
@@ -101,11 +116,11 @@ struct M3DomainTests {
     func availabilityUsesOnlyMatchingEvidence() throws {
         #expect(try TargetAvailabilityClassifier.classify(
             target: .codexApp,
-            evidence: .desktopURLHandler(isRegistered: true)
+            evidence: .desktopApplication(isRegistered: true)
         ) == .available)
         #expect(try TargetAvailabilityClassifier.classify(
             target: .claudeDesktopCode,
-            evidence: .desktopURLHandler(isRegistered: false)
+            evidence: .desktopApplication(isRegistered: false)
         ) == .unavailable(.desktopHandlerMissing(.claudeDesktopCode)))
         #expect(try TargetAvailabilityClassifier.classify(
             target: .codexCLI,
@@ -115,6 +130,14 @@ struct M3DomainTests {
             target: .claudeCodeCLI,
             evidence: .terminalHost(.iTerm2, isRegistered: false)
         ) == .unavailable(.terminalHostMissing(.iTerm2)))
+        #expect(try TargetAvailabilityClassifier.classify(
+            target: .cursorApp,
+            evidence: .desktopApplication(isRegistered: true)
+        ) == .available)
+        #expect(try TargetAvailabilityClassifier.classify(
+            target: .cursorCLI,
+            evidence: .terminalHost(.terminal, isRegistered: false)
+        ) == .unavailable(.terminalHostMissing(.terminal)))
 
         let error: AvailabilityClassificationError? = capturedError {
             try TargetAvailabilityClassifier.classify(
@@ -176,6 +199,24 @@ struct M3PreferencesTests {
         #expect(!codec.decodeOutcome(data).requiresCanonicalRewrite)
         #expect(envelope.schemaVersion == 1)
         #expect(envelope.firstRunCompletion == .completed)
+    }
+
+    @Test
+    func cursorTargetsRoundTripWithoutChangingThePreferenceSchema() throws {
+        let codec = PreferencesCodec()
+        for target in [AgentTarget.cursorApp, .cursorCLI] {
+            let envelope = PreferencesEnvelope(
+                defaultTarget: target,
+                alternateTrigger: .shiftClick,
+                defaultTerminalHost: .terminal,
+                sessionPlacement: .newTab
+            )
+
+            let data = try codec.encode(envelope)
+
+            #expect(envelope.schemaVersion == 1)
+            #expect(codec.decode(data) == .configured(envelope))
+        }
     }
 
     @Test
@@ -519,8 +560,59 @@ struct M3HandoffEncodingTests {
         let claudeError: DesktopURLBuildError? = capturedError {
             try DesktopURLBuilder.contract(for: .claudeCodeCLI)
         }
+        let cursorAppError: DesktopURLBuildError? = capturedError {
+            try DesktopURLBuilder.contract(for: .cursorApp)
+        }
+        let cursorCLIError: DesktopURLBuildError? = capturedError {
+            try DesktopURLBuilder.contract(for: .cursorCLI)
+        }
         #expect(codexError == .unsupportedTarget(.codexCLI))
         #expect(claudeError == .unsupportedTarget(.claudeCodeCLI))
+        #expect(cursorAppError == .unsupportedTarget(.cursorApp))
+        #expect(cursorCLIError == .unsupportedTarget(.cursorCLI))
+    }
+
+    @Test
+    func desktopOpenRequestsUseTargetSpecificLookupStrategies() throws {
+        let workspace = try Workspace(absolutePath: "/tmp/Project With Space")
+        for target in [AgentTarget.codexApp, .claudeDesktopCode] {
+            let request = try DesktopOpenRequestBuilder.request(
+                for: target,
+                workspace: workspace
+            )
+            #expect(request.target == target)
+            #expect(request.url == (try DesktopURLBuilder.url(
+                for: target,
+                workspace: workspace
+            )))
+            #expect(request.applicationLookup == .urlHandler)
+        }
+
+        let cursorRequest = try DesktopOpenRequestBuilder.request(
+            for: .cursorApp,
+            workspace: workspace
+        )
+        #expect(cursorRequest == DesktopOpenRequest(
+            target: .cursorApp,
+            url: workspace.fileURL,
+            applicationLookup: .bundleIdentifier(
+                "com.todesktop.230313mzl4w4u92"
+            )
+        ))
+
+        for target in [
+            AgentTarget.codexCLI,
+            .claudeCodeCLI,
+            .cursorCLI,
+        ] {
+            let error: DesktopURLBuildError? = capturedError {
+                try DesktopOpenRequestBuilder.request(
+                    for: target,
+                    workspace: workspace
+                )
+            }
+            #expect(error == .unsupportedTarget(target))
+        }
     }
 
     @Test
@@ -596,16 +688,27 @@ struct M3HandoffEncodingTests {
         let workspace = try Workspace(absolutePath: "/tmp/O'Brien; $(touch never)")
         let codex = try TerminalCommandBuilder.command(for: .codexCLI, workspace: workspace)
         let claude = try TerminalCommandBuilder.command(for: .claudeCodeCLI, workspace: workspace)
+        let cursor = try TerminalCommandBuilder.command(for: .cursorCLI, workspace: workspace)
         #expect(codex == TerminalCommand(
             executable: .codex,
             line: "cd '/tmp/O'\\''Brien; $(touch never)' && codex",
             workspace: workspace
         ))
         #expect(claude.line == "cd '/tmp/O'\\''Brien; $(touch never)' && claude")
+        #expect(cursor == TerminalCommand(
+            executable: .cursorAgent,
+            line: "cd '/tmp/O'\\''Brien; $(touch never)' && cursor-agent",
+            workspace: workspace
+        ))
         #expect(!codex.line.hasSuffix("codex "))
         #expect(!claude.line.hasSuffix("claude "))
+        #expect(!cursor.line.hasSuffix("cursor-agent "))
 
-        for desktopTarget in [AgentTarget.codexApp, .claudeDesktopCode] {
+        for desktopTarget in [
+            AgentTarget.codexApp,
+            .claudeDesktopCode,
+            .cursorApp,
+        ] {
             let error: TerminalCommandBuildError? = capturedError {
                 try TerminalCommandBuilder.command(for: desktopTarget, workspace: workspace)
             }
@@ -811,11 +914,21 @@ struct M3DiagnosticsTests {
             workspace.path.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed)
         )
         let desktopTargets = AgentTargetCatalog.targets.filter { $0.kind == .desktop }
-        let desktopURLs = try desktopTargets.map { target in
-            try DesktopURLBuilder.url(for: target, workspace: workspace)
+        let desktopRequests = try desktopTargets.map { target in
+            try DesktopOpenRequestBuilder.request(
+                for: target,
+                workspace: workspace
+            )
         }
-        let queryValues = try desktopURLs.map { url in
-            let components = try #require(URLComponents(url: url, resolvingAgainstBaseURL: false))
+        let desktopURLs = desktopRequests.map(\.url)
+        let queryValues = try desktopRequests.compactMap { request -> String? in
+            guard request.applicationLookup == .urlHandler else {
+                return nil
+            }
+            let components = try #require(URLComponents(
+                url: request.url,
+                resolvingAgainstBaseURL: false
+            ))
             let query = try #require(components.percentEncodedQuery)
             let separator = try #require(query.firstIndex(of: "="))
             return String(query[query.index(after: separator)...])

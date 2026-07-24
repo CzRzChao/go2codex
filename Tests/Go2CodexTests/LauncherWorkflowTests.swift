@@ -125,7 +125,7 @@ struct LauncherWorkflowTests {
             modifiers: [.command, .control],
             pointerLocation: testPointer
         )
-        let expectedURL = try DesktopURLBuilder.url(
+        let expectedRequest = try DesktopOpenRequestBuilder.request(
             for: .claudeDesktopCode,
             workspace: fixture.workspace
         )
@@ -144,7 +144,36 @@ struct LauncherWorkflowTests {
         ])
         #expect(fixture.pickerPlans.isEmpty)
         #expect(fixture.desktopCalls == [
-            DesktopCall(url: expectedURL, target: .claudeDesktopCode),
+            DesktopCall(request: expectedRequest),
+        ])
+        #expect(fixture.terminalCalls.isEmpty)
+    }
+
+    @Test
+    func cursorDesktopQuickLaunchesTheWorkspaceThroughBundleLookup() async throws {
+        let fixture = LauncherWorkflowFixture()
+        fixture.preferencesState = .configured(testEnvelope(
+            defaultTarget: .cursorApp
+        ))
+
+        let outcome = try await fixture.workflow().run(
+            modifiers: [],
+            pointerLocation: testPointer
+        )
+
+        #expect(outcome == .handoffAccepted(
+            target: .cursorApp,
+            terminalHost: nil,
+            acceptance: .acceptedByLaunchServices
+        ))
+        #expect(fixture.desktopCalls == [
+            DesktopCall(request: DesktopOpenRequest(
+                target: .cursorApp,
+                url: fixture.workspace.fileURL,
+                applicationLookup: .bundleIdentifier(
+                    "com.todesktop.230313mzl4w4u92"
+                )
+            )),
         ])
         #expect(fixture.terminalCalls.isEmpty)
     }
@@ -306,7 +335,7 @@ struct LauncherWorkflowTests {
     }
 
     @Test(arguments: workflowHandoffCases)
-    func allFourTargetsUseTheirExpectedProductionBoundary(
+    func allSixTargetsUseTheirExpectedProductionBoundary(
         testCase: WorkflowHandoffCase
     ) async throws {
         let fixture = LauncherWorkflowFixture()
@@ -346,7 +375,7 @@ struct LauncherWorkflowTests {
     func desktopURLBuildFailureHasItsOwnStageAndNeverSubmits() async {
         let fixture = LauncherWorkflowFixture()
         let workflow = fixture.workflow(
-            desktopURLBuilder: { target, _ in
+            desktopOpenRequestBuilder: { target, _ in
                 throw DesktopURLBuildError.malformedComponents(target)
             }
         )
@@ -517,8 +546,8 @@ private final class LauncherWorkflowFixture: LauncherPreferencesLoading,
     private(set) var terminalCalls: [TerminalCall] = []
 
     func workflow(
-        desktopURLBuilder: @escaping DesktopURLBuildingOperation = {
-            try DesktopURLBuilder.url(for: $0, workspace: $1)
+        desktopOpenRequestBuilder: @escaping DesktopOpenRequestBuildingOperation = {
+            try DesktopOpenRequestBuilder.request(for: $0, workspace: $1)
         },
         terminalCommandBuilder: @escaping TerminalCommandBuildingOperation = {
             try TerminalCommandBuilder.command(for: $0, workspace: $1)
@@ -532,7 +561,7 @@ private final class LauncherWorkflowFixture: LauncherPreferencesLoading,
             targetPicker: self,
             desktopHandoff: self,
             terminalHandoff: self,
-            desktopURLBuilder: desktopURLBuilder,
+            desktopOpenRequestBuilder: desktopOpenRequestBuilder,
             terminalCommandBuilder: terminalCommandBuilder
         )
     }
@@ -592,10 +621,9 @@ private final class LauncherWorkflowFixture: LauncherPreferencesLoading,
     }
 
     func open(
-        _ url: URL,
-        for target: AgentTarget
+        _ request: DesktopOpenRequest
     ) async throws -> HandoffAcceptance {
-        desktopCalls.append(DesktopCall(url: url, target: target))
+        desktopCalls.append(DesktopCall(request: request))
         if let desktopError {
             throw desktopError
         }
@@ -627,8 +655,15 @@ private struct AvailabilityCall: Equatable, Sendable {
 }
 
 private struct DesktopCall: Equatable, Sendable {
-    let url: URL
-    let target: AgentTarget
+    let request: DesktopOpenRequest
+
+    var url: URL {
+        request.url
+    }
+
+    var target: AgentTarget {
+        request.target
+    }
 }
 
 private struct TerminalCall: Equatable, Sendable {
@@ -679,6 +714,16 @@ private let workflowHandoffCases = [
     ),
     WorkflowHandoffCase(
         target: .claudeCodeCLI,
+        terminalHost: .iTerm2,
+        placement: .newTab
+    ),
+    WorkflowHandoffCase(
+        target: .cursorApp,
+        terminalHost: .terminal,
+        placement: .newWindow
+    ),
+    WorkflowHandoffCase(
+        target: .cursorCLI,
         terminalHost: .iTerm2,
         placement: .newTab
     ),

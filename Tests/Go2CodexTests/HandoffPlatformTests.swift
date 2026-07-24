@@ -33,21 +33,32 @@ struct HandoffPlatformTests {
         testCase: DesktopSuccessCase
     ) async throws {
         let platform = DesktopHandoffPlatformStub()
-        platform.registration = DesktopHandlerRegistration(
+        let registration = DesktopHandlerRegistration(
             applicationURL: testCase.handlerURL,
             bundleIdentifier: testCase.bundleIdentifier
         )
+        switch testCase.request.applicationLookup {
+        case .urlHandler:
+            platform.urlHandlerRegistration = registration
+        case let .bundleIdentifier(bundleIdentifier):
+            platform.bundleIdentifierRegistrations[bundleIdentifier] =
+                registration
+        }
         let adapter = DesktopOpenAdapter(platform: platform)
 
-        let acceptance = try await adapter.open(
-            testCase.deepLink,
-            for: testCase.target
-        )
+        let acceptance = try await adapter.open(testCase.request)
 
         #expect(acceptance == .acceptedByLaunchServices)
-        #expect(platform.lookupURLs == [testCase.deepLink])
+        switch testCase.request.applicationLookup {
+        case .urlHandler:
+            #expect(platform.lookupURLs == [testCase.request.url])
+            #expect(platform.bundleIdentifierLookups.isEmpty)
+        case let .bundleIdentifier(bundleIdentifier):
+            #expect(platform.lookupURLs.isEmpty)
+            #expect(platform.bundleIdentifierLookups == [bundleIdentifier])
+        }
         #expect(platform.openCalls == [DesktopPlatformOpenCall(
-            url: testCase.deepLink,
+            url: testCase.request.url,
             applicationURL: testCase.handlerURL
         )])
     }
@@ -59,27 +70,76 @@ struct HandoffPlatformTests {
         let platform = DesktopHandoffPlatformStub()
         switch rejection {
         case .missing:
-            platform.registration = nil
+            platform.urlHandlerRegistration = nil
         case .wrongBundleIdentifier:
-            platform.registration = DesktopHandlerRegistration(
+            platform.urlHandlerRegistration = DesktopHandlerRegistration(
                 applicationURL: URL(fileURLWithPath: "/Applications/Wrong.app"),
                 bundleIdentifier: "example.wrong-handler"
             )
         case .nonFileURL:
-            platform.registration = DesktopHandlerRegistration(
+            platform.urlHandlerRegistration = DesktopHandlerRegistration(
                 applicationURL: URL(string: "https://example.invalid/Codex.app")!,
                 bundleIdentifier: "com.openai.codex"
             )
         }
         let adapter = DesktopOpenAdapter(platform: platform)
         let deepLink = URL(string: "codex://new?path=%2FUsers%2Fexample")!
+        let request = DesktopOpenRequest(
+            target: .codexApp,
+            url: deepLink,
+            applicationLookup: .urlHandler
+        )
 
         let error = await capturedDesktopError {
-            try await adapter.open(deepLink, for: .codexApp)
+            try await adapter.open(request)
         }
 
         #expect(error == .handlerUnavailable(.codexApp))
         #expect(platform.lookupURLs == [deepLink])
+        #expect(platform.bundleIdentifierLookups.isEmpty)
+        #expect(platform.openCalls.isEmpty)
+    }
+
+    @Test(arguments: DesktopHandlerRejection.allCases)
+    func cursorRejectsUnverifiedApplicationsWithoutSubmission(
+        rejection: DesktopHandlerRejection
+    ) async {
+        let bundleIdentifier = "com.todesktop.230313mzl4w4u92"
+        let platform = DesktopHandoffPlatformStub()
+        switch rejection {
+        case .missing:
+            break
+        case .wrongBundleIdentifier:
+            platform.bundleIdentifierRegistrations[bundleIdentifier] =
+                DesktopHandlerRegistration(
+                    applicationURL: URL(
+                        fileURLWithPath: "/Applications/Wrong.app"
+                    ),
+                    bundleIdentifier: "example.wrong-application"
+                )
+        case .nonFileURL:
+            platform.bundleIdentifierRegistrations[bundleIdentifier] =
+                DesktopHandlerRegistration(
+                    applicationURL: URL(
+                        string: "https://example.invalid/Cursor.app"
+                    )!,
+                    bundleIdentifier: bundleIdentifier
+                )
+        }
+        let request = DesktopOpenRequest(
+            target: .cursorApp,
+            url: URL(fileURLWithPath: "/Users/example/Project"),
+            applicationLookup: .bundleIdentifier(bundleIdentifier)
+        )
+        let adapter = DesktopOpenAdapter(platform: platform)
+
+        let error = await capturedDesktopError {
+            try await adapter.open(request)
+        }
+
+        #expect(error == .handlerUnavailable(.cursorApp))
+        #expect(platform.lookupURLs.isEmpty)
+        #expect(platform.bundleIdentifierLookups == [bundleIdentifier])
         #expect(platform.openCalls.isEmpty)
     }
 
@@ -88,15 +148,20 @@ struct HandoffPlatformTests {
         let platform = DesktopHandoffPlatformStub()
         let handlerURL = URL(fileURLWithPath: "/Applications/Codex.app")
         let deepLink = URL(string: "codex://new?path=%2FUsers%2Fexample")!
-        platform.registration = DesktopHandlerRegistration(
+        platform.urlHandlerRegistration = DesktopHandlerRegistration(
             applicationURL: handlerURL,
             bundleIdentifier: "com.openai.codex"
         )
         platform.openErrorCode = -10810
         let adapter = DesktopOpenAdapter(platform: platform)
+        let request = DesktopOpenRequest(
+            target: .codexApp,
+            url: deepLink,
+            applicationLookup: .urlHandler
+        )
 
         let error = await capturedDesktopError {
-            try await adapter.open(deepLink, for: .codexApp)
+            try await adapter.open(request)
         }
 
         #expect(error == .openFailed(code: -10810))
@@ -2167,7 +2232,7 @@ struct HandoffPlatformTests {
     }
 
     @Test(arguments: CLIExecutable.allCases)
-    func bothCLIExecutablesSupportEveryTerminalPlacement(
+    func allCLIExecutablesSupportEveryTerminalPlacement(
         executable: CLIExecutable
     ) async throws {
         let workspace = try Workspace(
@@ -2598,14 +2663,25 @@ struct HandoffPlatformTests {
 
 @MainActor
 private final class DesktopHandoffPlatformStub: DesktopHandoffPlatform {
-    var registration: DesktopHandlerRegistration?
+    var urlHandlerRegistration: DesktopHandlerRegistration?
+    var bundleIdentifierRegistrations: [
+        String: DesktopHandlerRegistration
+    ] = [:]
     var openErrorCode: Int?
     private(set) var lookupURLs: [URL] = []
+    private(set) var bundleIdentifierLookups: [String] = []
     private(set) var openCalls: [DesktopPlatformOpenCall] = []
 
     func handler(toOpen url: URL) -> DesktopHandlerRegistration? {
         lookupURLs.append(url)
-        return registration
+        return urlHandlerRegistration
+    }
+
+    func application(
+        withBundleIdentifier bundleIdentifier: String
+    ) -> DesktopHandlerRegistration? {
+        bundleIdentifierLookups.append(bundleIdentifier)
+        return bundleIdentifierRegistrations[bundleIdentifier]
     }
 
     func open(
@@ -2901,13 +2977,12 @@ private enum AppleEventOutcome {
 }
 
 struct DesktopSuccessCase: Sendable, CustomTestStringConvertible {
-    let target: AgentTarget
-    let deepLink: URL
+    let request: DesktopOpenRequest
     let handlerURL: URL
     let bundleIdentifier: String
 
     var testDescription: String {
-        target.rawValue
+        request.target.rawValue
     }
 }
 
@@ -2937,16 +3012,37 @@ struct TerminalStatusCase: Sendable, CustomTestStringConvertible {
 
 private let desktopSuccessCases = [
     DesktopSuccessCase(
-        target: .codexApp,
-        deepLink: URL(string: "codex://new?path=%2FUsers%2Fexample")!,
+        request: DesktopOpenRequest(
+            target: .codexApp,
+            url: URL(
+                string: "codex://new?path=%2FUsers%2Fexample"
+            )!,
+            applicationLookup: .urlHandler
+        ),
         handlerURL: URL(fileURLWithPath: "/Applications/Codex.app"),
         bundleIdentifier: "com.openai.codex"
     ),
     DesktopSuccessCase(
-        target: .claudeDesktopCode,
-        deepLink: URL(string: "claude://code/new?folder=%2FUsers%2Fexample")!,
+        request: DesktopOpenRequest(
+            target: .claudeDesktopCode,
+            url: URL(
+                string: "claude://code/new?folder=%2FUsers%2Fexample"
+            )!,
+            applicationLookup: .urlHandler
+        ),
         handlerURL: URL(fileURLWithPath: "/Applications/Claude.app"),
         bundleIdentifier: "com.anthropic.claudefordesktop"
+    ),
+    DesktopSuccessCase(
+        request: DesktopOpenRequest(
+            target: .cursorApp,
+            url: URL(fileURLWithPath: "/Users/example/Project"),
+            applicationLookup: .bundleIdentifier(
+                "com.todesktop.230313mzl4w4u92"
+            )
+        ),
+        handlerURL: URL(fileURLWithPath: "/Applications/Cursor.app"),
+        bundleIdentifier: "com.todesktop.230313mzl4w4u92"
     ),
 ]
 

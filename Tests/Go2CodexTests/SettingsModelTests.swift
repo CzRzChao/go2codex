@@ -101,6 +101,7 @@ struct SettingsModelTests {
                 .init(results: [
                     .available,
                     .missing,
+                    .unknown(.invalidResult),
                 ]),
             ]
         )
@@ -113,6 +114,7 @@ struct SettingsModelTests {
 
         #expect(model.cliStatus(for: .codex) == .available)
         #expect(model.cliStatus(for: .claude) == .missing)
+        #expect(model.cliStatus(for: .cursorAgent) == .couldNotVerify)
         #expect(await probe.requests() == [CLIExecutable.allCases])
     }
 
@@ -124,6 +126,7 @@ struct SettingsModelTests {
                 .init(results: [
                     .unknown(.timedOut),
                     .missing,
+                    .missing,
                 ]),
             ]
         )
@@ -133,17 +136,18 @@ struct SettingsModelTests {
         )
 
         await model.loadIfNeeded()
-        model.selectDefaultTarget(.claudeCodeCLI)
+        model.selectDefaultTarget(.cursorCLI)
         model.selectDefaultTerminalHost(.terminal)
 
         #expect(model.cliStatus(for: .codex) == .couldNotVerify)
         #expect(model.cliStatus(for: .claude) == .missing)
+        #expect(model.cliStatus(for: .cursorAgent) == .missing)
         #expect(model.canCompleteFirstRun)
 
         await model.completeFirstRunAndInstall()
 
         #expect(model.phase == .configured)
-        #expect(preferences.completedSelections.first?.defaultTarget == .claudeCodeCLI)
+        #expect(preferences.completedSelections.first?.defaultTarget == .cursorCLI)
     }
 
     @Test
@@ -162,6 +166,7 @@ struct SettingsModelTests {
 
         #expect(model.cliStatus(for: .codex) == .couldNotVerify)
         #expect(model.cliStatus(for: .claude) == .couldNotVerify)
+        #expect(model.cliStatus(for: .cursorAgent) == .couldNotVerify)
     }
 
     @Test
@@ -184,21 +189,23 @@ struct SettingsModelTests {
         await probe.waitForCancellationCount(1)
         await probe.resumeRequest(
             1,
-            with: [.missing, .available]
+            with: [.missing, .available, .unknown(.invalidResult)]
         )
         await newerRefresh.value
 
         #expect(model.cliStatus(for: .codex) == .missing)
         #expect(model.cliStatus(for: .claude) == .available)
+        #expect(model.cliStatus(for: .cursorAgent) == .couldNotVerify)
 
         await probe.resumeRequest(
             0,
-            with: [.available, .missing]
+            with: [.available, .missing, .available]
         )
         await olderRefresh.value
 
         #expect(model.cliStatus(for: .codex) == .missing)
         #expect(model.cliStatus(for: .claude) == .available)
+        #expect(model.cliStatus(for: .cursorAgent) == .couldNotVerify)
         #expect(await probe.requests() == [
             CLIExecutable.allCases,
             CLIExecutable.allCases,
@@ -222,12 +229,13 @@ struct SettingsModelTests {
         await probe.waitForCancellationCount(1)
         await probe.resumeRequest(
             0,
-            with: [.available, .available]
+            with: [.available, .available, .available]
         )
         await refresh.value
 
         #expect(model.cliStatus(for: .codex) == .couldNotVerify)
         #expect(model.cliStatus(for: .claude) == .couldNotVerify)
+        #expect(model.cliStatus(for: .cursorAgent) == .couldNotVerify)
     }
 
     @Test

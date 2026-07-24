@@ -31,6 +31,9 @@ struct DesktopHandlerRegistration: Equatable {
 @MainActor
 protocol DesktopHandoffPlatform {
     func handler(toOpen url: URL) -> DesktopHandlerRegistration?
+    func application(
+        withBundleIdentifier bundleIdentifier: String
+    ) -> DesktopHandlerRegistration?
     func open(
         _ url: URL,
         withApplicationAt applicationURL: URL
@@ -42,6 +45,20 @@ struct WorkspaceDesktopHandoffPlatform: DesktopHandoffPlatform {
     func handler(toOpen url: URL) -> DesktopHandlerRegistration? {
         guard let applicationURL = NSWorkspace.shared.urlForApplication(
             toOpen: url
+        ) else {
+            return nil
+        }
+        return DesktopHandlerRegistration(
+            applicationURL: applicationURL,
+            bundleIdentifier: Bundle(url: applicationURL)?.bundleIdentifier
+        )
+    }
+
+    func application(
+        withBundleIdentifier bundleIdentifier: String
+    ) -> DesktopHandlerRegistration? {
+        guard let applicationURL = NSWorkspace.shared.urlForApplication(
+            withBundleIdentifier: bundleIdentifier
         ) else {
             return nil
         }
@@ -83,21 +100,28 @@ struct DesktopOpenAdapter: DesktopHandoffPerforming {
         self.platform = platform
     }
 
-    func open(
-        _ url: URL,
-        for target: AgentTarget
-    ) async throws -> HandoffAcceptance {
-        guard let handler = platform.handler(toOpen: url),
+    func open(_ request: DesktopOpenRequest) async throws -> HandoffAcceptance {
+        let handler: DesktopHandlerRegistration?
+        switch request.applicationLookup {
+        case .urlHandler:
+            handler = platform.handler(toOpen: request.url)
+        case let .bundleIdentifier(bundleIdentifier):
+            handler = platform.application(
+                withBundleIdentifier: bundleIdentifier
+            )
+        }
+
+        guard let handler,
               let verifiedHandler = DesktopTargetHandlerPolicy.verify(
-                  target: target,
+                  target: request.target,
                   applicationURL: handler.applicationURL,
                   handlerBundleIdentifier: handler.bundleIdentifier
               ) else {
-            throw DesktopHandoffError.handlerUnavailable(target)
+            throw DesktopHandoffError.handlerUnavailable(request.target)
         }
 
         if let errorCode = await platform.open(
-            url,
+            request.url,
             withApplicationAt: verifiedHandler.applicationURL
         ) {
             throw DesktopHandoffError.openFailed(code: errorCode)
