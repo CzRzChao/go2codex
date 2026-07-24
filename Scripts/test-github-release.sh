@@ -16,6 +16,9 @@ contributing_guide="$project_dir/CONTRIBUTING.md"
 release_guide="$project_dir/docs/RELEASING.md"
 english_screenshot="$project_dir/docs/assets/settings-en.png"
 chinese_screenshot="$project_dir/docs/assets/settings-zh-CN.png"
+showcase_finder_screenshot="$project_dir/docs/assets/showcase-finder-toolbar.png"
+showcase_picker_screenshot="$project_dir/docs/assets/showcase-target-picker.png"
+showcase_workspace_screenshot="$project_dir/docs/assets/showcase-workspace-open.png"
 test_count=0
 
 pass() {
@@ -199,6 +202,17 @@ png_signature() {
         | /usr/bin/tr -d '[:space:]'
 }
 
+assert_png_asset() {
+    local asset="$1"
+    local label="$2"
+    [[ -f "$asset" && -s "$asset" && ! -L "$asset" ]] \
+        || fail "$label is missing or unsafe"
+    pass
+    [[ "$(png_signature "$asset")" == "89504e470d0a1a0a" ]] \
+        || fail "$label is not a PNG"
+    pass
+}
+
 marketing_version="$(/usr/bin/awk -F= '
     $1 ~ /^[[:space:]]*MARKETING_VERSION[[:space:]]*$/ {
         value=$2
@@ -249,6 +263,7 @@ expected_stable_assets="$(/usr/bin/printf '%s\n%s\n' \
     | /usr/bin/sort -u)"
 expected_readme_sections="$(/usr/bin/printf '%s\n' \
     overview \
+    see-it-in-action \
     quick-start \
     requirements \
     download-and-gatekeeper \
@@ -261,7 +276,7 @@ expected_readme_sections="$(/usr/bin/printf '%s\n' \
     license)"
 expected_readme_heading_levels="$(/usr/bin/printf '%s\n' \
     1 \
-    2 2 2 3 3 \
+    2 2 2 2 3 3 \
     2 3 3 \
     2 3 3 \
     2 \
@@ -286,6 +301,54 @@ assert_count "$chinese_readme" \
     'src="docs/assets/settings-zh-CN.png"' \
     1 \
     "Chinese README screenshot link"
+assert_count "$english_readme" \
+    'src="docs/assets/showcase-finder-toolbar.png"' \
+    1 \
+    "English README Finder showcase link"
+assert_count "$chinese_readme" \
+    'src="docs/assets/showcase-finder-toolbar.png"' \
+    1 \
+    "Chinese README Finder showcase link"
+assert_count "$english_readme" \
+    'src="docs/assets/showcase-target-picker.png"' \
+    1 \
+    "English README target-picker showcase link"
+assert_count "$chinese_readme" \
+    'src="docs/assets/showcase-target-picker.png"' \
+    1 \
+    "Chinese README target-picker showcase link"
+assert_count "$english_readme" \
+    'src="docs/assets/showcase-workspace-open.png"' \
+    1 \
+    "English README workspace showcase link"
+assert_count "$chinese_readme" \
+    'src="docs/assets/showcase-workspace-open.png"' \
+    1 \
+    "Chinese README workspace showcase link"
+assert_count "$english_readme" \
+    'href="docs/assets/showcase-finder-toolbar.png"' \
+    1 \
+    "English README Finder showcase full-size link"
+assert_count "$chinese_readme" \
+    'href="docs/assets/showcase-finder-toolbar.png"' \
+    1 \
+    "Chinese README Finder showcase full-size link"
+assert_count "$english_readme" \
+    'href="docs/assets/showcase-target-picker.png"' \
+    1 \
+    "English README target-picker showcase full-size link"
+assert_count "$chinese_readme" \
+    'href="docs/assets/showcase-target-picker.png"' \
+    1 \
+    "Chinese README target-picker showcase full-size link"
+assert_count "$english_readme" \
+    'href="docs/assets/showcase-workspace-open.png"' \
+    1 \
+    "English README workspace showcase full-size link"
+assert_count "$chinese_readme" \
+    'href="docs/assets/showcase-workspace-open.png"' \
+    1 \
+    "Chinese README workspace showcase full-size link"
 assert_count "$english_readme" \
     'PUBLISHED_STABLE_VERSION' \
     0 \
@@ -380,18 +443,11 @@ assert_contains "$release_guide" \
     "release guide published stable lifecycle"
 validate_markdown_shell_blocks "$release_guide" "Release guide"
 pass
-[[ -f "$english_screenshot" && -s "$english_screenshot" && ! -L "$english_screenshot" ]] \
-    || fail "English README screenshot is missing or unsafe"
-pass
-[[ "$(png_signature "$english_screenshot")" == "89504e470d0a1a0a" ]] \
-    || fail "English README screenshot is not a PNG"
-pass
-[[ -f "$chinese_screenshot" && -s "$chinese_screenshot" && ! -L "$chinese_screenshot" ]] \
-    || fail "Chinese README screenshot is missing or unsafe"
-pass
-[[ "$(png_signature "$chinese_screenshot")" == "89504e470d0a1a0a" ]] \
-    || fail "Chinese README screenshot is not a PNG"
-pass
+assert_png_asset "$english_screenshot" "English README screenshot"
+assert_png_asset "$chinese_screenshot" "Chinese README screenshot"
+assert_png_asset "$showcase_finder_screenshot" "Finder showcase screenshot"
+assert_png_asset "$showcase_picker_screenshot" "Target-picker showcase screenshot"
+assert_png_asset "$showcase_workspace_screenshot" "Workspace showcase screenshot"
 
 tag="v${marketing_version}-preview.${build_version}"
 expected_contract="$(/usr/bin/printf \
