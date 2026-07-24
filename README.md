@@ -13,9 +13,30 @@ Go2Codex adds one button to the Finder toolbar. It passes the exact folder shown
 > [!WARNING]
 > The current public build is ad-hoc signed, not Developer ID signed, and not notarized. A browser-downloaded copy is normally blocked by Gatekeeper on first launch. The GitHub release being marked Stable does not change its Apple signing status.
 
-<p align="center">
-  <img src="docs/assets/settings-en.png" alt="Go2Codex settings in English" width="640">
-</p>
+<!-- readme-section: see-it-in-action -->
+
+## See it in action
+
+These screenshots use the same disposable demo folder from Finder through launch. Select any image to view it at full size.
+
+<table>
+  <tr>
+    <td width="33%">
+      <a href="docs/assets/showcase-finder-toolbar.png"><img src="docs/assets/showcase-finder-toolbar.png" alt="Go2Codex button in the Finder toolbar"></a>
+    </td>
+    <td width="33%">
+      <a href="docs/assets/showcase-target-picker.png"><img src="docs/assets/showcase-target-picker.png" alt="Go2Codex target picker"></a>
+    </td>
+    <td width="33%">
+      <a href="docs/assets/showcase-workspace-open.png"><img src="docs/assets/showcase-workspace-open.png" alt="Codex CLI opened in the Finder folder"></a>
+    </td>
+  </tr>
+  <tr>
+    <td><strong>Click from Finder.</strong><br>Open a folder and click the Go2Codex toolbar button.</td>
+    <td><strong>Choose only when needed.</strong><br>Shift-click to select any available target for this launch.</td>
+    <td><strong>Keep working.</strong><br>The same folder opens in the selected desktop app or CLI.</td>
+  </tr>
+</table>
 
 <!-- readme-section: quick-start -->
 
@@ -114,6 +135,10 @@ Manual setup lets Finder save its own toolbar change, does not restart Finder, a
 <!-- readme-section: targets-and-terminal -->
 
 ## Targets and terminal configuration
+
+<p align="center">
+  <img src="docs/assets/settings-en.png" alt="Go2Codex settings in English" width="640">
+</p>
 
 | Target | What Go2Codex opens | Terminal |
 | --- | --- | --- |
