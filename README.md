@@ -8,7 +8,7 @@ Open the folder shown in Finder in Codex, Claude, or Cursor with one toolbar cli
 
 Go2Codex adds one button to the Finder toolbar. It passes the exact folder shown by the frontmost Finder window to Codex App, Codex CLI, Claude Desktop, Claude Code CLI, Cursor, or Cursor CLI. The public package contains one top-level `Go2Codex.app`; its Finder Launcher is embedded inside that app.
 
-[Download the latest stable release](https://github.com/CzRzChao/go2codex/releases/tag/v0.1.1) · [All releases](https://github.com/CzRzChao/go2codex/releases) · [Security policy](SECURITY.md)
+[Download the latest stable release](https://github.com/CzRzChao/go2codex/releases/tag/v0.2.0) · [All releases](https://github.com/CzRzChao/go2codex/releases) · [Security policy](SECURITY.md)
 
 > [!WARNING]
 > The current public build is ad-hoc signed, not Developer ID signed, and not notarized. A browser-downloaded copy is normally blocked by Gatekeeper on first launch. The GitHub release being marked Stable does not change its Apple signing status.
@@ -43,7 +43,7 @@ These screenshots use the same disposable demo folder from Finder through launch
 ## Quick start
 
 1. Confirm that your Mac meets the [requirements](#requirements).
-2. Download the ZIP and checksum from [the current stable release](https://github.com/CzRzChao/go2codex/releases/tag/v0.1.1), then [verify the download](#download-and-verify).
+2. Download the ZIP and checksum from [the current stable release](https://github.com/CzRzChao/go2codex/releases/tag/v0.2.0), then [verify the download](#download-and-verify).
 3. Move `Go2Codex.app` to `/Applications` or `~/Applications` and open it. If macOS blocks it, follow the [Gatekeeper steps](#first-launch-through-gatekeeper).
 4. Choose a Default Target, Default Terminal Host, and whether CLI sessions should use a New Tab or New Window. If iTerm2 is not installed, choose Terminal.
 5. Choose **Complete Setup and Install in Finder**. If automatic setup is unavailable, choose **Complete Setup and Show Manual Setup** and follow the Command-drag instructions.
@@ -70,15 +70,15 @@ Go2Codex does not install or bundle Codex, Claude, Cursor, their CLIs, or iTerm2
 
 ### Download and verify
 
-Download the ZIP and its checksum file from [the current stable GitHub Release](https://github.com/CzRzChao/go2codex/releases/tag/v0.1.1) into the same directory:
+Download the ZIP and its checksum file from [the current stable GitHub Release](https://github.com/CzRzChao/go2codex/releases/tag/v0.2.0) into the same directory:
 
-- `Go2Codex-0.1.1-macos-arm64.zip`
-- `Go2Codex-0.1.1-macos-arm64.zip.sha256`
+- `Go2Codex-0.2.0-macos-arm64.zip`
+- `Go2Codex-0.2.0-macos-arm64.zip.sha256`
 
 Verify before extracting:
 
 ```sh
-shasum -a 256 -c Go2Codex-0.1.1-macos-arm64.zip.sha256
+shasum -a 256 -c Go2Codex-0.2.0-macos-arm64.zip.sha256
 ```
 
 Continue only if the command reports `OK` and you trust this repository. Preview releases are optional early-testing builds and do not replace the stable release.
